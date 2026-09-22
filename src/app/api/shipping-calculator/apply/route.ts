@@ -22,13 +22,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Quãng đường phải lớn hơn 0 km." }, { status: 400 });
     }
 
-    const [order, persistedRates, persistedMappings] = await Promise.all([
+    const [order, persistedRates, persistedMappings, itemMasters] = await Promise.all([
       prisma.salesOrder.findUnique({
         where: { id: orderId },
         include: { items: { orderBy: { lineNo: "asc" }, include: { details: true } } },
       }),
       prisma.shippingRate.findMany({ where: { active: true } }),
       prisma.shippingModelMapping.findMany({ where: { active: true } }),
+      prisma.itemMaster.findMany({
+        where: { active: true },
+        select: { code: true, name: true },
+      }),
     ]);
     if (!order) return NextResponse.json({ ok: false, error: "Không tìm thấy đơn hàng." }, { status: 404 });
 
@@ -47,6 +51,16 @@ export async function POST(request: Request) {
         }))
       : DEFAULT_SHIPPING_RATES;
 
+    const tenhangByCode = new Map<string, string>();
+    const tenhangByName = new Map<string, string>();
+    for (const item of itemMasters) {
+      const name = item.name.trim();
+      if (!name) continue;
+      tenhangByCode.set(normalizeKey(item.code), name);
+      const nameKey = normalizeKey(name);
+      if (!tenhangByName.has(nameKey)) tenhangByName.set(nameKey, name);
+    }
+
     const calculation = calculateShipping({
       items: order.items.map((item) => ({
         lineNo: item.lineNo,
@@ -54,6 +68,7 @@ export async function POST(request: Request) {
         productName: item.productName,
         productCode: item.productCode,
         model: item.model,
+        tenhang: resolveTenhang(item, tenhangByCode, tenhangByName),
         quantity: item.quantity,
       })),
       rates,
@@ -65,8 +80,8 @@ export async function POST(request: Request) {
 
     if (calculation.missingRateCount > 0) {
       const error = calculation.missingMappingCount > 0
-        ? "Còn Model đơn hàng chưa được cấu hình Model vận chuyển. Vui lòng vào tab Cấu hình Model vận chuyển để ánh xạ trước khi áp dụng."
-        : "Còn Model chưa có bảng giá cước. Vui lòng bổ sung bảng tiêu chuẩn trước khi áp dụng.";
+        ? "Còn TENHANG chưa được cấu hình vận chuyển. Vui lòng vào tab Cấu hình TENHANG vận chuyển để ánh xạ trước khi áp dụng."
+        : "Còn Model tính cước chưa có bảng giá. Vui lòng bổ sung bảng tiêu chuẩn trước khi áp dụng.";
       return NextResponse.json({ ok: false, error }, { status: 400 });
     }
 
@@ -154,4 +169,23 @@ function nonNegative(value: unknown) {
 }
 function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+
+function resolveTenhang(
+  item: { productCode: string | null; model: string | null; productName: string | null },
+  tenhangByCode: Map<string, string>,
+  tenhangByName: Map<string, string>,
+) {
+  const byProductCode = tenhangByCode.get(normalizeKey(item.productCode));
+  if (byProductCode) return byProductCode;
+
+  const byModel = tenhangByCode.get(normalizeKey(item.model));
+  if (byModel) return byModel;
+
+  return tenhangByName.get(normalizeKey(item.productName)) ?? null;
+}
+
+function normalizeKey(value: unknown) {
+  return String(value ?? "").trim().toUpperCase().replace(/\s+/g, " ");
 }

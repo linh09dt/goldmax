@@ -23,7 +23,7 @@ export async function POST(request: Request) {
       .map((raw) => {
         const source = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
         return {
-          sourceModel: text(source.sourceModel).toUpperCase(),
+          sourceModel: text(source.sourceModel),
           shippingModelCode: text(source.shippingModelCode).toUpperCase(),
           note: optionalText(source.note),
           active: source.active !== false,
@@ -34,20 +34,21 @@ export async function POST(request: Request) {
     const incomplete = rows.find((row) => !row.sourceModel || !row.shippingModelCode);
     if (incomplete) {
       return NextResponse.json(
-        { ok: false, error: "Mỗi cấu hình phải có Model đơn hàng và Model tính cước." },
+        { ok: false, error: "Mỗi cấu hình phải có TENHANG và Model tính cước." },
         { status: 400 },
       );
     }
 
     const uniqueSources = new Set<string>();
     for (const row of rows) {
-      if (uniqueSources.has(row.sourceModel)) {
+      const sourceKey = normalizeText(row.sourceModel);
+      if (uniqueSources.has(sourceKey)) {
         return NextResponse.json(
-          { ok: false, error: `Model đơn hàng ${row.sourceModel} đang bị cấu hình trùng.` },
+          { ok: false, error: `TENHANG ${row.sourceModel} đang bị cấu hình trùng.` },
           { status: 400 },
         );
       }
-      uniqueSources.add(row.sourceModel);
+      uniqueSources.add(sourceKey);
     }
 
     await prisma.$transaction(async (tx) => {
@@ -75,7 +76,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Save shipping model mappings failed:", error);
     return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Không thể lưu cấu hình Model vận chuyển." },
+      { ok: false, error: error instanceof Error ? error.message : "Không thể lưu cấu hình TENHANG vận chuyển." },
       { status: 400 },
     );
   }
@@ -88,4 +89,8 @@ function text(value: unknown) {
 function optionalText(value: unknown) {
   const valueText = text(value);
   return valueText || null;
+}
+
+function normalizeText(value: unknown) {
+  return String(value ?? "").trim().toUpperCase().replace(/\s+/g, " ");
 }

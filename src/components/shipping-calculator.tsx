@@ -29,6 +29,7 @@ type OrderRow = {
     productName: string | null;
     productCode: string | null;
     model: string | null;
+    tenhang: string | null;
     quantity: number | null;
   }>;
 };
@@ -38,11 +39,12 @@ type Props = {
   initialRates: ShippingRateRow[];
   ratesPersisted: boolean;
   initialMappings: ShippingModelMappingRow[];
+  knownTenhangs: string[];
 };
 
 type Tab = "calculator" | "mappings" | "rates";
 
-export function ShippingCalculator({ orders, initialRates, ratesPersisted, initialMappings }: Props) {
+export function ShippingCalculator({ orders, initialRates, ratesPersisted, initialMappings, knownTenhangs }: Props) {
   const [tab, setTab] = useState<Tab>("calculator");
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(orders[0]?.id ?? null);
   const selectedOrder = useMemo(() => orders.find((row) => row.id === selectedOrderId) ?? null, [orders, selectedOrderId]);
@@ -75,17 +77,6 @@ export function ShippingCalculator({ orders, initialRates, ratesPersisted, initi
     }
     return Array.from(byCode.entries()).map(([code, name]) => ({ code, name }));
   }, [rates]);
-
-  const knownOrderModels = useMemo(() => {
-    const values = new Set<string>();
-    for (const order of orders) {
-      for (const item of order.items) {
-        const value = String(item.model || item.productCode || "").trim();
-        if (value) values.add(value);
-      }
-    }
-    return Array.from(values).sort((a, b) => a.localeCompare(b, "vi"));
-  }, [orders]);
 
   function changeOrder(value: string) {
     const id = Number(value);
@@ -130,11 +121,11 @@ export function ShippingCalculator({ orders, initialRates, ratesPersisted, initi
         body: JSON.stringify({ rows: mappings }),
       });
       const data = await response.json();
-      if (!response.ok || !data.ok) throw new Error(data.error || "Không thể lưu cấu hình Model vận chuyển.");
+      if (!response.ok || !data.ok) throw new Error(data.error || "Không thể lưu cấu hình TENHANG vận chuyển.");
       setMappings(data.rows);
-      setNotice("Đã lưu cấu hình Model vận chuyển. Kết quả tính cước đã cập nhật theo mapping mới.");
+      setNotice("Đã lưu cấu hình TENHANG vận chuyển. Kết quả tính cước đã cập nhật theo TENHANG từ Danh mục hàng hóa.");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Không thể lưu cấu hình Model vận chuyển.");
+      setNotice(error instanceof Error ? error.message : "Không thể lưu cấu hình TENHANG vận chuyển.");
     } finally {
       setSaving(false);
     }
@@ -144,7 +135,7 @@ export function ShippingCalculator({ orders, initialRates, ratesPersisted, initi
     if (!selectedOrder || !calculation) return;
     if (calculation.missingRateCount > 0) {
       setNotice(calculation.missingMappingCount > 0
-        ? "Còn Model đơn hàng chưa được ánh xạ. Vào tab Cấu hình Model vận chuyển để chọn Model tính cước."
+        ? "Còn TENHANG chưa được ánh xạ. Vào tab Cấu hình TENHANG vận chuyển để chọn Model tính cước."
         : "Còn Model chưa có bảng giá. Vui lòng bổ sung trước khi áp dụng vào đơn hàng.");
       return;
     }
@@ -180,7 +171,7 @@ export function ShippingCalculator({ orders, initialRates, ratesPersisted, initi
     <div className="space-y-6">
       <div className="flex flex-wrap gap-2 border-b border-slate-300">
         <TabButton active={tab === "calculator"} onClick={() => setTab("calculator")}>Tính cước theo đơn hàng</TabButton>
-        <TabButton active={tab === "mappings"} onClick={() => setTab("mappings")}>Cấu hình Model vận chuyển</TabButton>
+        <TabButton active={tab === "mappings"} onClick={() => setTab("mappings")}>Cấu hình TENHANG vận chuyển</TabButton>
         <TabButton active={tab === "rates"} onClick={() => setTab("rates")}>Bảng tiêu chuẩn cước</TabButton>
       </div>
 
@@ -223,21 +214,21 @@ export function ShippingCalculator({ orders, initialRates, ratesPersisted, initi
             <>
               <section className="erp-card">
                 <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
-                  <h2 className="font-bold">Chi tiết cước theo Model</h2>
+                  <h2 className="font-bold">Chi tiết cước theo TENHANG / Model</h2>
                 </div>
                 <div className="erp-scrollbar overflow-x-auto">
                   <table className="min-w-[1250px] text-sm">
                     <thead className="bg-slate-900 text-left text-xs uppercase tracking-wide text-slate-200">
                       <tr>
-                        <Th>Model đơn hàng</Th><Th>Model tính cước</Th><Th>Mô tả</Th><Th>Số bộ</Th><Th>Mức đối chiếu</Th><Th>Khung giá</Th><Th>Đơn giá chuẩn/bộ</Th><Th>Cước toàn tuyến</Th><Th>NM hỗ trợ</Th><Th>Thu khách hàng</Th><Th>Dòng đơn hàng</Th><Th>Kiểm tra</Th>
+                        <Th>TENHANG</Th><Th>Model tính cước</Th><Th>Mô tả</Th><Th>Số bộ</Th><Th>Mức đối chiếu</Th><Th>Khung giá</Th><Th>Đơn giá chuẩn/bộ</Th><Th>Cước toàn tuyến</Th><Th>NM hỗ trợ</Th><Th>Thu khách hàng</Th><Th>Dòng đơn hàng</Th><Th>Kiểm tra</Th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 bg-white">
                       {calculation.lines.length ? calculation.lines.map((row, index) => (
                         <tr key={`${row.modelCode}-${index}`} className={row.missingRate ? "bg-red-50" : "hover:bg-cyan-50/50"}>
-                          <Td strong>{row.sourceModels.join(", ")}</Td><Td strong>{row.modelCode}</Td><Td>{row.modelName}</Td><Td>{row.quantity}</Td><Td>{row.quantityTier === 1 ? "1 bộ" : "2 bộ trở lên"}</Td><Td>{row.bandLabel}</Td>
+                          <Td strong>{row.sourceTenhangs.join(", ")}</Td><Td strong>{row.modelCode}</Td><Td>{row.modelName}</Td><Td>{row.quantity}</Td><Td>{row.quantityTier === 1 ? "1 bộ" : "2 bộ trở lên"}</Td><Td>{row.bandLabel}</Td>
                           <Td>{money(row.baseRatePerSet)}</Td><Td>{money(row.fullRouteFreight)}</Td><Td>{money(row.factorySupport)}</Td><Td strong>{money(row.customerFreight)}</Td><Td>{row.sourceLines.join(", ")}</Td>
-                          <Td>{row.issue === "MISSING_MODEL_MAPPING" ? <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">Chưa cấu hình Model</span> : row.missingRate ? <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-semibold text-red-700">Thiếu bảng giá</span> : <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">OK</span>}</Td>
+                          <Td>{row.issue === "MISSING_TENHANG_MAPPING" ? <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">Chưa cấu hình TENHANG</span> : row.missingRate ? <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-semibold text-red-700">Thiếu bảng giá</span> : <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">OK</span>}</Td>
                         </tr>
                       )) : <tr><td colSpan={12} className="px-4 py-10 text-center text-slate-500">Đơn hàng chưa có bộ cửa có số lượng để tính.</td></tr>}
                     </tbody>
@@ -262,31 +253,28 @@ export function ShippingCalculator({ orders, initialRates, ratesPersisted, initi
         <section className="erp-card">
           <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="font-bold">Cấu hình Model vận chuyển</h2>
-              <p className="mt-1 text-sm text-slate-600">Ánh xạ Model thực tế trong đơn hàng sang Model dùng để lấy bảng giá vận chuyển. Một Model đơn hàng chỉ ánh xạ tới một Model tính cước.</p>
+              <h2 className="font-bold">Cấu hình TENHANG vận chuyển</h2>
+              <p className="mt-1 text-sm text-slate-600">Ánh xạ TENHANG trong Danh mục hàng hóa sang Model dùng để lấy bảng giá vận chuyển. Đơn hàng sẽ tra MODEL của dòng hàng về TENHANG trong Danh mục hàng hóa, sau đó lấy đúng Model tính cước đã cấu hình.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <button className="erp-button-secondary" type="button" onClick={() => setMappings((current) => [...current, { sourceModel: "", shippingModelCode: rateModelOptions[0]?.code ?? "", note: "", active: true }])}>+ Thêm cấu hình</button>
-              <button className="erp-button" type="button" onClick={saveMappings} disabled={saving}>{saving ? "Đang lưu..." : "Lưu cấu hình Model"}</button>
+              <button className="erp-button" type="button" onClick={saveMappings} disabled={saving}>{saving ? "Đang lưu..." : "Lưu cấu hình TENHANG"}</button>
             </div>
           </div>
           <div className="border-b border-cyan-200 bg-cyan-50 px-5 py-3 text-sm text-cyan-900">
-            Logic: ưu tiên mapping ở đây → nếu Model đơn hàng trùng trực tiếp Mã Model trong bảng cước thì dùng trực tiếp → fallback nhận diện tiền tố từ mã hàng như logic cũ.
+            Logic: MODEL trên đơn hàng → tra Danh mục hàng hóa để lấy TENHANG → TENHANG được ánh xạ sang Model tính cước ở đây. Không còn tính theo Model đơn hàng hoặc tiền tố mã hàng.
           </div>
-          <datalist id="shipping-known-order-models">
-            {knownOrderModels.map((model) => <option key={model} value={model} />)}
-          </datalist>
           <div className="erp-scrollbar overflow-x-auto">
             <table className="min-w-[1000px] text-sm">
               <thead className="bg-slate-900 text-left text-xs uppercase tracking-wide text-slate-200">
-                <tr><Th>Model đơn hàng</Th><Th>Model tính cước</Th><Th>Mô tả Model tính cước</Th><Th>Ghi chú</Th><Th>Trạng thái</Th><Th>Xóa</Th></tr>
+                <tr><Th>TENHANG</Th><Th>Model tính cước</Th><Th>Mô tả Model tính cước</Th><Th>Ghi chú</Th><Th>Trạng thái</Th><Th>Xóa</Th></tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white">
                 {mappings.length ? mappings.map((row, index) => {
                   const target = rateModelOptions.find((item) => item.code === String(row.shippingModelCode || "").trim().toUpperCase());
                   return (
                     <tr key={row.id ?? `mapping-${index}`}>
-                      <td className="border border-slate-200 px-2 py-2"><input list="shipping-known-order-models" className="erp-input min-w-[220px]" value={row.sourceModel} onChange={(event) => updateMapping(index, "sourceModel", event.target.value.toUpperCase(), setMappings)} placeholder="Model trong đơn hàng" /></td>
+                      <td className="border border-slate-200 px-2 py-2"><select className="erp-input min-w-[260px]" value={row.sourceModel} onChange={(event) => updateMapping(index, "sourceModel", event.target.value, setMappings)}><option value="">Chọn TENHANG</option>{row.sourceModel && !knownTenhangs.includes(row.sourceModel) ? <option value={row.sourceModel}>{row.sourceModel} (cấu hình cũ)</option> : null}{knownTenhangs.map((name) => <option key={name} value={name}>{name}</option>)}</select></td>
                       <td className="border border-slate-200 px-2 py-2"><select className="erp-input min-w-[180px]" value={row.shippingModelCode} onChange={(event) => updateMapping(index, "shippingModelCode", event.target.value, setMappings)}><option value="">Chọn Model tính cước</option>{rateModelOptions.map((item) => <option key={item.code} value={item.code}>{item.code}</option>)}</select></td>
                       <Td>{target?.name ?? "—"}</Td>
                       <td className="border border-slate-200 px-2 py-2"><input className="erp-input min-w-[260px]" value={row.note ?? ""} onChange={(event) => updateMapping(index, "note", event.target.value, setMappings)} placeholder="Ghi chú tùy chọn" /></td>
@@ -294,7 +282,7 @@ export function ShippingCalculator({ orders, initialRates, ratesPersisted, initi
                       <td className="border border-slate-200 px-2 py-2 text-center"><button type="button" className="text-sm font-semibold text-red-600 hover:text-red-800" onClick={() => setMappings((current) => current.filter((_, rowIndex) => rowIndex !== index))}>Xóa</button></td>
                     </tr>
                   );
-                }) : <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-500">Chưa có mapping. Bấm “+ Thêm cấu hình” để ánh xạ Model đơn hàng sang Model tính cước.</td></tr>}
+                }) : <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-500">Chưa có mapping. Bấm “+ Thêm cấu hình” để ánh xạ TENHANG sang Model tính cước.</td></tr>}
               </tbody>
             </table>
           </div>
