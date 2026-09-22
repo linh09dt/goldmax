@@ -80,7 +80,7 @@ export async function POST(request: Request) {
 
     if (calculation.missingRateCount > 0) {
       const error = calculation.missingMappingCount > 0
-        ? "Còn TENHANG chưa được cấu hình vận chuyển. Vui lòng vào tab Cấu hình TENHANG vận chuyển để ánh xạ trước khi áp dụng."
+        ? "Còn TENHANG chưa được cấu hình vận chuyển."
         : "Còn Model tính cước chưa có bảng giá. Vui lòng bổ sung bảng tiêu chuẩn trước khi áp dụng.";
       return NextResponse.json({ ok: false, error }, { status: 400 });
     }

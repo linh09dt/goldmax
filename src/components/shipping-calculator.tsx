@@ -141,11 +141,11 @@ export function ShippingCalculator({ orders, initialRates, ratesPersisted, initi
         body: JSON.stringify({ rows: mappings }),
       });
       const data = await response.json();
-      if (!response.ok || !data.ok) throw new Error(data.error || "Không thể lưu cấu hình TENHANG vận chuyển.");
+      if (!response.ok || !data.ok) throw new Error(data.error || "Không thể lưu cấu hình.");
       setMappings(data.rows);
-      setNotice("Đã lưu cấu hình TENHANG vận chuyển. Kết quả tính cước đã cập nhật theo TENHANG từ Danh mục hàng hóa.");
+      setNotice("Đã lưu cấu hình.");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Không thể lưu cấu hình TENHANG vận chuyển.");
+      setNotice(error instanceof Error ? error.message : "Không thể lưu cấu hình.");
     } finally {
       setSaving(false);
     }
@@ -155,7 +155,7 @@ export function ShippingCalculator({ orders, initialRates, ratesPersisted, initi
     if (!selectedOrder || !calculation) return;
     if (calculation.missingRateCount > 0) {
       setNotice(calculation.missingMappingCount > 0
-        ? "Còn TENHANG chưa được ánh xạ. Vào tab Cấu hình TENHANG vận chuyển để chọn Model tính cước."
+        ? "Còn TENHANG chưa được cấu hình vận chuyển."
         : "Còn Model chưa có bảng giá. Vui lòng bổ sung trước khi áp dụng vào đơn hàng.");
       return;
     }
@@ -191,7 +191,7 @@ export function ShippingCalculator({ orders, initialRates, ratesPersisted, initi
     <div className="space-y-6">
       <div className="flex flex-wrap gap-2 border-b border-slate-300">
         <TabButton active={tab === "calculator"} onClick={() => setTab("calculator")}>Tính cước theo đơn hàng</TabButton>
-        <TabButton active={tab === "mappings"} onClick={() => setTab("mappings")}>Cấu hình TENHANG vận chuyển</TabButton>
+        <TabButton active={tab === "mappings"} onClick={() => setTab("mappings")}>Cấu hình vận chuyển</TabButton>
         <TabButton active={tab === "rates"} onClick={() => setTab("rates")}>Bảng tiêu chuẩn cước</TabButton>
       </div>
 
@@ -273,16 +273,12 @@ export function ShippingCalculator({ orders, initialRates, ratesPersisted, initi
         <section className="erp-card">
           <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="font-bold">Cấu hình TENHANG vận chuyển</h2>
-              <p className="mt-1 text-sm text-slate-600">Ánh xạ TENHANG trong Danh mục hàng hóa sang Model dùng để lấy bảng giá vận chuyển. Đơn hàng sẽ tra MODEL của dòng hàng về TENHANG trong Danh mục hàng hóa, sau đó lấy đúng Model tính cước đã cấu hình.</p>
+              <h2 className="font-bold">Cấu hình vận chuyển</h2>
             </div>
             <div className="flex flex-wrap gap-2">
               <button className="erp-button-secondary" type="button" onClick={() => setMappings((current) => [...current, { sourceModel: "", shippingModelCode: rateModelOptions[0]?.code ?? "", note: "", active: true }])}>+ Thêm cấu hình</button>
-              <button className="erp-button" type="button" onClick={saveMappings} disabled={saving}>{saving ? "Đang lưu..." : "Lưu cấu hình TENHANG"}</button>
+              <button className="erp-button" type="button" onClick={saveMappings} disabled={saving}>{saving ? "Đang lưu..." : "Lưu cấu hình"}</button>
             </div>
-          </div>
-          <div className="border-b border-cyan-200 bg-cyan-50 px-5 py-3 text-sm text-cyan-900">
-            Logic: MODEL trên đơn hàng → tra Danh mục hàng hóa để lấy TENHANG → TENHANG được ánh xạ sang Model tính cước ở đây. Không còn tính theo Model đơn hàng hoặc tiền tố mã hàng.
           </div>
           <div className="erp-scrollbar overflow-x-auto">
             <table className="min-w-[1000px] text-sm">
@@ -302,7 +298,7 @@ export function ShippingCalculator({ orders, initialRates, ratesPersisted, initi
                       <td className="border border-slate-200 px-2 py-2 text-center"><button type="button" className="text-sm font-semibold text-red-600 hover:text-red-800" onClick={() => setMappings((current) => current.filter((_, rowIndex) => rowIndex !== index))}>Xóa</button></td>
                     </tr>
                   );
-                }) : <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-500">Chưa có mapping. Bấm “+ Thêm cấu hình” để ánh xạ TENHANG sang Model tính cước.</td></tr>}
+                }) : <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-500">Chưa có cấu hình.</td></tr>}
               </tbody>
             </table>
           </div>
