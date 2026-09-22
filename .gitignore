@@ -1,0 +1,101 @@
+# ==============================
+# Dependencies
+# ==============================
+/node_modules/
+
+# ==============================
+# Next.js
+# ==============================
+/.next/
+/out/
+
+# ==============================
+# Production build
+# ==============================
+/build/
+
+# ==============================
+# Environment / Secrets
+# ==============================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ==============================
+# Prisma generated client
+# ==============================
+/src/generated/prisma/
+
+# QUAN TR?NG:
+# KHÔNG ignore thu m?c prisma/migrations
+# vì migrations ph?i du?c push lên GitHub
+
+# ==============================
+# Database backup / export local
+# ==============================
+*.sql
+*.dump
+*.backup
+*.bak
+
+# ==============================
+# Logs
+# ==============================
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# ==============================
+# OS / Editor
+# ==============================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ==============================
+# Local uploaded order images
+# Development only
+# ==============================
+/public/uploads/orders/
+
+# ==============================
+# Temporary files
+# ==============================
+*.tmp
+*.temp
+*.swp
+*.swo
+~$*
+
+# ==============================
+# TypeScript
+# ==============================
+*.tsbuildinfo
+
+# ==============================
+# Vercel local config
+# ==============================
+.vercel/
+
+# ==============================
+# Test / coverage
+# ==============================
+/coverage/
+
+# ==============================
+# Misc cache
+# ==============================
+.cache/
+
+# ==============================
+# Generated patch/history notes
+# ==============================
+/*_V*.md
+
+# Local archives
+*.zip

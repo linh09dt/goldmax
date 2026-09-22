@@ -1,0 +1,303 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model SystemSetting {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique @db.VarChar(100)
+  value     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("system_settings")
+}
+
+model SalesOrder {
+  id                        Int                     @id @default(autoincrement())
+  orderCode                 String                  @unique @map("order_code") @db.VarChar(120)
+  status                    String                  @default("NHAP") @db.VarChar(30)
+  customerCode              String?                 @map("customer_code") @db.VarChar(60)
+  customerName              String?                 @map("customer_name") @db.VarChar(200)
+  salesEmployeeCode         String?                 @map("sales_employee_code") @db.VarChar(60)
+  orderDate                 DateTime?               @map("order_date") @db.Date
+  requiredDeliveryDate      DateTime?               @map("required_delivery_date") @db.Date
+  receiverName              String?                 @map("receiver_name") @db.VarChar(160)
+  receiverPhone             String?                 @map("receiver_phone") @db.VarChar(40)
+  receiverAddress           String?                 @map("receiver_address") @db.Text
+  deliveryKm                Float?                  @map("delivery_km")
+  region                    String?                 @db.VarChar(100)
+  groupNo                   Int?                    @map("group_no")
+  excelUpdateDate           DateTime?               @map("excel_update_date") @db.Date
+  formCode                  String?                 @map("form_code") @db.VarChar(60)
+  formEffectiveDate         DateTime?               @map("form_effective_date") @db.Date
+  shippingFee               Decimal?                @map("shipping_fee") @db.Decimal(18, 2)
+  shippingMountainDistrict  Boolean                 @default(false) @map("shipping_mountain_district")
+  shippingCalculatedAt      DateTime?               @map("shipping_calculated_at")
+  subtotal                  Decimal?                @db.Decimal(18, 2)
+  discountPercent           Decimal?                @map("discount_percent") @db.Decimal(8, 4)
+  discountAmount            Decimal?                @map("discount_amount") @db.Decimal(18, 2)
+  totalAfterDiscount        Decimal?                @map("total_after_discount") @db.Decimal(18, 2)
+  depositAmount             Decimal?                @map("deposit_amount") @db.Decimal(18, 2)
+  warehouseReceiptDeduction Decimal?                @map("warehouse_receipt_deduction") @db.Decimal(18, 2)
+  deliveryPayment           Decimal?                @map("delivery_payment") @db.Decimal(18, 2)
+  sourceFileName            String?                 @map("source_file_name") @db.VarChar(255)
+  sourceFileHash            String?                 @map("source_file_hash") @db.VarChar(64)
+  lastImportedAt            DateTime?               @map("last_imported_at")
+  createdAt                 DateTime                 @default(now()) @map("created_at")
+  updatedAt                 DateTime                 @updatedAt @map("updated_at")
+  items                     SalesOrderItem[]
+  requirements              SalesOrderRequirement[]
+  imports                   OrderImport[]
+  shippingCalculations      ShippingCalculation[]
+
+  @@index([customerCode])
+  @@index([requiredDeliveryDate])
+  @@index([status])
+  @@index([lastImportedAt])
+  @@map("sales_orders")
+}
+
+model SalesOrderItem {
+  id               Int                    @id @default(autoincrement())
+  orderId          Int                    @map("order_id")
+  lineNo           Int                    @map("line_no")
+  setNo            String?                @map("set_no") @db.VarChar(80)
+  productName      String?                @map("product_name") @db.Text
+  productCode      String?                @map("product_code") @db.VarChar(160)
+  model            String?                @db.VarChar(100)
+  openingDirection String?                @map("opening_direction") @db.VarChar(60)
+  trimDirection    String?                @map("trim_direction") @db.VarChar(80)
+  paintColor       String?                @map("paint_color") @db.VarChar(100)
+  heightMm         Int?                   @map("height_mm")
+  widthMm          Int?                   @map("width_mm")
+  frameMm          Int?                   @map("frame_mm")
+  clearHeightMm    Int?                   @map("clear_height_mm")
+  clearWidthMm     Int?                   @map("clear_width_mm")
+  panelInfo        String?                @map("panel_info") @db.VarChar(160)
+  trimBarsPerSet   Int?                   @map("trim_bars_per_set")
+  trimType         String?                @map("trim_type") @db.VarChar(80)
+  lockModel        String?                @map("lock_model") @db.VarChar(120)
+  windowBars       String?                @map("window_bars") @db.VarChar(160)
+  leavesPerSet     Int?                   @map("leaves_per_set")
+  quantity         Int?                   @db.Integer
+  unit             String?                @db.VarChar(40)
+  pricingQuantity  Float?                 @map("pricing_quantity")
+  unitPrice        Decimal?               @map("unit_price") @db.Decimal(18, 2)
+  amount           Decimal?               @db.Decimal(18, 2)
+  note             String?                @db.Text
+  imagePath        String?                @map("image_path") @db.Text
+  modelCheck       String?                @map("model_check") @db.VarChar(120)
+  priceCheck       String?                @map("price_check") @db.VarChar(120)
+  sourceRow        Int?                   @map("source_row")
+  rawBlock         Json?                  @map("raw_block")
+  createdAt        DateTime               @default(now()) @map("created_at")
+  updatedAt        DateTime               @updatedAt @map("updated_at")
+  order            SalesOrder             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  details          SalesOrderItemDetail[]
+
+  @@unique([orderId, lineNo])
+  @@index([setNo])
+  @@index([productCode])
+  @@map("sales_order_items")
+}
+
+model SalesOrderItemDetail {
+  id               Int            @id @default(autoincrement())
+  orderItemId      Int            @map("order_item_id")
+  rowOrder         Int            @map("row_order")
+  detailType       String?        @map("detail_type") @db.VarChar(50)
+  setNo            String?        @map("set_no") @db.VarChar(80)
+  productName      String?        @map("product_name") @db.Text
+  productCode      String?        @map("product_code") @db.VarChar(160)
+  model            String?        @db.VarChar(100)
+  openingDirection String?        @map("opening_direction") @db.VarChar(60)
+  trimDirection    String?        @map("trim_direction") @db.VarChar(80)
+  paintColor       String?        @map("paint_color") @db.VarChar(100)
+  heightMm         Int?           @map("height_mm")
+  widthMm          Int?           @map("width_mm")
+  frameMm          Int?           @map("frame_mm")
+  clearHeightMm    Int?           @map("clear_height_mm")
+  clearWidthMm     Int?           @map("clear_width_mm")
+  panelInfo        String?        @map("panel_info") @db.VarChar(160)
+  trimBarsPerSet   Int?           @map("trim_bars_per_set")
+  trimType         String?        @map("trim_type") @db.VarChar(80)
+  lockModel        String?        @map("lock_model") @db.VarChar(120)
+  windowBars       String?        @map("window_bars") @db.VarChar(160)
+  leavesPerSet     Int?           @map("leaves_per_set")
+  quantity         Int?           @db.Integer
+  unit             String?        @db.VarChar(40)
+  pricingQuantity  Float?         @map("pricing_quantity")
+  unitPrice        Decimal?       @map("unit_price") @db.Decimal(18, 2)
+  amount           Decimal?       @db.Decimal(18, 2)
+  note             String?        @db.Text
+  imagePath        String?        @map("image_path") @db.Text
+  modelCheck       String?        @map("model_check") @db.VarChar(120)
+  priceCheck       String?        @map("price_check") @db.VarChar(120)
+  sourceRow        Int?           @map("source_row")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+  orderItem        SalesOrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@unique([orderItemId, rowOrder])
+  @@index([productCode])
+  @@map("sales_order_item_details")
+}
+
+model SalesOrderRequirement {
+  id           Int        @id @default(autoincrement())
+  orderId      Int        @map("order_id")
+  code         String     @db.VarChar(60)
+  questionText String     @map("question_text") @db.Text
+  answer       String?    @db.VarChar(120)
+  note         String?    @db.Text
+  sortOrder    Int        @default(0) @map("sort_order")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  order        SalesOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, code])
+  @@index([orderId, sortOrder])
+  @@map("sales_order_requirements")
+}
+
+model OrderImport {
+  id            Int         @id @default(autoincrement())
+  orderId       Int?        @map("order_id")
+  fileName      String      @map("file_name") @db.VarChar(255)
+  fileHash      String      @map("file_hash") @db.VarChar(64)
+  action        String      @db.VarChar(30)
+  sheetName     String?     @map("sheet_name") @db.VarChar(120)
+  importedItems Int         @default(0) @map("imported_items")
+  importedAt    DateTime    @default(now()) @map("imported_at")
+  order         SalesOrder? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([fileHash])
+  @@index([orderId, importedAt])
+  @@map("order_imports")
+}
+
+model ItemMaster {
+  id                 Int      @id @default(autoincrement())
+  code               String   @unique @db.VarChar(160)
+  name               String   @db.Text
+  productDescription String?  @map("product_description") @db.Text
+  salesName          String?  @map("sales_name") @db.VarChar(120)
+  salesModel         String?  @map("sales_model") @db.VarChar(180)
+  unit               String?  @db.VarChar(40)
+  dealerPrice        Decimal? @map("dealer_price") @db.Decimal(18, 2)
+  retailPrice        Decimal? @map("retail_price") @db.Decimal(18, 2)
+  active             Boolean  @default(true)
+  source              String   @default("THU_CONG") @db.VarChar(30)
+  lastSourceFile      String?  @map("last_source_file") @db.VarChar(255)
+  lastImportedAt     DateTime? @map("last_imported_at")
+  priceSourceFile    String?  @map("price_source_file") @db.VarChar(255)
+  priceImportedAt    DateTime? @map("price_imported_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@index([active])
+  @@index([salesName])
+  @@index([salesModel])
+  @@index([updatedAt])
+  @@index([priceImportedAt])
+  @@map("item_masters")
+}
+
+model ItemMasterImport {
+  id             Int      @id @default(autoincrement())
+  fileName       String   @map("file_name") @db.VarChar(255)
+  fileHash       String   @map("file_hash") @db.VarChar(64)
+  sheetName      String?  @map("sheet_name") @db.VarChar(120)
+  totalRows      Int      @default(0) @map("total_rows")
+  newCount       Int      @default(0) @map("new_count")
+  changedCount   Int      @default(0) @map("changed_count")
+  unchangedCount Int      @default(0) @map("unchanged_count")
+  skippedCount   Int      @default(0) @map("skipped_count")
+  errorCount     Int      @default(0) @map("error_count")
+  issues         Json?
+  importedAt     DateTime @default(now()) @map("imported_at")
+
+  @@index([fileHash])
+  @@index([importedAt])
+  @@map("item_master_imports")
+}
+
+model ItemAttributeImport {
+  id               Int      @id @default(autoincrement())
+  fileName         String   @map("file_name") @db.VarChar(255)
+  fileHash         String   @map("file_hash") @db.VarChar(64)
+  sheetName        String?  @map("sheet_name") @db.VarChar(120)
+  totalPriceRows   Int      @default(0) @map("total_price_rows")
+  updatedItemCount Int      @default(0) @map("updated_item_count")
+  missingItemCount Int      @default(0) @map("missing_item_count")
+  optionCount      Int      @default(0) @map("option_count")
+  issueCount       Int      @default(0) @map("issue_count")
+  issues           Json?
+  importedAt       DateTime @default(now()) @map("imported_at")
+
+  @@index([fileHash])
+  @@index([importedAt])
+  @@map("item_attribute_imports")
+}
+
+model MasterOption {
+  id             Int      @id @default(autoincrement())
+  groupCode      String   @map("group_code") @db.VarChar(60)
+  code           String   @db.VarChar(120)
+  name           String   @db.VarChar(200)
+  sortOrder      Int      @default(0) @map("sort_order")
+  active         Boolean  @default(true)
+  source         String   @default("THU_CONG") @db.VarChar(30)
+  lastSourceFile String?  @map("last_source_file") @db.VarChar(255)
+  lastImportedAt DateTime? @map("last_imported_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([groupCode, code])
+  @@index([groupCode, active, sortOrder])
+  @@map("master_options")
+}
+
+model ShippingRate {
+  id                Int      @id @default(autoincrement())
+  doorGroup         String   @map("door_group") @db.VarChar(60)
+  modelName         String   @map("model_name") @db.VarChar(160)
+  modelCode         String   @map("model_code") @db.VarChar(60)
+  quantityTier      Int      @map("quantity_tier")
+  northLe100        Decimal  @map("north_le_100") @db.Decimal(18, 2)
+  north101To200     Decimal  @map("north_101_200") @db.Decimal(18, 2)
+  northOver200      Decimal  @map("north_over_200") @db.Decimal(18, 2)
+  central           Decimal  @db.Decimal(18, 2)
+  active            Boolean  @default(true)
+  source             String   @default("EXCEL_2024") @db.VarChar(40)
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@unique([modelCode, quantityTier])
+  @@index([active, modelCode, quantityTier])
+  @@map("shipping_rates")
+}
+
+model ShippingCalculation {
+  id               Int        @id @default(autoincrement())
+  orderId          Int        @map("order_id")
+  region           String     @db.VarChar(100)
+  deliveryKm       Decimal    @map("delivery_km") @db.Decimal(12, 2)
+  mountainDistrict Boolean    @default(false) @map("mountain_district")
+  bandLabel        String     @map("band_label") @db.VarChar(180)
+  supportKm        Decimal    @map("support_km") @db.Decimal(12, 2)
+  rawTotal         Decimal    @map("raw_total") @db.Decimal(18, 2)
+  roundedTotal     Decimal    @map("rounded_total") @db.Decimal(18, 2)
+  lines            Json
+  source           String     @default("BANG_CUOC_EXCEL_2024") @db.VarChar(60)
+  createdAt        DateTime   @default(now()) @map("created_at")
+  order            SalesOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+  @@map("shipping_calculations")
+}
