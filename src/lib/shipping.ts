@@ -11,6 +11,14 @@ export type ShippingRateRow = {
   active?: boolean;
 };
 
+export type ShippingModelMappingRow = {
+  id?: number;
+  sourceModel: string;
+  shippingModelCode: string;
+  note?: string | null;
+  active?: boolean;
+};
+
 export type ShippingOrderItemInput = {
   lineNo: number;
   setNo: string | null;
@@ -23,6 +31,7 @@ export type ShippingOrderItemInput = {
 export type ShippingLineResult = {
   modelCode: string;
   modelName: string;
+  sourceModels: string[];
   quantity: number;
   quantityTier: number;
   bandLabel: string;
@@ -31,6 +40,7 @@ export type ShippingLineResult = {
   factorySupport: number;
   customerFreight: number;
   missingRate: boolean;
+  issue: "MISSING_MODEL_MAPPING" | "MISSING_RATE" | null;
   sourceLines: number[];
 };
 
@@ -56,6 +66,7 @@ export const DEFAULT_SHIPPING_RATES: ShippingRateRow[] = [
 export function calculateShipping(input: {
   items: ShippingOrderItemInput[];
   rates: ShippingRateRow[];
+  mappings?: ShippingModelMappingRow[];
   region: string;
   deliveryKm: number;
   mountainDistrict?: boolean;
@@ -63,29 +74,31 @@ export function calculateShipping(input: {
   const deliveryKm = finiteNonNegative(input.deliveryKm);
   const region = normalizeText(input.region);
   const activeRates = input.rates.filter((row) => row.active !== false);
+  const activeMappings = (input.mappings ?? []).filter((row) => row.active !== false);
 
-  const grouped = new Map<string, { quantity: number; sourceLines: number[] }>();
+  const grouped = new Map<string, { quantity: number; sourceLines: number[]; sourceModels: Set<string> }>();
   for (const item of input.items) {
     const quantity = Math.max(0, Math.trunc(item.quantity ?? 0));
     if (!quantity) continue;
-    const modelCode = resolveModelCode(item.model, item.productCode, activeRates);
-    if (!modelCode) {
-      const key = `__MISSING__${item.lineNo}`;
-      grouped.set(key, { quantity, sourceLines: [item.lineNo] });
-      continue;
-    }
-    const current = grouped.get(modelCode) ?? { quantity: 0, sourceLines: [] };
+
+    const resolvedModelCode = resolveModelCode(item.model, item.productCode, activeRates, activeMappings);
+    const sourceModel = displaySourceModel(item.model, item.productCode, item.productName, item.lineNo);
+    const key = resolvedModelCode || `__MISSING__${normalizeCode(sourceModel) || item.lineNo}`;
+    const current = grouped.get(key) ?? { quantity: 0, sourceLines: [], sourceModels: new Set<string>() };
     current.quantity += quantity;
     current.sourceLines.push(item.lineNo);
-    grouped.set(modelCode, current);
+    current.sourceModels.add(sourceModel);
+    grouped.set(key, current);
   }
 
   const lines: ShippingLineResult[] = [];
   for (const [modelCode, group] of grouped.entries()) {
+    const sourceModels = Array.from(group.sourceModels);
     if (modelCode.startsWith("__MISSING__")) {
       lines.push({
-        modelCode: "Chưa có Model",
-        modelName: "Không xác định được Model từ bộ cửa",
+        modelCode: "Chưa cấu hình",
+        modelName: "Chưa ánh xạ Model vận chuyển",
+        sourceModels,
         quantity: group.quantity,
         quantityTier: group.quantity > 1 ? 2 : 1,
         bandLabel: bandLabel(region, deliveryKm, Boolean(input.mountainDistrict)),
@@ -94,6 +107,7 @@ export function calculateShipping(input: {
         factorySupport: 0,
         customerFreight: 0,
         missingRate: true,
+        issue: "MISSING_MODEL_MAPPING",
         sourceLines: group.sourceLines,
       });
       continue;
@@ -105,6 +119,7 @@ export function calculateShipping(input: {
       lines.push({
         modelCode,
         modelName: modelCode,
+        sourceModels,
         quantity: group.quantity,
         quantityTier,
         bandLabel: bandLabel(region, deliveryKm, Boolean(input.mountainDistrict)),
@@ -113,6 +128,7 @@ export function calculateShipping(input: {
         factorySupport: 0,
         customerFreight: 0,
         missingRate: true,
+        issue: "MISSING_RATE",
         sourceLines: group.sourceLines,
       });
       continue;
@@ -127,6 +143,7 @@ export function calculateShipping(input: {
     lines.push({
       modelCode,
       modelName: rate.modelName,
+      sourceModels,
       quantity: group.quantity,
       quantityTier,
       bandLabel: bandLabel(region, deliveryKm, Boolean(input.mountainDistrict)),
@@ -135,6 +152,7 @@ export function calculateShipping(input: {
       factorySupport: roundMoney(factorySupport),
       customerFreight: roundMoney(customerFreight),
       missingRate: baseRatePerSet <= 0,
+      issue: baseRatePerSet <= 0 ? "MISSING_RATE" : null,
       sourceLines: group.sourceLines,
     });
   }
@@ -142,6 +160,7 @@ export function calculateShipping(input: {
   const rawTotal = lines.reduce((sum, row) => sum + row.customerFreight, 0);
   const roundedTotal = rawTotal > 0 ? Math.ceil(rawTotal / 1000) * 1000 : 0;
   const missingRateCount = lines.filter((row) => row.missingRate).length;
+  const missingMappingCount = lines.filter((row) => row.issue === "MISSING_MODEL_MAPPING").length;
 
   return {
     region,
@@ -153,6 +172,7 @@ export function calculateShipping(input: {
     rawTotal: roundMoney(rawTotal),
     roundedTotal,
     missingRateCount,
+    missingMappingCount,
   };
 }
 
@@ -179,13 +199,30 @@ export function bandLabel(region: string, deliveryKm: number, mountainDistrict: 
   return "Chưa xác định vùng miền";
 }
 
-function resolveModelCode(model: string | null, productCode: string | null, rates: ShippingRateRow[]) {
-  const direct = normalizeCode(model);
-  if (direct && rates.some((row) => normalizeCode(row.modelCode) === direct)) return direct;
+function resolveModelCode(
+  model: string | null,
+  productCode: string | null,
+  rates: ShippingRateRow[],
+  mappings: ShippingModelMappingRow[],
+) {
+  const directModel = normalizeCode(model);
   const product = normalizeCode(productCode);
+
+  const mapping = mappings.find((row) => {
+    const source = normalizeCode(row.sourceModel);
+    return Boolean(source) && (source === directModel || source === product);
+  });
+  const mappedCode = normalizeCode(mapping?.shippingModelCode);
+  if (mappedCode) return mappedCode;
+
+  if (directModel && rates.some((row) => normalizeCode(row.modelCode) === directModel)) return directModel;
   if (!product) return "";
   const known = Array.from(new Set(rates.map((row) => normalizeCode(row.modelCode)).filter(Boolean))).sort((a, b) => b.length - a.length);
   return known.find((code) => product === code || product.startsWith(`${code}-`)) ?? "";
+}
+
+function displaySourceModel(model: string | null, productCode: string | null, productName: string | null, lineNo: number) {
+  return String(model || productCode || productName || `Dòng ${lineNo}`).trim();
 }
 
 function normalizeCode(value: unknown) {

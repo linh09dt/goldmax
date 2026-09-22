@@ -22,12 +22,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Quãng đường phải lớn hơn 0 km." }, { status: 400 });
     }
 
-    const [order, persistedRates] = await Promise.all([
+    const [order, persistedRates, persistedMappings] = await Promise.all([
       prisma.salesOrder.findUnique({
         where: { id: orderId },
         include: { items: { orderBy: { lineNo: "asc" }, include: { details: true } } },
       }),
       prisma.shippingRate.findMany({ where: { active: true } }),
+      prisma.shippingModelMapping.findMany({ where: { active: true } }),
     ]);
     if (!order) return NextResponse.json({ ok: false, error: "Không tìm thấy đơn hàng." }, { status: 404 });
 
@@ -56,16 +57,17 @@ export async function POST(request: Request) {
         quantity: item.quantity,
       })),
       rates,
+      mappings: persistedMappings,
       region,
       deliveryKm,
       mountainDistrict,
     });
 
     if (calculation.missingRateCount > 0) {
-      return NextResponse.json(
-        { ok: false, error: "Còn Model chưa có bảng giá cước. Vui lòng bổ sung bảng tiêu chuẩn trước khi áp dụng." },
-        { status: 400 },
-      );
+      const error = calculation.missingMappingCount > 0
+        ? "Còn Model đơn hàng chưa được cấu hình Model vận chuyển. Vui lòng vào tab Cấu hình Model vận chuyển để ánh xạ trước khi áp dụng."
+        : "Còn Model chưa có bảng giá cước. Vui lòng bổ sung bảng tiêu chuẩn trước khi áp dụng.";
+      return NextResponse.json({ ok: false, error }, { status: 400 });
     }
 
     const lineTotal = order.items.reduce((sum, item) => {

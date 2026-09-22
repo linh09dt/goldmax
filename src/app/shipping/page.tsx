@@ -6,7 +6,7 @@ import { DEFAULT_SHIPPING_RATES } from "@/lib/shipping";
 export const dynamic = "force-dynamic";
 
 export default async function ShippingPage() {
-  const [orders, persistedRates] = await Promise.all([
+  const [orders, persistedRates, persistedMappings] = await Promise.all([
     prisma.salesOrder.findMany({
       orderBy: [{ requiredDeliveryDate: "asc" }, { id: "desc" }],
       select: {
@@ -38,6 +38,9 @@ export default async function ShippingPage() {
     prisma.shippingRate.findMany({
       orderBy: [{ doorGroup: "asc" }, { modelCode: "asc" }, { quantityTier: "asc" }],
     }),
+    prisma.shippingModelMapping.findMany({
+      orderBy: [{ active: "desc" }, { sourceModel: "asc" }],
+    }),
   ]);
 
   const rates = persistedRates.length
@@ -54,6 +57,14 @@ export default async function ShippingPage() {
         active: row.active,
       }))
     : DEFAULT_SHIPPING_RATES;
+
+  const mappings = persistedMappings.map((row) => ({
+    id: row.id,
+    sourceModel: row.sourceModel,
+    shippingModelCode: row.shippingModelCode,
+    note: row.note,
+    active: row.active,
+  }));
 
   const safeOrders = orders.map((order) => ({
     id: order.id,
@@ -75,7 +86,12 @@ export default async function ShippingPage() {
     <ErpShell
       title="Tính cước vận chuyển"
     >
-      <ShippingCalculator orders={safeOrders} initialRates={rates} ratesPersisted={persistedRates.length > 0} />
+      <ShippingCalculator
+        orders={safeOrders}
+        initialRates={rates}
+        ratesPersisted={persistedRates.length > 0}
+        initialMappings={mappings}
+      />
     </ErpShell>
   );
 }

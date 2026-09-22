@@ -283,6 +283,19 @@ model ShippingRate {
   @@map("shipping_rates")
 }
 
+model ShippingModelMapping {
+  id                Int      @id @default(autoincrement())
+  sourceModel       String   @unique @map("source_model") @db.VarChar(160)
+  shippingModelCode String   @map("shipping_model_code") @db.VarChar(60)
+  note              String?  @db.Text
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([active, shippingModelCode])
+  @@map("shipping_model_mappings")
+}
+
 model ShippingCalculation {
   id               Int        @id @default(autoincrement())
   orderId          Int        @map("order_id")
