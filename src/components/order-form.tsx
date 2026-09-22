@@ -343,7 +343,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
                 <div className="font-semibold">Bộ cửa #{itemIndex + 1} {item.setNo ? `· Bộ số ${item.setNo}` : ""}</div>
                 <div className="flex flex-wrap gap-2">
                   <button className="erp-action-dark" type="button" onClick={() => duplicateItem(itemIndex)}>Nhân bản bộ</button>
-                  <button className="erp-action-dark" type="button" onClick={() => addDetail(itemIndex)}>+ Hàng hóa kèm theo</button>
+                  <button className="erp-action-dark" type="button" onClick={() => addDetail(itemIndex)}>+ Chi tiết / phụ kiện / phụ phí của bộ cửa</button>
                   <button className="erp-action-danger" type="button" onClick={() => removeItem(itemIndex)}>Xóa bộ</button>
                 </div>
               </div>
