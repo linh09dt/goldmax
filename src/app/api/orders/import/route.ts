@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+﻿import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { parseOrderWorkbook } from "@/lib/order-excel";
@@ -155,7 +155,7 @@ export async function POST(request: Request) {
             modelCheck: item.modelCheck,
             priceCheck: item.priceCheck,
             sourceRow: item.sourceRow,
-            rawBlock: item.rawBlock,
+            rawBlock: JSON.parse(JSON.stringify(item.rawBlock)),
           },
         });
 

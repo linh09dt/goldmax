@@ -87,7 +87,7 @@ const REQUIREMENTS = [
 
 export async function parseOrderWorkbook(buffer: Buffer): Promise<ParsedSalesOrder> {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer);
+  await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
 
   const worksheet = workbook.worksheets[0];
   if (!worksheet) throw new Error("File Excel không có worksheet.");

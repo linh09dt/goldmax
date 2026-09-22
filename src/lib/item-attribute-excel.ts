@@ -43,7 +43,7 @@ export type ParsedItemAttributeWorkbook = {
 
 export async function parseItemAttributeWorkbook(buffer: Buffer): Promise<ParsedItemAttributeWorkbook> {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer);
+  await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
 
   const worksheet = workbook.worksheets[0];
   if (!worksheet) throw new Error("File Excel không có sheet dữ liệu.");

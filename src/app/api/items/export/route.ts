@@ -44,7 +44,9 @@ export async function GET() {
   sheet.getColumn("retailPrice").numFmt = "#,##0";
 
   const buffer = await workbook.xlsx.writeBuffer();
-  return new Response(buffer, {
+  const responseBody = new Uint8Array(buffer);
+
+  return new Response(responseBody, {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": 'attachment; filename="masterdata-danh-muc-hang-hoa.xlsx"',

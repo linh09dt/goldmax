@@ -32,7 +32,7 @@ export type ParsedMasterItemWorkbookV14 = {
  */
 export async function parseMasterItemWorkbookV14(buffer: Buffer): Promise<ParsedMasterItemWorkbookV14> {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer);
+  await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
 
   const worksheet = workbook.worksheets[0];
   if (!worksheet) throw new Error("File Excel không có sheet dữ liệu.");
