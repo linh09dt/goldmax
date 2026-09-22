@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import {
   calculateShipping,
@@ -52,6 +52,7 @@ export function ShippingCalculator({ orders, initialRates, ratesPersisted, initi
   const [deliveryKm, setDeliveryKm] = useState(String(selectedOrder?.deliveryKm ?? ""));
   const [mountainDistrict, setMountainDistrict] = useState(Boolean(selectedOrder?.shippingMountainDistrict));
   const [rates, setRates] = useState<ShippingRateRow[]>(initialRates);
+  const ratesRef = useRef<ShippingRateRow[]>(initialRates);
   const [mappings, setMappings] = useState<ShippingModelMappingRow[]>(initialMappings);
   const [persisted, setPersisted] = useState(ratesPersisted);
   const [notice, setNotice] = useState("");
@@ -90,6 +91,25 @@ export function ShippingCalculator({ orders, initialRates, ratesPersisted, initi
     }
   }
 
+  function replaceRates(nextRates: ShippingRateRow[]) {
+    ratesRef.current = nextRates;
+    setRates(nextRates);
+  }
+
+  function changeRate<K extends keyof ShippingRateRow>(index: number, key: K, value: ShippingRateRow[K]) {
+    setRates((current) => {
+      const next = current.map((row, rowIndex) => rowIndex === index ? { ...row, [key]: value } : row);
+      ratesRef.current = next;
+      return next;
+    });
+  }
+
+  function restoreSampleRates() {
+    const sampleRates = DEFAULT_SHIPPING_RATES.map((row) => ({ ...row }));
+    replaceRates(sampleRates);
+    setNotice("Đã nạp giá mẫu. Bấm “Lưu thay đổi” để ghi đè bảng giá hiện tại trên Supabase.");
+  }
+
   async function saveRates() {
     setSaving(true);
     setNotice("");
@@ -97,13 +117,13 @@ export function ShippingCalculator({ orders, initialRates, ratesPersisted, initi
       const response = await fetch("/api/shipping-rates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows: rates }),
+        body: JSON.stringify({ rows: ratesRef.current }),
       });
       const data = await response.json();
       if (!response.ok || !data.ok) throw new Error(data.error || "Không thể lưu bảng giá.");
-      setRates(data.rows);
+      replaceRates(data.rows);
       setPersisted(true);
-      setNotice("Đã lưu bảng tiêu chuẩn cước vận chuyển vào PostgreSQL.");
+      setNotice("Đã lưu bảng tiêu chuẩn cước vận chuyển vào Supabase.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Không thể lưu bảng giá.");
     } finally {
@@ -294,8 +314,8 @@ export function ShippingCalculator({ orders, initialRates, ratesPersisted, initi
               <h2 className="font-bold">Bảng tiêu chuẩn cước vận chuyển</h2>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button className="erp-button-secondary" onClick={() => setRates(DEFAULT_SHIPPING_RATES.map((row) => ({ ...row })))}>Khôi phục giá mẫu</button>
-              <button className="erp-button" onClick={saveRates} disabled={saving}>{saving ? "Đang lưu..." : persisted ? "Lưu thay đổi" : "Lưu bảng giá vào DB"}</button>
+              <button className="erp-button-secondary" type="button" onClick={restoreSampleRates} disabled={saving}>Khôi phục giá mẫu</button>
+              <button className="erp-button" type="button" onClick={saveRates} disabled={saving}>{saving ? "Đang lưu..." : persisted ? "Lưu thay đổi" : "Lưu bảng giá vào DB"}</button>
             </div>
           </div>
           {!persisted ? <div className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-800">Hiện đang dùng bảng giá mẫu trong mã nguồn. Bấm “Lưu bảng giá vào DB” để tạo Master Data chính thức.</div> : null}
@@ -307,15 +327,15 @@ export function ShippingCalculator({ orders, initialRates, ratesPersisted, initi
               <tbody className="divide-y divide-slate-200 bg-white">
                 {rates.map((row, index) => (
                   <tr key={`${row.modelCode}-${row.quantityTier}`}>
-                    <CellInput value={row.doorGroup} onChange={(value) => updateRate(index, "doorGroup", value, setRates)} />
-                    <CellInput value={row.modelName} onChange={(value) => updateRate(index, "modelName", value, setRates)} wide />
-                    <CellInput value={row.modelCode} onChange={(value) => updateRate(index, "modelCode", value.toUpperCase(), setRates)} />
-                    <td className="border border-slate-200 px-2 py-2"><select className="erp-input min-w-[130px]" value={row.quantityTier} onChange={(event) => updateRate(index, "quantityTier", Number(event.target.value), setRates)}><option value={1}>1 bộ</option><option value={2}>2 bộ trở lên</option></select></td>
-                    <MoneyInput value={row.northLe100} onChange={(value) => updateRate(index, "northLe100", value, setRates)} />
-                    <MoneyInput value={row.north101To200} onChange={(value) => updateRate(index, "north101To200", value, setRates)} />
-                    <MoneyInput value={row.northOver200} onChange={(value) => updateRate(index, "northOver200", value, setRates)} />
-                    <MoneyInput value={row.central} onChange={(value) => updateRate(index, "central", value, setRates)} />
-                    <td className="border border-slate-200 px-2 py-2 text-center"><input type="checkbox" checked={row.active !== false} onChange={(event) => updateRate(index, "active", event.target.checked, setRates)} /></td>
+                    <CellInput value={row.doorGroup} onChange={(value) => changeRate(index, "doorGroup", value)} />
+                    <CellInput value={row.modelName} onChange={(value) => changeRate(index, "modelName", value)} wide />
+                    <CellInput value={row.modelCode} onChange={(value) => changeRate(index, "modelCode", value.toUpperCase())} />
+                    <td className="border border-slate-200 px-2 py-2"><select className="erp-input min-w-[130px]" value={row.quantityTier} onChange={(event) => changeRate(index, "quantityTier", Number(event.target.value))}><option value={1}>1 bộ</option><option value={2}>2 bộ trở lên</option></select></td>
+                    <MoneyInput value={row.northLe100} onChange={(value) => changeRate(index, "northLe100", value)} />
+                    <MoneyInput value={row.north101To200} onChange={(value) => changeRate(index, "north101To200", value)} />
+                    <MoneyInput value={row.northOver200} onChange={(value) => changeRate(index, "northOver200", value)} />
+                    <MoneyInput value={row.central} onChange={(value) => changeRate(index, "central", value)} />
+                    <td className="border border-slate-200 px-2 py-2 text-center"><input type="checkbox" checked={row.active !== false} onChange={(event) => changeRate(index, "active", event.target.checked)} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -325,10 +345,6 @@ export function ShippingCalculator({ orders, initialRates, ratesPersisted, initi
       )}
     </div>
   );
-}
-
-function updateRate<K extends keyof ShippingRateRow>(index: number, key: K, value: ShippingRateRow[K], setRates: Dispatch<SetStateAction<ShippingRateRow[]>>) {
-  setRates((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, [key]: value } : row));
 }
 
 function updateMapping<K extends keyof ShippingModelMappingRow>(index: number, key: K, value: ShippingModelMappingRow[K], setMappings: Dispatch<SetStateAction<ShippingModelMappingRow[]>>) {
