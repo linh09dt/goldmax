@@ -59,7 +59,7 @@ export async function buildOrderExcelV2(order: ExportableOrderV2, exportNote = "
 
   const groups = buildOutputGroups(order.items as any, resolveOrderItemDetails as any);
   const totals = calculateOutputTotals(groups, order);
-  let rowNo = 8;
+  let rowNo = 9;
 
   let stripe = 0;
   for (const group of groups) {
@@ -71,12 +71,12 @@ export async function buildOrderExcelV2(order: ExportableOrderV2, exportNote = "
   }
 
   if (!groups.length) {
-    ws.mergeCells(`A${rowNo}:Q${rowNo + 1}`);
+    ws.mergeCells(`A${rowNo}:S${rowNo + 1}`);
     const cell = ws.getCell(`A${rowNo}`);
     cell.value = "Không có dòng hàng hóa nào có KH/Lượng để xuất.";
     cell.alignment = { horizontal: "center", vertical: "middle" };
     cell.font = { ...BASE_FONT, bold: true, color: { argb: "FFB91C1C" } };
-    styleRange(ws, `A${rowNo}:Q${rowNo + 1}`, WHITE, true);
+    styleRange(ws, `A${rowNo}:S${rowNo + 1}`, WHITE, true);
     rowNo += 2;
   }
 
@@ -85,9 +85,9 @@ export async function buildOrderExcelV2(order: ExportableOrderV2, exportNote = "
   rowNo = writeChecklistAndSummary(ws, rowNo, order, totals);
   rowNo += 1;
 
-  ws.pageSetup.printTitlesRow = "7:7";
-  ws.pageSetup.printArea = `A1:Q${rowNo}`;
-  ws.views = [{ state: "frozen", ySplit: 7, showGridLines: false }];
+  ws.pageSetup.printTitlesRow = "7:8";
+  ws.pageSetup.printArea = `A1:S${rowNo}`;
+  ws.views = [{ state: "frozen", ySplit: 8, showGridLines: false }];
   ws.headerFooter.oddFooter = `&L Công ty TNHH SXTM GoldMax Việt Nam - Thông tin Đơn hàng #${order.orderCode}&R Trang &P / &N`;
 
   const buffer = await workbook.xlsx.writeBuffer();
@@ -95,52 +95,58 @@ export async function buildOrderExcelV2(order: ExportableOrderV2, exportNote = "
 }
 
 function setupColumns(ws: Worksheet) {
-  // Giữ đúng tỷ lệ cột của PDF V2 (273 mm vùng in), Excel tự fit 1 trang theo chiều ngang.
-  const widths = [4.6, 9.2, 21.5, 17.7, 8.5, 8.5, 8.5, 8.5, 16.9, 7.7, 6.2, 6.9, 10, 13.1, 14.6, 32.3, 15.4];
+  // 19 cột, bổ sung KT thông thủy Cao/Rộng; Excel tự fit 1 trang theo chiều ngang.
+  const widths = [4.5, 8.5, 19.5, 15.5, 7.5, 7.5, 7.5, 7.5, 14.5, 7.5, 7.5, 7.5, 5.5, 6.5, 9.5, 11.5, 13, 28, 13.5];
   widths.forEach((width, index) => { ws.getColumn(index + 1).width = width; });
 }
 
 async function writeTopBanner(ws: Worksheet, workbook: ExcelJS.Workbook, order: ExportableOrderV2) {
   // Bố cục đồng bộ PDF V2: Logo | Công ty | THÔNG TIN ĐƠN HÀNG.
-  ws.mergeCells("A1:B2");
-  ws.mergeCells("C1:J1");
-  ws.mergeCells("C2:J2");
-  ws.mergeCells("K1:Q1");
-  ws.mergeCells("K2:Q2");
+  ws.mergeCells("A1:C2");
+  ws.mergeCells("D1:K1");
+  ws.mergeCells("D2:K2");
+  ws.mergeCells("L1:S1");
+  ws.mergeCells("L2:S2");
 
-  ws.getCell("C1").value = "CÔNG TY TNHH SXTM GOLDMAX VIỆT NAM";
-  ws.getCell("C1").font = { ...BASE_FONT, bold: true, size: 12, color: { argb: NAVY } };
-  ws.getCell("C1").alignment = { horizontal: "left", vertical: "middle", shrinkToFit: true };
+  ws.getCell("D1").value = "CÔNG TY TNHH SXTM GOLDMAX VIỆT NAM";
+  ws.getCell("D1").font = { ...BASE_FONT, bold: true, size: 12, color: { argb: NAVY } };
+  ws.getCell("D1").alignment = { horizontal: "left", vertical: "middle", shrinkToFit: true };
 
-  ws.getCell("C2").value = "Địa chỉ: Cụm CN Non Sáo, Xã Tân Dĩnh, Bắc Ninh  |  SĐT: 1900 8135  |  Email: Goldmaxdoor@gmail.com";
-  ws.getCell("C2").font = { ...BASE_FONT, size: 8.5, color: { argb: MUTED } };
-  ws.getCell("C2").alignment = { horizontal: "left", vertical: "middle", shrinkToFit: true };
+  ws.getCell("D2").value = "Địa chỉ: Cụm CN Non Sáo, Xã Tân Dĩnh, Bắc Ninh  |  SĐT: 1900 8135  |  Email: Goldmaxdoor@gmail.com";
+  ws.getCell("D2").font = { ...BASE_FONT, size: 8.5, color: { argb: MUTED } };
+  ws.getCell("D2").alignment = { horizontal: "left", vertical: "middle", shrinkToFit: true };
 
-  ws.getCell("K1").value = "THÔNG TIN ĐƠN HÀNG";
-  ws.getCell("K1").font = { ...BASE_FONT, bold: true, size: 14, color: { argb: NAVY } };
-  ws.getCell("K1").alignment = { horizontal: "right", vertical: "middle", shrinkToFit: true };
-  ws.getCell("K2").value = `Mã ĐH: ${order.orderCode}`;
-  ws.getCell("K2").font = { ...BASE_FONT, bold: true, italic: true, size: 9, color: { argb: AMBER } };
-  ws.getCell("K2").alignment = { horizontal: "right", vertical: "middle", shrinkToFit: true };
+  ws.getCell("L1").value = "THÔNG TIN ĐƠN HÀNG";
+  ws.getCell("L1").font = { ...BASE_FONT, bold: true, size: 14, color: { argb: NAVY } };
+  ws.getCell("L1").alignment = { horizontal: "right", vertical: "middle", shrinkToFit: true };
+  ws.getCell("L2").value = `Mã ĐH: ${order.orderCode}`;
+  ws.getCell("L2").font = { ...BASE_FONT, bold: true, italic: true, size: 9, color: { argb: AMBER } };
+  ws.getCell("L2").alignment = { horizontal: "right", vertical: "middle", shrinkToFit: true };
 
-  const logoPath = path.join(process.cwd(), "public", "goldmax-logo.png");
+  const croppedLogoPath = path.join(process.cwd(), "public", "goldmax-logo-cropped.png");
+  const originalLogoPath = path.join(process.cwd(), "public", "goldmax-logo.png");
+  let logoPath = croppedLogoPath;
+  try {
+    await access(croppedLogoPath);
+  } catch {
+    logoPath = originalLogoPath;
+  }
   try {
     await access(logoPath);
     const imageId = workbook.addImage({ filename: logoPath, extension: "png" });
-    // Tăng logo tương tự PDF V2; giữ trong vùng A1:B2 để không đè nội dung công ty.
-    ws.addImage(imageId, { tl: { col: 0.08, row: 0.08 }, ext: { width: 92, height: 42 }, editAs: "oneCell" });
+    // Logo đã crop vùng trong suốt và tăng kích thước để tương quan với PDF V2.
+    ws.addImage(imageId, { tl: { col: 0.15, row: 0.25 }, ext: { width: 128, height: 48 }, editAs: "oneCell" });
   } catch {
     // Không chặn xuất nếu thiếu logo.
   }
 
-  // Khung thông tin 3 cột giống PDF V2.
   const infoRows: Array<[string, string, string]> = [
-    ["A4:G4", "Tên đại lý / Khách hàng", order.customerName || order.receiverName || order.customerCode || ""],
-    ["H4:M4", "Mã Đơn Sản Xuất", order.orderCode],
-    ["N4:Q4", "Ngày Đặt Hàng", formatDate(order.orderDate)],
-    ["A5:G5", "Mã Đại Lý", order.customerCode || ""],
-    ["H5:M5", "Địa Chỉ Lắp Đặt", order.receiverAddress || ""],
-    ["N5:Q5", "Ngày Trả Dự Kiến", formatDate(order.requiredDeliveryDate)],
+    ["A4:H4", "Tên đại lý / Khách hàng", order.customerName || order.receiverName || order.customerCode || ""],
+    ["I4:N4", "Mã Đơn Sản Xuất", order.orderCode],
+    ["O4:S4", "Ngày Đặt Hàng", formatDate(order.orderDate)],
+    ["A5:H5", "Mã Đại Lý", order.customerCode || ""],
+    ["I5:N5", "Địa Chỉ Lắp Đặt", order.receiverAddress || ""],
+    ["O5:S5", "Ngày Trả Dự Kiến", formatDate(order.requiredDeliveryDate)],
   ];
 
   for (const [range, label, value] of infoRows) {
@@ -152,10 +158,10 @@ async function writeTopBanner(ws: Worksheet, workbook: ExcelJS.Workbook, order: 
     ] };
     cell.alignment = { horizontal: "left", vertical: "middle", wrapText: false, shrinkToFit: true };
   }
-  styleRange(ws, "A4:Q5", "FFF8FAFC", true);
+  styleRange(ws, "A4:S5", "FFF8FAFC", true);
 
-  ws.getRow(1).height = 27;
-  ws.getRow(2).height = 22;
+  ws.getRow(1).height = 34;
+  ws.getRow(2).height = 28;
   ws.getRow(3).height = 7;
   ws.getRow(4).height = 22;
   ws.getRow(5).height = 22;
@@ -163,19 +169,45 @@ async function writeTopBanner(ws: Worksheet, workbook: ExcelJS.Workbook, order: 
 }
 
 function writeDataHeader(ws: Worksheet) {
-  const headers = [
-    "STT", "BỘ SỐ", "TÊN SẢN PHẨM / QUY CÁCH", "MODEL", "Ô TH.", "HƯỚNG", "PHÀO", "MÀU SƠN",
-    "KT CỬA (CAO x RỘNG)", "KHUÔN", "SL", "ĐVT", "KHỐI LƯỢNG", "ĐƠN GIÁ (Đ)", "THÀNH TIỀN (Đ)", "GHI CHÚ KỸ THUẬT", "HÌNH ẢNH SP",
+  const mergedHeaders: Array<[string, string]> = [
+    ["A7:A8", "STT"],
+    ["B7:B8", "BỘ SỐ"],
+    ["C7:C8", "TÊN SẢN PHẨM / QUY CÁCH"],
+    ["D7:D8", "MODEL"],
+    ["E7:E8", "Ô TH."],
+    ["F7:F8", "HƯỚNG"],
+    ["G7:G8", "PHÀO"],
+    ["H7:H8", "MÀU SƠN"],
+    ["I7:I8", "KT CỬA (CAO x RỘNG)"],
+    ["J7:J8", "KHUÔN"],
+    ["K7:L7", "KT THÔNG THỦY"],
+    ["M7:M8", "SL"],
+    ["N7:N8", "ĐVT"],
+    ["O7:O8", "KHỐI LƯỢNG"],
+    ["P7:P8", "ĐƠN GIÁ (Đ)"],
+    ["Q7:Q8", "THÀNH TIỀN (Đ)"],
+    ["R7:R8", "GHI CHÚ KỸ THUẬT"],
+    ["S7:S8", "HÌNH ẢNH SP"],
   ];
-  headers.forEach((value, index) => {
-    const cell = ws.getCell(7, index + 1);
+  for (const [range, value] of mergedHeaders) {
+    ws.mergeCells(range);
+    const cell = ws.getCell(range.split(":")[0]);
     cell.value = value;
-    cell.fill = solid(NAVY);
-    cell.font = { ...BASE_FONT, size: 7.5, bold: true, color: { argb: WHITE } };
-    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-    cell.border = ALL_BORDERS;
-  });
-  ws.getRow(7).height = 28;
+  }
+  ws.getCell("K8").value = "CAO";
+  ws.getCell("L8").value = "RỘNG";
+  styleRange(ws, "A7:S8", NAVY, true);
+  for (let row = 7; row <= 8; row += 1) {
+    for (let col = 1; col <= 19; col += 1) {
+      const cell = ws.getCell(row, col);
+      cell.fill = solid(NAVY);
+      cell.font = { ...BASE_FONT, size: 7.2, bold: true, color: { argb: WHITE } };
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      cell.border = ALL_BORDERS;
+    }
+  }
+  ws.getRow(7).height = 22;
+  ws.getRow(8).height = 20;
 }
 
 async function writeDataRow(
@@ -202,6 +234,8 @@ async function writeDataRow(
     cleanText(row.paintColor) || "",
     sizeText,
     toNumber(row.frameMm),
+    toNumber(row.clearHeightMm),
+    toNumber(row.clearWidthMm),
     toNumber(row.quantity),
     cleanText(row.unit) || "",
     toNumber(row.pricingQuantity),
@@ -213,7 +247,7 @@ async function writeDataRow(
   values.forEach((value, index) => { ws.getCell(rowNo, index + 1).value = value as any; });
 
   const fill = main ? (stripe % 2 === 0 ? WHITE : LIGHT) : "FFFBFDFF";
-  for (let col = 1; col <= 17; col += 1) {
+  for (let col = 1; col <= 19; col += 1) {
     const cell = ws.getCell(rowNo, col);
     cell.fill = solid(fill);
     cell.border = ALL_BORDERS;
@@ -221,20 +255,21 @@ async function writeDataRow(
       ? { ...BASE_FONT, size: 8.5, bold: col <= 4 || col >= 13 }
       : { ...BASE_FONT, size: 8, italic: true, color: { argb: MUTED } };
     cell.alignment = {
-      horizontal: [3, 4, 16].includes(col) ? "left" : [13, 14, 15].includes(col) ? "right" : "center",
+      // Từ ĐVT đến Thành tiền căn phải đồng bộ theo yêu cầu hiển thị số.
+      horizontal: col >= 14 && col <= 17 ? "right" : [3, 4, 18].includes(col) ? "left" : "center",
       vertical: "top",
       wrapText: true,
     };
   }
 
-  ws.getCell(`M${rowNo}`).numFmt = "#,##0.0000";
-  ws.getCell(`N${rowNo}`).numFmt = "#,##0";
-  ws.getCell(`O${rowNo}`).numFmt = "#,##0";
-  if (cleanText(row.note)) ws.getCell(`P${rowNo}`).font = { ...ws.getCell(`P${rowNo}`).font, color: { argb: main ? TEXT : MUTED } };
+  ws.getCell(`O${rowNo}`).numFmt = "#,##0.0000";
+  ws.getCell(`P${rowNo}`).numFmt = "#,##0";
+  ws.getCell(`Q${rowNo}`).numFmt = "#,##0";
+  if (cleanText(row.note)) ws.getCell(`R${rowNo}`).font = { ...ws.getCell(`R${rowNo}`).font, color: { argb: main ? TEXT : MUTED } };
 
   const imageUrl = main ? cleanText(group.imagePath) : null;
   if (imageUrl) {
-    const imageCell = ws.getCell(`Q${rowNo}`);
+    const imageCell = ws.getCell(`S${rowNo}`);
     imageCell.value = { text: "Xem ảnh", hyperlink: imageUrl, tooltip: "Mở hình ảnh sản phẩm" };
     imageCell.font = { ...BASE_FONT, size: 7.5, color: { argb: "FF2563EB" }, underline: true };
     imageCell.alignment = { horizontal: "center", vertical: "middle" };
@@ -246,7 +281,7 @@ async function writeDataRow(
         if (extension) {
           const imageBuffer = Buffer.from(await response.arrayBuffer());
           const imageId = workbook.addImage({ buffer: imageBuffer as any, extension });
-          ws.addImage(imageId, { tl: { col: 16.12, row: rowNo - 0.9 }, ext: { width: 58, height: 36 }, editAs: "oneCell" });
+          ws.addImage(imageId, { tl: { col: 18.12, row: rowNo - 0.9 }, ext: { width: 58, height: 36 }, editAs: "oneCell" });
           imageCell.value = null;
           ws.getRow(rowNo).height = Math.max(ws.getRow(rowNo).height || 0, 30);
         }
@@ -275,7 +310,7 @@ function estimateWrappedLines(value: string, charsPerLine: number) {
 function writeOptionalNote(ws: Worksheet, row: number, exportNote: string) {
   const note = exportNote.replace(/\r\n?/g, "\n").trim();
   if (!note) return row;
-  ws.mergeCells(`A${row}:Q${row}`);
+  ws.mergeCells(`A${row}:S${row}`);
   const cell = ws.getCell(`A${row}`);
   cell.value = note;
   cell.font = { ...BASE_FONT, bold: true, size: 10, color: { argb: AMBER } };
@@ -329,24 +364,24 @@ function writeChecklistAndSummary(
 
   let r = startRow;
   for (const [label, amount, mode] of summary) {
-    ws.mergeCells(`L${r}:O${r}`);
-    ws.mergeCells(`P${r}:Q${r}`);
+    ws.mergeCells(`L${r}:P${r}`);
+    ws.mergeCells(`Q${r}:S${r}`);
     ws.getCell(`L${r}`).value = label;
-    ws.getCell(`P${r}`).value = amount;
-    ws.getCell(`P${r}`).numFmt = "#,##0 \"VNĐ\"";
-    styleRange(ws, `L${r}:Q${r}`, mode === "total" ? NAVY : mode === "accent" ? PALE_AMBER : WHITE, true);
+    ws.getCell(`Q${r}`).value = amount;
+    ws.getCell(`Q${r}`).numFmt = "#,##0 \"VNĐ\"";
+    styleRange(ws, `L${r}:S${r}`, mode === "total" ? NAVY : mode === "accent" ? PALE_AMBER : WHITE, true);
     ws.getCell(`L${r}`).font = { ...BASE_FONT, bold: mode !== "normal", size: 8.5, color: { argb: mode === "total" ? WHITE : TEXT } };
-    ws.getCell(`P${r}`).font = { ...BASE_FONT, bold: true, size: 8.5, color: { argb: mode === "total" ? WHITE : mode === "accent" ? "FFDC2626" : NAVY } };
+    ws.getCell(`Q${r}`).font = { ...BASE_FONT, bold: true, size: 8.5, color: { argb: mode === "total" ? WHITE : mode === "accent" ? "FFDC2626" : NAVY } };
     ws.getCell(`L${r}`).alignment = { horizontal: "left", vertical: "middle" };
-    ws.getCell(`P${r}`).alignment = { horizontal: "right", vertical: "middle" };
+    ws.getCell(`Q${r}`).alignment = { horizontal: "right", vertical: "middle" };
     r += 1;
   }
   if (r <= endRow) {
-    ws.mergeCells(`L${r}:Q${endRow}`);
+    ws.mergeCells(`L${r}:S${endRow}`);
     ws.getCell(`L${r}`).value = `(Bằng chữ: ${numberToVietnameseWords(Math.round(totals.paymentDue))})`;
     ws.getCell(`L${r}`).font = { ...BASE_FONT, size: 7.5, italic: true, color: { argb: MUTED } };
     ws.getCell(`L${r}`).alignment = { horizontal: "right", vertical: "top", wrapText: true };
-    styleRange(ws, `L${r}:Q${endRow}`, WHITE, true);
+    styleRange(ws, `L${r}:S${endRow}`, WHITE, true);
   }
   return endRow;
 }

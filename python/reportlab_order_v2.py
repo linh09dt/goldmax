@@ -165,6 +165,7 @@ S = {
     "main": pstyle("main", size=6.8, leading=7.8, font="bold"),
     "body": pstyle("body", size=6.7, leading=7.7),
     "detail": pstyle("detail", size=6.5, leading=7.4, font="italic", color=MUTED),
+    "detail_right": pstyle("detail_right", size=6.5, leading=7.4, font="italic", color=MUTED, align=TA_RIGHT),
     "num": pstyle("num", size=6.7, leading=7.7, align=TA_RIGHT),
     "num_bold": pstyle("num_bold", size=6.7, leading=7.7, font="bold", align=TA_RIGHT),
     "center": pstyle("center", size=6.7, leading=7.7, align=TA_CENTER),
@@ -527,11 +528,17 @@ def _meta(label: str, value: str) -> Paragraph:
 
 
 def _data_table(groups: list[dict[str, Any]]) -> Table:
-    headers = [
+    # Hai dòng header để thể hiện đúng nhóm KT THÔNG THỦY: Cao / Rộng.
+    header_top = [
         "STT", "BỘ SỐ", "TÊN SẢN PHẨM / QUY CÁCH", "MODEL", "Ô TH.", "HƯỚNG", "PHÀO", "MÀU SƠN",
-        "KT CỬA (MM)", "KHUÔN", "SL", "ĐVT", "KHỐI LƯỢNG", "ĐƠN GIÁ (Đ)", "THÀNH TIỀN (Đ)", "GHI CHÚ KỸ THUẬT", "HÌNH ẢNH SP",
+        "KT CỬA (MM)", "KHUÔN", "KT THÔNG THỦY", "", "SL", "ĐVT", "KHỐI LƯỢNG", "ĐƠN GIÁ (Đ)",
+        "THÀNH TIỀN (Đ)", "GHI CHÚ KỸ THUẬT", "HÌNH ẢNH SP",
     ]
-    data: list[list[Any]] = [[para(h, "th") for h in headers]]
+    header_sub = ["", "", "", "", "", "", "", "", "", "", "CAO", "RỘNG", "", "", "", "", "", "", ""]
+    data: list[list[Any]] = [
+        [para(h, "th") for h in header_top],
+        [para(h, "th") for h in header_sub],
+    ]
     main_row_numbers: list[int] = []
     detail_row_numbers: list[int] = []
     group_ranges: list[tuple[int, int]] = []
@@ -557,11 +564,14 @@ def _data_table(groups: list[dict[str, Any]]) -> Table:
                 para(clean(row.get("paintColor")), "center" if main else "detail"),
                 para(size_text, "center" if main else "detail"),
                 para(integer(row.get("frameMm")), "center" if main else "detail"),
+                para(integer(row.get("clearHeightMm")), "center" if main else "detail"),
+                para(integer(row.get("clearWidthMm")), "center" if main else "detail"),
                 para(integer(row.get("quantity")), "center" if main else "detail"),
-                para(clean(row.get("unit")), "center" if main else "detail"),
-                para(decimal4(row.get("pricingQuantity")), "num_bold" if main else "detail"),
-                para(money(row.get("unitPrice")), "num_bold" if main else "detail"),
-                para(money(line_amount(row)), "num_bold" if main else "detail"),
+                # ĐVT, Khối lượng, Đơn giá, Thành tiền căn phải.
+                para(clean(row.get("unit")), "num" if main else "detail_right"),
+                para(decimal4(row.get("pricingQuantity")), "num_bold" if main else "detail_right"),
+                para(money(row.get("unitPrice")), "num_bold" if main else "detail_right"),
+                para(money(line_amount(row)), "num_bold" if main else "detail_right"),
                 para(clean(row.get("note")), "note" if main else "detail"),
                 _image_flowable(clean(group.get("imagePath"))) if main else para("", "center"),
             ]
@@ -574,30 +584,34 @@ def _data_table(groups: list[dict[str, Any]]) -> Table:
         if group_end >= group_start:
             group_ranges.append((group_start, group_end))
 
-    if len(data) == 1:
-        data.append([para("Không có dòng hàng hóa có KH/Lượng để xuất.", "body")] + [""] * 16)
+    if len(data) == 2:
+        data.append([para("Không có dòng hàng hóa có KH/Lượng để xuất.", "body")] + [""] * 18)
 
-    widths_mm = [6, 12, 28, 23, 11, 11, 11, 11, 22, 10, 8, 9, 13, 17, 19, 42, 20]
+    # Tổng đúng 273 mm = 297 - 12 - 12 mm lề.
+    widths_mm = [5.5, 10.5, 27, 21, 9, 9, 9, 9, 19, 9, 9, 9, 7, 8, 13, 17, 19, 44, 19]
     assert sum(widths_mm) == 273
-    table = Table(data, colWidths=[w * mm for w in widths_mm], repeatRows=1, splitByRow=1, hAlign="LEFT")
+    table = Table(data, colWidths=[w * mm for w in widths_mm], repeatRows=2, splitByRow=1, hAlign="LEFT")
     commands: list[tuple[Any, ...]] = [
-        ("BACKGROUND", (0, 0), (-1, 0), NAVY),
-        ("TEXTCOLOR", (0, 0), (-1, 0), WHITE),
+        ("BACKGROUND", (0, 0), (-1, 1), NAVY),
+        ("TEXTCOLOR", (0, 0), (-1, 1), WHITE),
         ("BOX", (0, 0), (-1, -1), 0.55, BORDER),
         ("INNERGRID", (0, 0), (-1, -1), 0.35, BORDER),
-        ("VALIGN", (0, 0), (-1, 0), "MIDDLE"),
-        ("VALIGN", (0, 1), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 2.2),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 2.2),
-        ("TOPPADDING", (0, 0), (-1, 0), 4.5),
-        ("BOTTOMPADDING", (0, 0), (-1, 0), 4.5),
-        ("TOPPADDING", (0, 1), (-1, -1), 2.4),
-        ("BOTTOMPADDING", (0, 1), (-1, -1), 2.4),
-        ("LEFTPADDING", (15, 1), (15, -1), 3.0),
-        ("RIGHTPADDING", (15, 1), (15, -1), 3.0),
-        ("TOPPADDING", (15, 1), (16, -1), 3.0),
-        ("BOTTOMPADDING", (15, 1), (16, -1), 3.0),
+        ("VALIGN", (0, 0), (-1, 1), "MIDDLE"),
+        ("VALIGN", (0, 2), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 2.0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 2.0),
+        ("TOPPADDING", (0, 0), (-1, 1), 3.2),
+        ("BOTTOMPADDING", (0, 0), (-1, 1), 3.2),
+        ("TOPPADDING", (0, 2), (-1, -1), 2.4),
+        ("BOTTOMPADDING", (0, 2), (-1, -1), 2.4),
+        ("LEFTPADDING", (17, 2), (17, -1), 3.0),
+        ("RIGHTPADDING", (17, 2), (17, -1), 3.0),
+        ("TOPPADDING", (17, 2), (18, -1), 3.0),
+        ("BOTTOMPADDING", (17, 2), (18, -1), 3.0),
+        ("SPAN", (10, 0), (11, 0)),
     ]
+    for col in list(range(0, 10)) + list(range(12, 19)):
+        commands.append(("SPAN", (col, 0), (col, 1)))
     for idx, row_no in enumerate(main_row_numbers):
         commands.append(("BACKGROUND", (0, row_no), (-1, row_no), LIGHT if idx % 2 else WHITE))
     for row_no in detail_row_numbers:
