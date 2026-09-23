@@ -324,26 +324,62 @@ def totals(order: dict[str, Any], groups: list[dict[str, Any]]) -> dict[str, flo
     }
 
 
-def _download_image(url: str, max_bytes: int = 5_000_000) -> io.BytesIO | None:
+def _download_image_bytes(url: str, max_bytes: int = 5_000_000) -> bytes | None:
+    """Tải ảnh sản phẩm với giới hạn dung lượng để bảo vệ Vercel Function."""
     if not url or not re.match(r"^https?://", url, re.I):
         return None
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "GoldMax-PDF-V2/1.0"})
-        with urllib.request.urlopen(req, timeout=4) as resp:
+        with urllib.request.urlopen(req, timeout=3) as resp:
             data = resp.read(max_bytes + 1)
             if len(data) > max_bytes:
                 return None
-            return io.BytesIO(data)
+            return data
     except Exception:
         return None
 
 
-def _image_flowable(url: str) -> Any:
-    stream = _download_image(url)
-    if not stream:
+def _optimize_product_image(data: bytes) -> bytes | None:
+    """Thu nhỏ ảnh trước khi nhúng PDF.
+
+    Ảnh trên web có thể vài MB. Nếu ReportLab nhúng nguyên ảnh cho 10-20 bộ cửa,
+    PDF nhiều trang có thể vượt bộ nhớ/response limit của Vercel và trả 500.
+    Cột ảnh trong PDF chỉ rộng ~11 mm nên 240 px là đủ sắc nét khi in.
+    """
+    try:
+        from PIL import Image as PILImage, ImageOps
+
+        with PILImage.open(io.BytesIO(data)) as source:
+            image = ImageOps.exif_transpose(source)
+            if image.mode in {"RGBA", "LA"} or (image.mode == "P" and "transparency" in image.info):
+                rgba = image.convert("RGBA")
+                background = PILImage.new("RGB", rgba.size, "white")
+                background.paste(rgba, mask=rgba.getchannel("A"))
+                image = background
+            else:
+                image = image.convert("RGB")
+
+            image.thumbnail((240, 240), PILImage.Resampling.LANCZOS)
+            out = io.BytesIO()
+            image.save(out, format="JPEG", quality=68, optimize=True, progressive=False)
+            return out.getvalue()
+    except Exception:
+        return None
+
+
+def _image_flowable(url: str, cache: dict[str, bytes | None]) -> Any:
+    if not url:
+        return para("", "center")
+
+    if url not in cache:
+        raw = _download_image_bytes(url)
+        cache[url] = _optimize_product_image(raw) if raw else None
+
+    data = cache.get(url)
+    if not data:
         return para("", "center")
     try:
-        img = Image(stream, width=11 * mm, height=11 * mm, kind="proportional")
+        img = Image(io.BytesIO(data), width=11 * mm, height=11 * mm, kind="proportional")
         img.hAlign = "CENTER"
         return img
     except Exception:
@@ -401,7 +437,9 @@ def build_order_pdf(order: dict[str, Any], output: str | os.PathLike[str] | io.B
     story: list[Any] = []
     story.extend(_header(order, order_code))
     story.append(Spacer(1, 3 * mm))
-    story.append(_data_table(groups))
+    # Cache ảnh chỉ tồn tại trong một lần xuất PDF, tránh tải/giải mã lại cùng URL.
+    image_cache: dict[str, bytes | None] = {}
+    story.append(_data_table(groups, image_cache))
 
     if export_note.strip():
         story.append(Spacer(1, 2.5 * mm))
@@ -534,7 +572,7 @@ def _meta(label: str, value: str) -> Paragraph:
     )
 
 
-def _data_table(groups: list[dict[str, Any]]) -> Table:
+def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | None]) -> Table:
     # Hai dòng header để thể hiện đúng nhóm KT THÔNG THỦY: Cao / Rộng.
     header_top = [
         "STT", "BỘ SỐ", "TÊN SẢN PHẨM / QUY CÁCH", "MODEL", "Ô TH.", "HƯỚNG", "PHÀO", "MÀU SƠN",
@@ -580,7 +618,7 @@ def _data_table(groups: list[dict[str, Any]]) -> Table:
                 para(money(row.get("unitPrice")), "num_bold" if main else "detail_right"),
                 para(money(line_amount(row)), "num_bold" if main else "detail_right"),
                 para(clean(row.get("note")), "note" if main else "detail"),
-                _image_flowable(clean(group.get("imagePath"))) if main else para("", "center"),
+                _image_flowable(clean(group.get("imagePath")), image_cache) if main else para("", "center"),
             ]
             data.append(row_values)
             if main:
