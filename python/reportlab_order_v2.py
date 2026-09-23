@@ -11,6 +11,7 @@ vào hàm build_order_pdf().
 from __future__ import annotations
 
 import argparse
+import base64
 import io
 import json
 import math
@@ -56,6 +57,11 @@ WHITE = colors.white
 COMPANY = "CÔNG TY TNHH SXTM GOLDMAX VIỆT NAM"
 COMPANY_LINE = "Địa chỉ: Cụm CN Non Sáo, Xã Tân Dĩnh, Bắc Ninh  |  SĐT: 1900 8135  |  Email: Goldmaxdoor@gmail.com"
 TITLE = "THÔNG TIN ĐƠN HÀNG"
+
+# Logo GOLDMAX nhúng trực tiếp để PDF V2 vẫn có logo trên Vercel Python Function.
+# Vercel có thể không bundle thư mục public/ vào Python Function, nên đây là fallback
+# độc lập với filesystem. Khi chạy local vẫn ưu tiên public/goldmax-logo.png.
+_EMBEDDED_LOGO_PNG_B64 = "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"
 
 
 def _find_font_file(names: Iterable[str]) -> str | None:
@@ -431,28 +437,32 @@ def _find_logo_file() -> Path | None:
 
 def _logo_flowable() -> Any:
     path = _find_logo_file()
-    if not path:
-        return para("", "center")
     try:
-        # File logo hiện tại có vùng trong suốt khá lớn. Crop theo alpha trước khi
-        # đưa vào ReportLab để logo nhìn lớn thật sự, không chỉ tăng khung ảnh.
-        try:
-            from PIL import Image as PILImage
+        if path:
+            # Local/dev: dùng file public hiện tại và crop vùng trong suốt.
+            try:
+                from PIL import Image as PILImage
 
-            pil = PILImage.open(path).convert("RGBA")
-            alpha = pil.getchannel("A")
-            bbox = alpha.getbbox()
-            if bbox:
-                pil = pil.crop(bbox)
-            stream = io.BytesIO()
-            pil.save(stream, format="PNG")
-            stream.seek(0)
-            img = Image(stream, width=30 * mm, height=12 * mm, kind="proportional")
-        except Exception:
-            img = Image(str(path), width=30 * mm, height=12 * mm, kind="proportional")
+                pil = PILImage.open(path).convert("RGBA")
+                alpha = pil.getchannel("A")
+                bbox = alpha.getbbox()
+                if bbox:
+                    pil = pil.crop(bbox)
+                stream = io.BytesIO()
+                pil.save(stream, format="PNG")
+                stream.seek(0)
+                img = Image(stream, width=30 * mm, height=12 * mm, kind="proportional")
+            except Exception:
+                img = Image(str(path), width=30 * mm, height=12 * mm, kind="proportional")
+        else:
+            # Vercel Python Function có thể không thấy public/. Dùng logo đã nhúng
+            # trong chính module Python để không phụ thuộc file tĩnh bên ngoài.
+            embedded = io.BytesIO(base64.b64decode(_EMBEDDED_LOGO_PNG_B64))
+            img = Image(embedded, width=30 * mm, height=12 * mm, kind="proportional")
         img.hAlign = "LEFT"
         return img
     except Exception:
+        # Không để logo làm hỏng toàn bộ PDF nếu dữ liệu ảnh gặp lỗi bất ngờ.
         return para("", "center")
 
 
