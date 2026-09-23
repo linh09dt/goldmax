@@ -55,7 +55,7 @@ WHITE = colors.white
 
 COMPANY = "CÔNG TY TNHH SXTM GOLDMAX VIỆT NAM"
 COMPANY_LINE = "Địa chỉ: Cụm CN Non Sáo, Xã Tân Dĩnh, Bắc Ninh  |  SĐT: 1900 8135  |  Email: Goldmaxdoor@gmail.com"
-TITLE = "XÁC NHẬN ĐƠN HÀNG & BÁO GIÁ"
+TITLE = "THÔNG TIN ĐƠN HÀNG"
 
 
 def _find_font_file(names: Iterable[str]) -> str | None:
@@ -83,14 +83,55 @@ def _find_font_file(names: Iterable[str]) -> str | None:
     return None
 
 
+def _fontpkg_roboto_root() -> Path | None:
+    """Tìm Roboto từ dependency fontpkg-roboto trên Vercel.
+
+    Font được đóng gói như dependency Python nên không phụ thuộc font hệ điều hành
+    của Vercel. Đây là đường ưu tiên để tiếng Việt Unicode luôn hiển thị đúng.
+    """
+    try:
+        import fontpkg  # type: ignore
+
+        root = Path(fontpkg.path("Roboto"))
+        return root if root.exists() else None
+    except Exception:
+        return None
+
+
+def _pick_ttf(root: Path, preferred_tokens: list[str]) -> str | None:
+    try:
+        files = list(root.rglob("*.ttf"))
+    except OSError:
+        return None
+    if not files:
+        return None
+
+    lowered = [(path, path.name.lower()) for path in files]
+    for token in preferred_tokens:
+        token_l = token.lower()
+        for path, name in lowered:
+            if token_l in name:
+                return str(path)
+    return str(files[0])
+
+
 def register_fonts() -> dict[str, str]:
-    regular = os.getenv("REPORTLAB_FONT_PATH") or _find_font_file([
+    # 1) Ưu tiên font Unicode được đóng gói qua pip trên Vercel.
+    packaged = _fontpkg_roboto_root()
+    regular = bold = italic = None
+    if packaged:
+        regular = _pick_ttf(packaged, ["regular", "variablefont_wdth,wght", "variablefont", "roboto"])
+        bold = _pick_ttf(packaged, ["bold", "700", "variablefont_wdth,wght", "variablefont"])
+        italic = _pick_ttf(packaged, ["italic", "oblique", "variablefont_ital", "variablefont"])
+
+    # 2) Cho phép override bằng env và fallback sang font Unicode của hệ điều hành khi chạy local.
+    regular = os.getenv("REPORTLAB_FONT_PATH") or regular or _find_font_file([
         "DejaVuSans.ttf", "NotoSans-Regular.ttf", "Arial.ttf", "LiberationSans-Regular.ttf"
     ])
-    bold = os.getenv("REPORTLAB_FONT_BOLD_PATH") or _find_font_file([
+    bold = os.getenv("REPORTLAB_FONT_BOLD_PATH") or bold or _find_font_file([
         "DejaVuSans-Bold.ttf", "NotoSans-Bold.ttf", "Arial Bold.ttf", "LiberationSans-Bold.ttf"
     ])
-    italic = os.getenv("REPORTLAB_FONT_ITALIC_PATH") or _find_font_file([
+    italic = os.getenv("REPORTLAB_FONT_ITALIC_PATH") or italic or _find_font_file([
         "DejaVuSans-Oblique.ttf", "NotoSans-Italic.ttf", "Arial Italic.ttf", "LiberationSans-Italic.ttf"
     ])
 
@@ -100,9 +141,10 @@ def register_fonts() -> dict[str, str]:
         pdfmetrics.registerFont(TTFont("GM-Italic", italic or regular))
         return {"regular": "GM-Regular", "bold": "GM-Bold", "italic": "GM-Italic"}
 
-    # Fallback cuối cùng. Trên Vercel nên có DejaVu/Noto hoặc cấu hình REPORTLAB_FONT_PATH
-    # để tiếng Việt hiển thị đầy đủ.
-    return {"regular": "Helvetica", "bold": "Helvetica-Bold", "italic": "Helvetica-Oblique"}
+    # Không âm thầm dùng Helvetica vì Helvetica không có đủ glyph tiếng Việt.
+    raise RuntimeError(
+        "Không tìm thấy font Unicode cho PDF V2. Hãy bảo đảm dependency fontpkg-roboto được cài đặt."
+    )
 
 
 FONTS = register_fonts()
@@ -120,6 +162,7 @@ def pstyle(name: str, *, size: float = 8, leading: float | None = None, font: st
         alignment=align,
         spaceBefore=0,
         spaceAfter=0,
+        splitLongWords=1,
         **kwargs,
     )
 
@@ -138,7 +181,7 @@ S = {
     "num": pstyle("num", size=6.7, leading=7.7, align=TA_RIGHT),
     "num_bold": pstyle("num_bold", size=6.7, leading=7.7, font="bold", align=TA_RIGHT),
     "center": pstyle("center", size=6.7, leading=7.7, align=TA_CENTER),
-    "note": pstyle("note", size=6.6, leading=7.6),
+    "note": pstyle("note", size=6.3, leading=7.3),
     "export_note": pstyle("export_note", size=9, leading=10.5, font="bold", color=AMBER, align=TA_CENTER),
     "check_title": pstyle("check_title", size=7.7, font="bold", color=NAVY),
     "check": pstyle("check", size=6.7, leading=8.1),
@@ -338,7 +381,7 @@ class NumberedCanvas(pdfcanvas.Canvas):
         self.line(LEFT, y + 4 * mm, PAGE_W - RIGHT, y + 4 * mm)
         self.setFillColor(MUTED)
         self.setFont(FONTS["regular"], 6.5)
-        self.drawString(LEFT, y, f"{COMPANY} - Báo giá Đơn hàng #{self._order_code}")
+        self.drawString(LEFT, y, f"{COMPANY} - Thông tin Đơn hàng #{self._order_code}")
         self.drawRightString(PAGE_W - RIGHT, y, f"Trang {self._pageNumber} / {page_count}")
         self.restoreState()
 
@@ -357,7 +400,7 @@ def build_order_pdf(order: dict[str, Any], output: str | os.PathLike[str] | io.B
         bottomMargin=BOTTOM,
         title=f"{TITLE} - {order_code}",
         author=COMPANY,
-        subject="Báo giá đơn hàng GOLDMAX V2",
+        subject="Thông tin đơn hàng GOLDMAX V2",
     )
 
     story: list[Any] = []
@@ -380,8 +423,6 @@ def build_order_pdf(order: dict[str, Any], output: str | os.PathLike[str] | io.B
 
     story.append(Spacer(1, 3 * mm))
     story.append(KeepTogether([_bottom_section(order, calc)]))
-    story.append(Spacer(1, 4 * mm))
-    story.append(KeepTogether([_signatures()]))
 
     doc.build(
         story,
@@ -395,21 +436,74 @@ def build_order_pdf_bytes(order: dict[str, Any], export_note: str = "") -> bytes
     return output.getvalue()
 
 
+def _find_logo_file() -> Path | None:
+    candidates = [
+        Path(__file__).resolve().parents[1] / "public" / "goldmax-logo.png",
+        Path.cwd() / "public" / "goldmax-logo.png",
+        Path("/var/task/public/goldmax-logo.png"),
+    ]
+    for path in candidates:
+        if path.exists():
+            return path
+    return None
+
+
+def _logo_flowable() -> Any:
+    path = _find_logo_file()
+    if not path:
+        return para("", "center")
+    try:
+        # File logo hiện tại có vùng trong suốt khá lớn. Crop theo alpha trước khi
+        # đưa vào ReportLab để logo nhìn lớn thật sự, không chỉ tăng khung ảnh.
+        try:
+            from PIL import Image as PILImage
+
+            pil = PILImage.open(path).convert("RGBA")
+            alpha = pil.getchannel("A")
+            bbox = alpha.getbbox()
+            if bbox:
+                pil = pil.crop(bbox)
+            stream = io.BytesIO()
+            pil.save(stream, format="PNG")
+            stream.seek(0)
+            img = Image(stream, width=30 * mm, height=12 * mm, kind="proportional")
+        except Exception:
+            img = Image(str(path), width=30 * mm, height=12 * mm, kind="proportional")
+        img.hAlign = "LEFT"
+        return img
+    except Exception:
+        return para("", "center")
+
+
 def _header(order: dict[str, Any], order_code: str) -> list[Any]:
-    left = [para(COMPANY, "company"), Spacer(1, 1.2 * mm), para(COMPANY_LINE, "company_line")]
-    right = [para(TITLE, "title"), Spacer(1, 1.2 * mm), para(f"Mã ĐH: {order_code}", "order_code")]
-    header = Table([[left, right]], colWidths=[CONTENT_W * 0.60, CONTENT_W * 0.40])
+    company_block = [
+        para(COMPANY, "company"),
+        Spacer(1, 0.8 * mm),
+        para(COMPANY_LINE, "company_line"),
+    ]
+    title_block = [
+        para(TITLE, "title"),
+        Spacer(1, 1.0 * mm),
+        para(f"Mã ĐH: {order_code}", "order_code"),
+    ]
+
+    # Logo lớn hơn và tách thành cột riêng để không làm co tên công ty.
+    header = Table(
+        [[_logo_flowable(), company_block, title_block]],
+        colWidths=[32 * mm, 123 * mm, 118 * mm],
+    )
     header.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
         ("RIGHTPADDING", (0, 0), (-1, -1), 0),
         ("TOPPADDING", (0, 0), (-1, -1), 0),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
     ]))
 
+    # Khung thông tin giữ đủ 6 trường chính, không rút gọn dữ liệu.
     meta = [
         [
-            _meta("Đại lý / Khách hàng", clean(order.get("customerName")) or clean(order.get("receiverName")) or clean(order.get("customerCode"))),
+            _meta("Tên đại lý / Khách hàng", clean(order.get("customerName")) or clean(order.get("receiverName")) or clean(order.get("customerCode"))),
             _meta("Mã Đơn Sản Xuất", order_code),
             _meta("Ngày Đặt Hàng", fmt_date(order.get("orderDate"))),
         ],
@@ -419,7 +513,7 @@ def _header(order: dict[str, Any], order_code: str) -> list[Any]:
             _meta("Ngày Trả Dự Kiến", fmt_date(order.get("requiredDeliveryDate"))),
         ],
     ]
-    meta_table = Table(meta, colWidths=[CONTENT_W * 0.40, CONTENT_W * 0.34, CONTENT_W * 0.26], rowHeights=[8.2 * mm, 8.2 * mm])
+    meta_table = Table(meta, colWidths=[CONTENT_W * 0.40, CONTENT_W * 0.34, CONTENT_W * 0.26])
     meta_table.setStyle(TableStyle([
         ("BOX", (0, 0), (-1, -1), 0.65, BORDER),
         ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#E5E7EB")),
@@ -427,8 +521,8 @@ def _header(order: dict[str, Any], order_code: str) -> list[Any]:
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("LEFTPADDING", (0, 0), (-1, -1), 6),
         ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ("TOPPADDING", (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
     ]))
     return [header, Spacer(1, 2.5 * mm), meta_table]
 
@@ -492,7 +586,7 @@ def _data_table(groups: list[dict[str, Any]]) -> Table:
     if len(data) == 1:
         data.append([para("Không có dòng hàng hóa có KH/Lượng để xuất.", "body")] + [""] * 16)
 
-    widths_mm = [7, 13, 30, 24, 12, 12, 12, 12, 23, 11, 9, 10, 14, 18, 20, 31, 15]
+    widths_mm = [6, 12, 28, 23, 11, 11, 11, 11, 22, 10, 8, 9, 13, 17, 19, 42, 20]
     assert sum(widths_mm) == 273
     table = Table(data, colWidths=[w * mm for w in widths_mm], repeatRows=1, splitByRow=1, hAlign="LEFT")
     commands: list[tuple[Any, ...]] = [
@@ -500,13 +594,18 @@ def _data_table(groups: list[dict[str, Any]]) -> Table:
         ("TEXTCOLOR", (0, 0), (-1, 0), WHITE),
         ("BOX", (0, 0), (-1, -1), 0.55, BORDER),
         ("INNERGRID", (0, 0), (-1, -1), 0.35, BORDER),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("VALIGN", (0, 0), (-1, 0), "MIDDLE"),
+        ("VALIGN", (0, 1), (-1, -1), "TOP"),
         ("LEFTPADDING", (0, 0), (-1, -1), 2.2),
         ("RIGHTPADDING", (0, 0), (-1, -1), 2.2),
         ("TOPPADDING", (0, 0), (-1, 0), 4.5),
         ("BOTTOMPADDING", (0, 0), (-1, 0), 4.5),
         ("TOPPADDING", (0, 1), (-1, -1), 2.4),
         ("BOTTOMPADDING", (0, 1), (-1, -1), 2.4),
+        ("LEFTPADDING", (15, 1), (15, -1), 3.0),
+        ("RIGHTPADDING", (15, 1), (15, -1), 3.0),
+        ("TOPPADDING", (15, 1), (16, -1), 3.0),
+        ("BOTTOMPADDING", (15, 1), (16, -1), 3.0),
     ]
     for idx, row_no in enumerate(main_row_numbers):
         commands.append(("BACKGROUND", (0, row_no), (-1, row_no), LIGHT if idx % 2 else WHITE))

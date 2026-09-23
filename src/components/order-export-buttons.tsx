@@ -79,7 +79,7 @@ export function OrderExportButtons({
     <>
       <button type="button" className={excelClass} onClick={() => openDialog("excel")}>{excelLabel}</button>
       <button type="button" className={pdfClass} onClick={() => openDialog("pdf")}>{pdfLabel}</button>
-      <button type="button" className={excelV2Class} onClick={() => openDialog("excelV2")}>Excel V2</button>
+      <button type="button" className={excelV2Class} onClick={() => openDialog("excelV2")}>Xuất Excel V2</button>
       <button type="button" className={pdfV2Class} onClick={() => openDialog("pdfV2")}>PDF V2</button>
 
       {exportType ? (
