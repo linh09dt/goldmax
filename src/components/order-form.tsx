@@ -39,6 +39,25 @@ type Props = {
   initialData?: OrderFormData;
 };
 
+type SaveOrderResponse = { ok: boolean; id?: number; error?: string };
+
+async function readJsonResponse(response: Response): Promise<SaveOrderResponse> {
+  const text = await response.text();
+  if (!text.trim()) {
+    return { ok: false, error: `Máy chủ không trả dữ liệu (HTTP ${response.status}).` };
+  }
+
+  try {
+    return JSON.parse(text) as SaveOrderResponse;
+  } catch {
+    return {
+      ok: false,
+      error: `Không thể lưu đơn hàng (HTTP ${response.status}). Máy chủ trả về dữ liệu không hợp lệ.`,
+    };
+  }
+}
+
+
 // ERP V22.1: discountPercent is editable per order.
 export function OrderForm({ mode, orderId, initialData }: Props) {
   const router = useRouter();
@@ -260,11 +279,12 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
     try {
       const url = mode === "create" ? "/api/orders" : `/api/orders/${orderId}`;
       const response = await fetch(url, {
-        method: mode === "create" ? "POST" : "PUT",
-        headers: { "Content-Type": "application/json" },
+        // Dùng POST cho cập nhật để tránh proxy/hosting trả HTML với PUT ở route động.
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify(form),
       });
-      const result = (await response.json()) as { ok: boolean; id?: number; error?: string };
+      const result = await readJsonResponse(response);
       if (!response.ok || !result.ok || !result.id) throw new Error(result.error || "Không thể lưu đơn hàng.");
       setMessage({ type: "ok", text: mode === "create" ? "Đã tạo đơn hàng." : "Đã cập nhật đơn hàng." });
       router.push(`/orders/${result.id}`);
