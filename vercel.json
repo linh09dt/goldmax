@@ -3,9 +3,6 @@
   "functions": {
     "api/order_pdf_v2.py": {
       "maxDuration": 300
-    },
-    "api/order_pdf_v2_debug.py": {
-      "maxDuration": 300
     }
   }
 }

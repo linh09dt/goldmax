@@ -8,7 +8,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 
 def _log(stage: str, **extra) -> None:
@@ -130,7 +130,7 @@ def _count_pages(path: Path) -> int:
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        VERSION = "V41.18-trace"
+        VERSION = "V41.19-root-fix"
         tmp_path: Path | None = None
         trace: list[dict] = []
 
@@ -174,7 +174,7 @@ class handler(BaseHTTPRequestHandler):
                 detail_count = sum(len(item.get("details") or []) for item in order.get("items") or [])
                 self._json(200, {
                     "ok": True,
-                    "version": "V41.14",
+                    "version": "V41.19",
                     "stage": "db",
                     "orderId": order_id,
                     "items": len(order.get("items") or []),
@@ -208,7 +208,7 @@ class handler(BaseHTTPRequestHandler):
             if diag_build:
                 self._json(200, {
                     "ok": True,
-                    "version": "V41.14",
+                    "version": "V41.19",
                     "stage": "build",
                     "orderId": order_id,
                     "pages": pages,
@@ -248,13 +248,19 @@ class handler(BaseHTTPRequestHandler):
 
             mark("14_HEADERS_WRITE_START")
             response_started = True
-            self._send_pdf(pdf_bytes, filename, pages=pages)
+            self._send_pdf(pdf_bytes, filename, pages=pages, ascii_filename=f"Bao-gia-V2-{order_id}.pdf")
             mark("15_RESPONSE_DONE", orderId=order_id, bytes=len(pdf_bytes), pages=pages)
             return
-        except ValueError:
-            self._error(400, "orderId không hợp lệ.")
+        except ValueError as exc:
+            # UnicodeEncodeError kế thừa ValueError. Nếu lỗi xảy ra sau khi response
+            # đã bắt đầu thì tuyệt đối không gửi status line thứ hai.
+            mark("99_ERROR", error=repr(exc), errorType=type(exc).__name__, responseStarted=response_started)
+            if not response_started:
+                self._error(400, "orderId không hợp lệ.")
         except LookupError as exc:
-            self._error(404, str(exc))
+            mark("99_ERROR", error=repr(exc), errorType=type(exc).__name__, responseStarted=response_started)
+            if not response_started:
+                self._error(404, str(exc))
         except Exception as exc:
             mark("99_ERROR", error=repr(exc), errorType=type(exc).__name__, responseStarted=response_started)
             # Khi binary response đã bắt đầu, tuyệt đối không ghi thêm một HTTP response
@@ -269,18 +275,26 @@ class handler(BaseHTTPRequestHandler):
                 except Exception:
                     pass
 
-    def _send_pdf(self, pdf_bytes: bytes, filename: str, pages: int = 0):
-        # V41.14: giữ response tối giản đúng pattern BaseHTTPRequestHandler mà
-        # Vercel tài liệu hóa. Không tự set hop-by-hop header `Connection` và
-        # không ép Content-Length; adapter của Vercel sẽ đóng gói response.
-        # `Connection: close` từng được thêm ở V41.13 và có thể làm proxy/runtime
-        # xem response là không hợp lệ, dẫn đến HTML 500 dù PDF đã build xong.
+    def _send_pdf(self, pdf_bytes: bytes, filename: str, pages: int = 0, ascii_filename: str | None = None):
+        # V41.19 root cause fix:
+        # BaseHTTPRequestHandler.send_header() mã hóa header bằng latin-1 strict.
+        # Vì vậy filename= phải chỉ chứa ASCII; tên Unicode thật đi qua filename*=UTF-8''.
+        # Giữ Content-Length + flush() theo binary response pattern đã test OK ở debug V41.16.
+        utf8_filename = filename.replace("\r", "").replace("\n", "")
+        fallback = (ascii_filename or "goldmax-order.pdf").replace("\r", "").replace("\n", "")
+        fallback = fallback.encode("ascii", "ignore").decode("ascii") or "goldmax-order.pdf"
+        fallback = fallback.replace('"', "-")
+        content_disposition = (
+            f'attachment; filename="{fallback}"; '
+            f"filename*=UTF-8''{quote(utf8_filename, safe='')}"
+        )
+
         self.send_response(200)
         self.send_header("Content-Type", "application/pdf")
-        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.send_header("Content-Disposition", content_disposition)
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(pdf_bytes)))
-        self.send_header("X-GoldMax-PDF-Version", "V41.18")
+        self.send_header("X-GoldMax-PDF-Version", "V41.19")
         if pages:
             self.send_header("X-GoldMax-PDF-Pages", str(pages))
         self.end_headers()
@@ -295,6 +309,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(data)
+        self.wfile.flush()
 
     def _error(self, status: int, message: str):
-        self._json(status, {"ok": False, "version": "V41.18", "error": message})
+        self._json(status, {"ok": False, "version": "V41.19", "error": message})
