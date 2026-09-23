@@ -32,6 +32,26 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   }
 }
 
+
+export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await context.params;
+    const optionId = Number(id);
+    if (!Number.isInteger(optionId)) return NextResponse.json({ ok: false, error: "ID cấu hình không hợp lệ." }, { status: 400 });
+
+    const current = await prisma.masterOption.findUnique({ where: { id: optionId }, select: { id: true, groupCode: true } });
+    if (!current) return NextResponse.json({ ok: false, error: "Không tìm thấy giá trị cấu hình." }, { status: 404 });
+    if (current.groupCode !== "DEALER_CODE") {
+      return NextResponse.json({ ok: false, error: "Chức năng xóa trực tiếp hiện chỉ áp dụng cho Mã Đại Lý." }, { status: 400 });
+    }
+
+    await prisma.masterOption.delete({ where: { id: optionId } });
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "Không thể xóa Mã Đại Lý." }, { status: 400 });
+  }
+}
+
 function requiredGroup(value: unknown) {
   const group = String(value ?? "").trim() as MasterOptionGroupCode;
   if (!(group in MASTER_OPTION_GROUPS)) throw new Error("Nhóm cấu hình không hợp lệ.");

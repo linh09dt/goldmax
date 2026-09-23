@@ -67,7 +67,7 @@ export async function GET(request: Request) {
       { header: "Số đơn hàng", key: "orderCode", width: 22 },
       { header: "Hạn giao hàng", key: "requiredDeliveryDate", width: 14 },
       { header: "Trạng thái", key: "status", width: 18 },
-      { header: "Mã khách hàng", key: "customerCode", width: 15 },
+      { header: "Mã Đại Lý", key: "customerCode", width: 15 },
       { header: "Tên khách hàng", key: "customerName", width: 24 },
       { header: "Mã NV bán hàng", key: "salesEmployeeCode", width: 16 },
       { header: "Người nhận", key: "receiverName", width: 20 },

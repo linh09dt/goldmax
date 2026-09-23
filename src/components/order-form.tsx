@@ -27,7 +27,7 @@ type CatalogItem = {
 
 type MasterOption = {
   id: number;
-  groupCode: "PANEL_OPTION" | "OPENING_DIRECTION" | "TRIM_DIRECTION" | "PAINT_COLOR";
+  groupCode: "PANEL_OPTION" | "OPENING_DIRECTION" | "TRIM_DIRECTION" | "PAINT_COLOR" | "DEALER_CODE";
   code: string;
   name: string;
   sortOrder: number;
@@ -91,6 +91,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
     opening: masterOptions.filter((item) => item.groupCode === "OPENING_DIRECTION"),
     trim: masterOptions.filter((item) => item.groupCode === "TRIM_DIRECTION"),
     color: masterOptions.filter((item) => item.groupCode === "PAINT_COLOR"),
+    dealer: masterOptions.filter((item) => item.groupCode === "DEALER_CODE"),
   }), [masterOptions]);
 
   const doorCatalogItems = useMemo(() => catalogItems.filter(isDoorCatalogItem), [catalogItems]);
@@ -323,7 +324,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
       <section className="erp-card">
         <SectionTitle title="Thông tin đơn hàng" />
         <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
-          <Field label="Mã khách hàng"><TextInput value={form.customerCode} onChange={(v) => setField("customerCode", v)} /></Field>
+          <Field label="Mã Đại Lý"><DealerCodeSelect value={form.customerCode} options={optionValues.dealer} onChange={(v) => setField("customerCode", v)} /></Field>
           <Field label="Tên khách hàng"><TextInput value={form.customerName} onChange={(v) => setField("customerName", v)} /></Field>
           <Field label="NVKD phụ trách"><TextInput value={form.salesEmployeeCode} onChange={(v) => setField("salesEmployeeCode", v)} /></Field>
           <Field label="Mã đơn hàng" required><TextInput value={form.orderCode} onChange={(v) => setField("orderCode", v)} /></Field>
@@ -718,6 +719,16 @@ function formatMoney(value: number) { return new Intl.NumberFormat("vi-VN", { ma
 function SectionTitle({ title }: { title: string }) { return <div className="border-b border-slate-200 bg-slate-50 px-5 py-4"><h2 className="font-bold text-slate-900">{title}</h2></div>; }
 function Field({ label, children, required, wide }: { label: string; children: React.ReactNode; required?: boolean; wide?: boolean }) { return <label className={wide ? "md:col-span-2 xl:col-span-2" : ""}><span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">{label}{required ? " *" : ""}</span>{children}</label>; }
 function TextInput({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder?: string }) { return <input className="erp-input" value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />; }
+function DealerCodeSelect({ value, options, onChange }: { value: string; options: MasterOption[]; onChange: (value: string) => void }) {
+  const hasCurrent = Boolean(value) && !options.some((item) => item.code === value);
+  return (
+    <select className="erp-input" value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">-- Chọn Mã Đại Lý --</option>
+      {hasCurrent ? <option value={value}>{value} (đang lưu)</option> : null}
+      {options.map((item) => <option key={item.id} value={item.code}>{item.name && item.name !== item.code ? `${item.code} - ${item.name}` : item.code}</option>)}
+    </select>
+  );
+}
 function NumberInput({ value, onChange }: { value: string; onChange: (value: string) => void }) { return <input className="erp-input" type="number" value={value} onChange={(e) => onChange(e.target.value)} />; }
 function DateInput({ value, onChange }: { value: string; onChange: (value: string) => void }) { return <input className="erp-input" type="date" value={value} onChange={(e) => onChange(e.target.value)} />; }
 function Button({ children, onClick, variant = "primary" }: { children: React.ReactNode; onClick: () => void; variant?: "primary" | "secondary" }) { return <button className={variant === "primary" ? "erp-button" : "erp-button-secondary"} type="button" onClick={onClick}>{children}</button>; }

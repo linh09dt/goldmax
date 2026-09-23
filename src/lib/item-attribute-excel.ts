@@ -6,6 +6,7 @@ export const MASTER_OPTION_GROUPS = {
   OPENING_DIRECTION: "Hướng mở",
   TRIM_DIRECTION: "Hướng phào",
   PAINT_COLOR: "Màu sơn",
+  DEALER_CODE: "Mã Đại Lý",
 } as const;
 
 export type MasterOptionGroupCode = keyof typeof MASTER_OPTION_GROUPS;

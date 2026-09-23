@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-type GroupCode = "PANEL_OPTION" | "OPENING_DIRECTION" | "TRIM_DIRECTION" | "PAINT_COLOR";
+type GroupCode = "PANEL_OPTION" | "OPENING_DIRECTION" | "TRIM_DIRECTION" | "PAINT_COLOR" | "DEALER_CODE";
 type OptionRow = {
   id: number;
   groupCode: GroupCode;
@@ -19,6 +19,7 @@ const GROUPS: Array<{ code: GroupCode; label: string }> = [
   { code: "OPENING_DIRECTION", label: "Hướng mở" },
   { code: "TRIM_DIRECTION", label: "Hướng phào" },
   { code: "PANEL_OPTION", label: "Ô thoáng / Pano / Nan chớp" },
+  { code: "DEALER_CODE", label: "Mã Đại Lý" },
 ];
 
 export function MasterOptions() {
@@ -65,10 +66,21 @@ export function MasterOptions() {
     setMessage("Đã cập nhật danh mục cấu hình."); await load();
   }
 
+  async function remove(item: OptionRow) {
+    if (item.groupCode !== "DEALER_CODE") return;
+    if (!window.confirm(`Xóa Mã Đại Lý '${item.code}' khỏi danh mục? Dữ liệu đã lưu trong đơn hàng cũ không bị thay đổi.`)) return;
+    setMessage("");
+    const response = await fetch(`/api/master-options/${item.id}`, { method: "DELETE" });
+    const result = await response.json() as { ok: boolean; error?: string };
+    if (!response.ok || !result.ok) { setMessage(result.error || "Không thể xóa Mã Đại Lý."); return; }
+    setMessage("Đã xóa Mã Đại Lý khỏi danh mục cấu hình.");
+    await load();
+  }
+
   return <div className="space-y-6">
     {message ? <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm">{message}</div> : null}
 
-    <section className="grid gap-3 md:grid-cols-4">
+    <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
       {GROUPS.map((item) => <button key={item.code} type="button" onClick={() => setGroup(item.code)} className={`rounded-xl border p-4 text-left ${group === item.code ? "border-cyan-500 bg-cyan-50" : "border-slate-200 bg-white"}`}>
         <div className="font-semibold">{item.label}</div>
         <div className="mt-1 text-sm text-slate-500">{items.filter((row) => row.groupCode === item.code && row.active).length} đang sử dụng</div>
@@ -91,7 +103,7 @@ export function MasterOptions() {
         <table className="min-w-[900px] w-full text-sm">
           <thead className="bg-slate-900 text-left text-xs uppercase text-slate-200"><tr><th className="px-4 py-3">Mã</th><th className="px-4 py-3">Tên hiển thị</th><th className="px-4 py-3">Thứ tự</th><th className="px-4 py-3">Nguồn</th><th className="px-4 py-3">Trạng thái</th><th className="px-4 py-3">Thao tác</th></tr></thead>
           <tbody className="divide-y divide-slate-200 bg-white">
-            {filtered.map((item) => <OptionEditor key={item.id} item={item} onSave={update} />)}
+            {filtered.map((item) => <OptionEditor key={item.id} item={item} onSave={update} onDelete={item.groupCode === "DEALER_CODE" ? remove : undefined} />)}
             {filtered.length === 0 ? <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-500">Chưa có dữ liệu.</td></tr> : null}
           </tbody>
         </table>
@@ -100,7 +112,7 @@ export function MasterOptions() {
   </div>;
 }
 
-function OptionEditor({ item, onSave }: { item: OptionRow; onSave: (item: OptionRow, patch: Partial<OptionRow>) => Promise<void> }) {
+function OptionEditor({ item, onSave, onDelete }: { item: OptionRow; onSave: (item: OptionRow, patch: Partial<OptionRow>) => Promise<void>; onDelete?: (item: OptionRow) => Promise<void> }) {
   const [code, setCode] = useState(item.code);
   const [name, setName] = useState(item.name);
   const [sortOrder, setSortOrder] = useState(String(item.sortOrder));
@@ -111,6 +123,6 @@ function OptionEditor({ item, onSave }: { item: OptionRow; onSave: (item: Option
     <td className="px-4 py-3"><input className="erp-input w-24" type="number" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} /></td>
     <td className="px-4 py-3"><div>{item.source === "EXCEL_DON_GIA" ? "Excel đơn giá" : "Thủ công"}</div>{item.lastSourceFile ? <div className="mt-1 text-xs text-slate-500">{item.lastSourceFile}</div> : null}</td>
     <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${item.active ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>{item.active ? "Đang sử dụng" : "Ngưng sử dụng"}</span></td>
-    <td className="px-4 py-3"><div className="flex gap-3"><button className="text-cyan-700 hover:underline" type="button" onClick={() => void onSave(item, { code, name, sortOrder: Number(sortOrder) || 0 })}>Lưu</button><button className="text-amber-700 hover:underline" type="button" onClick={() => void onSave(item, { active: !item.active })}>{item.active ? "Ngưng dùng" : "Kích hoạt"}</button></div></td>
+    <td className="px-4 py-3"><div className="flex gap-3"><button className="text-cyan-700 hover:underline" type="button" onClick={() => void onSave(item, { code, name, sortOrder: Number(sortOrder) || 0 })}>Lưu</button><button className="text-amber-700 hover:underline" type="button" onClick={() => void onSave(item, { active: !item.active })}>{item.active ? "Ngưng dùng" : "Kích hoạt"}</button>{onDelete ? <button className="text-red-700 hover:underline" type="button" onClick={() => void onDelete(item)}>Xóa</button> : null}</div></td>
   </tr>;
 }

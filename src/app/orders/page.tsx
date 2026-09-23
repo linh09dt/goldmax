@@ -250,7 +250,7 @@ export default async function OrdersPage({
                 <Th>Hạn giao hàng</Th>
                 <Th>Người nhận và địa chỉ nhận</Th>
                 <Th>Số Km từ nhà máy đến nơi giao</Th>
-                <Th>Mã khách hàng</Th>
+                <Th>Mã Đại Lý</Th>
                 <Th>Tên khách hàng</Th>
                 <Th>Mã nhân viên bán hàng</Th>
                 <Th>Mã bộ đánh số</Th>

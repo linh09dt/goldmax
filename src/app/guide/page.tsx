@@ -46,7 +46,7 @@ export default function GuidePage() {
 
         <GuideSection title="3. Tạo / sửa đơn hàng" href="/orders/new" linkLabel="Mở Tạo đơn hàng">
           <ol className="grid gap-2 text-sm text-slate-700 md:grid-cols-2">
-            <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 1.</b> Nhập thông tin đơn hàng, khách hàng, người nhận và hạn giao.</li>
+            <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 1.</b> Chọn Mã Đại Lý từ Danh mục cấu hình, nhập thông tin khách hàng, người nhận và hạn giao.</li>
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 2.</b> Thêm bộ cửa và chọn hàng hóa từ Danh mục hàng hóa.</li>
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 3.</b> Nhập kích thước, số lượng, KH/Lượng, đơn giá và ghi chú.</li>
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 4.</b> Thêm chi tiết / phụ kiện / phụ phí nếu bộ cửa có phát sinh.</li>
@@ -102,12 +102,13 @@ export default function GuidePage() {
         </GuideSection>
 
         <GuideSection title="6. Danh mục cấu hình" href="/master-options" linkLabel="Mở Danh mục cấu hình">
-          <p className="text-sm text-slate-600">Quản lý các giá trị chọn dùng trong đơn hàng: Màu sơn, Hướng mở, Hướng phào, Ô thoáng / Pano / Nan chớp.</p>
+          <p className="text-sm text-slate-600">Quản lý các giá trị chọn dùng trong đơn hàng: Mã Đại Lý, Màu sơn, Hướng mở, Hướng phào, Ô thoáng / Pano / Nan chớp.</p>
           <ActionTable rows={[
             ["+ Thêm", "Thêm một giá trị mới vào nhóm cấu hình đang chọn."],
             ["Lưu", "Lưu Mã, Tên hiển thị hoặc Thứ tự sau khi chỉnh."],
             ["Ngưng dùng", "Ẩn giá trị khỏi danh sách chọn mới nhưng vẫn giữ dữ liệu cũ."],
             ["Kích hoạt", "Cho phép sử dụng lại giá trị đã ngưng."],
+            ["Xóa Mã Đại Lý", "Xóa mã khỏi danh mục chọn mới; Mã Đại Lý đã lưu trong đơn hàng cũ vẫn được giữ nguyên."],
           ]} />
         </GuideSection>
 
