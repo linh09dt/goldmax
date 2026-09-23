@@ -456,8 +456,14 @@ def build_order_pdf(order: dict[str, Any], output: str | os.PathLike[str] | io.B
     calc = totals(order, groups)
     order_code = clean(order.get("orderCode")) or f"DH-{order.get('id', '')}"
 
+    # ReportLab SimpleDocTemplate does not accept pathlib.Path/PosixPath as a
+    # filename. V41.11 passed a Path from the Vercel API when using /tmp, which
+    # raised: "Cannot use PosixPath(...) as a filename or file". Keep BytesIO
+    # support for local/tests, but normalize every os.PathLike to a real string.
+    pdf_target = os.fspath(output) if isinstance(output, os.PathLike) else output
+
     doc = SimpleDocTemplate(
-        output,
+        pdf_target,
         pagesize=landscape(A4),
         leftMargin=LEFT,
         rightMargin=RIGHT,

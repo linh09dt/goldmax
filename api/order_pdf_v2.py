@@ -146,7 +146,7 @@ class handler(BaseHTTPRequestHandler):
                 detail_count = sum(len(item.get("details") or []) for item in order.get("items") or [])
                 self._json(200, {
                     "ok": True,
-                    "version": "V41.11",
+                    "version": "V41.12",
                     "orderId": order_id,
                     "items": len(order.get("items") or []),
                     "details": detail_count,
@@ -180,7 +180,7 @@ class handler(BaseHTTPRequestHandler):
             self.send_header("Content-Disposition", f'attachment; filename="Bao-gia-V2-{code}.pdf"')
             self.send_header("Content-Length", str(file_size))
             self.send_header("Cache-Control", "no-store")
-            self.send_header("X-GoldMax-PDF-Version", "V41.11")
+            self.send_header("X-GoldMax-PDF-Version", "V41.12")
             self.send_header("X-GoldMax-PDF-Pages", str(pages))
             self.end_headers()
 
@@ -217,4 +217,4 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def _error(self, status: int, message: str):
-        self._json(status, {"ok": False, "version": "V41.11", "error": message})
+        self._json(status, {"ok": False, "version": "V41.12", "error": message})
