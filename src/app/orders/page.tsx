@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { ErpShell } from "@/components/erp-shell";
 import { OrderDeleteButton } from "@/components/order-delete-button";
@@ -231,7 +232,7 @@ export default async function OrdersPage({
         <div className="w-full">
           <table className="w-full table-fixed border-collapse text-[8px] 2xl:text-[9px]">
             <colgroup>
-              {[3.2, 5.3, 3.2, 7.5, 3.2, 3.2, 4.3, 3.2, 3.2, 4.3, 2.1, 2.1, 2.1, 2.7, 2.7, 2.7, 2.7, 2.7, 2.7, 2.7, 2.7, 3.2, 2.7, 2.1, 2.1, 3.2, 4.3, 4.3, 4.3, 4.9].map((width, index) => (
+              {[3.2, 5.3, 3.2, 7.5, 3.2, 3.2, 4.3, 3.2, 3.2, 4.3, 2.1, 2.1, 2.1, 2.7, 2.7, 2.7, 2.7, 2.7, 2.7, 2.7, 2.7, 3.2, 2.7, 2.1, 2.1, 3.2, 4.3, 4.3, 4.3].map((width, index) => (
                 <col key={index} style={{ width: `${width}%` }} />
               ))}
             </colgroup>
@@ -266,13 +267,12 @@ export default async function OrdersPage({
                 <Th>Đơn giá</Th>
                 <Th>Thành tiền</Th>
                 <Th>Trạng thái</Th>
-                <Th>Thao tác</Th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 bg-white">
               {visibleLines.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-12 text-center text-slate-500" colSpan={30}>
+                  <td className="px-4 py-12 text-center text-slate-500" colSpan={29}>
                     Chưa có dòng đơn hàng nào có KH/Lượng lớn hơn 0.
                   </td>
                 </tr>
@@ -298,54 +298,57 @@ export default async function OrdersPage({
                   .join(" - ");
 
                 return (
-                  <tr
-                    key={`${order.id}-${line.id}`}
-                    className={`${rowTone} ${groupDivider} hover:bg-amber-50/70`}
-                  >
-                    <Td>{firstLineOfOrder ? formatDate(order.orderDate) : ""}</Td>
-                    <Td>
-                      {firstLineOfOrder ? (
-                        <Link className="font-semibold text-cyan-700 hover:underline" href={`/orders/${order.id}`}>
-                          {order.orderCode}
-                        </Link>
-                      ) : ""}
-                    </Td>
-                    <Td>{firstLineOfOrder ? formatDate(order.requiredDeliveryDate) : ""}</Td>
-                    <Td>{firstLineOfOrder ? (receiver || "—") : ""}</Td>
-                    <Td className="text-right">{firstLineOfOrder ? formatNumber(order.deliveryKm) : ""}</Td>
-                    <Td>{firstLineOfOrder ? (order.customerCode || "—") : ""}</Td>
-                    <Td>{firstLineOfOrder ? (order.customerName || "—") : ""}</Td>
-                    <Td>{order.salesEmployeeCode || "—"}</Td>
-                    <Td>{line.setNo || "—"}</Td>
-                    <Td className="font-semibold">{line.productCode || "—"}</Td>
-                    <Td>{line.unit || "—"}</Td>
-                    <Td>{line.openingDirection || "—"}</Td>
-                    <Td>{line.trimDirection || "—"}</Td>
-                    <Td>{line.paintColor || "—"}</Td>
-                    <Td className="text-right">{formatNumber(line.heightMm)}</Td>
-                    <Td className="text-right">{formatNumber(line.widthMm)}</Td>
-                    <Td className="text-right">{formatNumber(line.frameMm)}</Td>
-                    <Td className="text-right">{formatNumber(line.clearHeightMm)}</Td>
-                    <Td className="text-right">{formatNumber(line.clearWidthMm)}</Td>
-                    <Td className="text-right">{formatNumber(line.trimBarsPerSet)}</Td>
-                    <Td>{line.trimType || "—"}</Td>
-                    <Td>{line.lockModel || "—"}</Td>
-                    <Td>{line.windowBars || "—"}</Td>
-                    <Td className="text-right">{formatNumber(line.leavesPerSet)}</Td>
-                    <Td className="text-right">{formatNumber(line.quantity)}</Td>
-                    <Td className="bg-blue-50 text-right font-bold text-blue-950">{formatDecimal(line.pricingQuantity)}</Td>
-                    <Td className="text-right">{formatMoney(line.unitPrice)}</Td>
-                    <Td className="text-right font-semibold">{formatMoney(line.amount)}</Td>
-                    <Td>{firstLineOfOrder ? <Status value={order.status} /> : ""}</Td>
-                    <Td>
-                      {firstLineOfOrder ? (
-                        <div className="flex flex-col items-stretch gap-1">
-                          <Link className="rounded bg-slate-800 px-1 py-1 text-center text-[7px] font-semibold text-white hover:bg-slate-700 2xl:text-[8px]" href={`/orders/${order.id}/edit`}>Sửa</Link>
-                          <OrderDeleteButton orderId={order.id} orderCode={order.orderCode} compact />
-                        </div>
-                      ) : null}
-                    </Td>
-                  </tr>
+                  <Fragment key={`${order.id}-${line.id}`}>
+                    {firstLineOfOrder ? (
+                      <tr className={`${groupDivider} ${evenGroup ? "bg-cyan-50" : "bg-indigo-50"}`}>
+                        <td colSpan={29} className="border-b border-slate-200 px-1.5 py-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Link className="erp-action-dark" href={`/orders/${order.id}/edit`}>Sửa</Link>
+                            <OrderDeleteButton orderId={order.id} orderCode={order.orderCode} compact />
+                            <a className="erp-action-dark" href={`/api/orders/${order.id}/export`}>Xuất Excel</a>
+                            <Link className="erp-action-dark" href={`/orders/${order.id}/print?auto=1`} target="_blank">PDF</Link>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+                    <tr className={`${rowTone} hover:bg-amber-50/70`}>
+                      <Td>{firstLineOfOrder ? formatDate(order.orderDate) : ""}</Td>
+                      <Td>
+                        {firstLineOfOrder ? (
+                          <Link className="font-semibold text-cyan-700 hover:underline" href={`/orders/${order.id}`}>
+                            {order.orderCode}
+                          </Link>
+                        ) : ""}
+                      </Td>
+                      <Td>{firstLineOfOrder ? formatDate(order.requiredDeliveryDate) : ""}</Td>
+                      <Td>{firstLineOfOrder ? (receiver || "—") : ""}</Td>
+                      <Td className="text-right">{firstLineOfOrder ? formatNumber(order.deliveryKm) : ""}</Td>
+                      <Td>{firstLineOfOrder ? (order.customerCode || "—") : ""}</Td>
+                      <Td>{firstLineOfOrder ? (order.customerName || "—") : ""}</Td>
+                      <Td>{order.salesEmployeeCode || "—"}</Td>
+                      <Td>{line.setNo || "—"}</Td>
+                      <Td className="font-semibold">{line.productCode || "—"}</Td>
+                      <Td>{line.unit || "—"}</Td>
+                      <Td>{line.openingDirection || "—"}</Td>
+                      <Td>{line.trimDirection || "—"}</Td>
+                      <Td>{line.paintColor || "—"}</Td>
+                      <Td className="text-right">{formatNumber(line.heightMm)}</Td>
+                      <Td className="text-right">{formatNumber(line.widthMm)}</Td>
+                      <Td className="text-right">{formatNumber(line.frameMm)}</Td>
+                      <Td className="text-right">{formatNumber(line.clearHeightMm)}</Td>
+                      <Td className="text-right">{formatNumber(line.clearWidthMm)}</Td>
+                      <Td className="text-right">{formatNumber(line.trimBarsPerSet)}</Td>
+                      <Td>{line.trimType || "—"}</Td>
+                      <Td>{line.lockModel || "—"}</Td>
+                      <Td>{line.windowBars || "—"}</Td>
+                      <Td className="text-right">{formatNumber(line.leavesPerSet)}</Td>
+                      <Td className="text-right">{formatNumber(line.quantity)}</Td>
+                      <Td className="bg-blue-50 text-right font-bold text-blue-950">{formatDecimal(line.pricingQuantity)}</Td>
+                      <Td className="text-right">{formatMoney(line.unitPrice)}</Td>
+                      <Td className="text-right font-semibold">{formatMoney(line.amount)}</Td>
+                      <Td>{firstLineOfOrder ? <Status value={order.status} /> : ""}</Td>
+                    </tr>
+                  </Fragment>
                 );
               })}
             </tbody>
