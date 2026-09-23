@@ -239,7 +239,15 @@ export default async function RevenuePage({
 
       <section className="erp-card mt-6 overflow-hidden">
         <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
-          <h2 className="font-bold">Theo dõi doanh thu theo đơn hàng</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="font-bold">Theo dõi doanh thu theo đơn hàng</h2>
+            <a
+              className="inline-flex h-9 items-center justify-center rounded-md border border-emerald-700 bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
+              href={buildRevenueExportHref(query)}
+            >
+              Xuất Excel
+            </a>
+          </div>
         </div>
 
         <div className="w-full overflow-hidden">
@@ -325,6 +333,24 @@ export default async function RevenuePage({
       </section>
     </ErpShell>
   );
+}
+
+function buildRevenueExportHref(query: RevenueQuery) {
+  const params = new URLSearchParams();
+  const values: Array<[keyof RevenueQuery, string]> = [
+    ["date", clean(query.date)],
+    ["month", clean(query.month)],
+    ["year", clean(query.year)],
+    ["from", clean(query.from)],
+    ["to", clean(query.to)],
+    ["dealer", clean(query.dealer)],
+    ["customer", clean(query.customer)],
+  ];
+  for (const [key, value] of values) {
+    if (value) params.set(key, value);
+  }
+  const qs = params.toString();
+  return qs ? `/api/revenue/export?${qs}` : "/api/revenue/export";
 }
 
 function RevenueOrderRows({
