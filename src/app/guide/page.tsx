@@ -50,7 +50,7 @@ export default function GuidePage() {
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 2.</b> Thêm bộ cửa và chọn hàng hóa từ Danh mục hàng hóa.</li>
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 3.</b> Nhập kích thước, số lượng, KH/Lượng, đơn giá và ghi chú.</li>
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 4.</b> Thêm chi tiết / phụ kiện / phụ phí nếu bộ cửa có phát sinh.</li>
-            <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 5.</b> Tải ảnh sản phẩm nếu cần và kiểm tra tổng giá trị.</li>
+            <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 5.</b> Dán ảnh bằng Ctrl+V hoặc tải ảnh sản phẩm nếu cần, sau đó kiểm tra tổng giá trị.</li>
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 6.</b> Bấm Lưu đơn hàng hoặc Lưu thay đổi.</li>
           </ol>
           <ActionTable rows={[
@@ -60,7 +60,7 @@ export default function GuidePage() {
             ["+ Chi tiết / phụ kiện / phụ phí của bộ cửa", "Thêm dòng hàng phụ thuộc vào bộ cửa đang chọn."],
             ["Xóa bộ", "Xóa toàn bộ bộ cửa và các dòng chi tiết thuộc bộ đó."],
             ["Đại lý / Bán lẻ", "Chọn nhanh mức giá đã cấu hình trong Danh mục hàng hóa."],
-            ["Tải ảnh / Đổi ảnh", "Tải hoặc thay ảnh sản phẩm. Ảnh được lưu trên Supabase Storage."],
+            ["Dán / Tải ảnh", "Bấm vào ô Hình ảnh SP rồi nhấn Ctrl+V để dán ảnh từ Clipboard, hoặc tải file ảnh như trước. Ảnh được lưu trên Supabase Storage."],
             ["Xóa", "Xóa một dòng chi tiết / phụ kiện / phụ phí."],
             ["Lưu đơn hàng", "Lưu đơn mới."],
             ["Lưu thay đổi", "Ghi lại các chỉnh sửa của đơn hiện có."],
@@ -148,7 +148,7 @@ export default function GuidePage() {
             <Note title="Trước khi xóa" text="Kiểm tra đúng đơn hàng hoặc đúng Master Data. Các nút Xóa đều yêu cầu xác nhận." />
             <Note title="Sau khi sửa" text="Luôn bấm Lưu thay đổi / Lưu cấu hình / Lưu để dữ liệu được ghi lại." />
             <Note title="Xuất Excel" text="Nếu màn hình có bộ lọc, file xuất sẽ đi theo bộ lọc đang áp dụng." />
-            <Note title="Ảnh sản phẩm" text="Ảnh mới được lưu trên Supabase Storage. Nếu ảnh cũ không hiện, tải lại ảnh cho dòng hàng đó." />
+            <Note title="Ảnh sản phẩm" text="Có thể bấm ô Hình ảnh SP rồi Ctrl+V để dán ảnh trực tiếp. Tải ảnh vẫn được giữ làm phương án dự phòng; ảnh được lưu trên Supabase Storage." />
           </div>
         </section>
       </div>

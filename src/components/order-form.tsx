@@ -937,15 +937,57 @@ function GridPriceInput({ value, onChange, catalog }: { value: string; onChange:
 function ImageCell({ path, onUpload }: { path: string; onUpload: (file: File) => Promise<void> }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  async function handleImage(file: File, source: "file" | "paste") {
+    if (!file.type.startsWith("image/")) {
+      setError("Clipboard không chứa hình ảnh.");
+      return;
+    }
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      setError("Chỉ hỗ trợ JPG, PNG hoặc WEBP.");
+      return;
+    }
+    if (source === "paste" && path && !window.confirm("Dòng này đã có ảnh. Dán ảnh mới để thay thế?")) return;
+
+    setBusy(true);
+    setError("");
+    try {
+      await onUpload(file);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Không thể tải ảnh.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <div className="flex min-h-12 flex-col items-center justify-center gap-1 px-0.5 py-1 text-center text-[8px] leading-tight">
+    <div
+      className="flex min-h-12 cursor-default flex-col items-center justify-center gap-1 rounded-sm px-0.5 py-1 text-center text-[8px] leading-tight outline-none focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-400"
+      tabIndex={0}
+      title="Bấm vào ô rồi nhấn Ctrl+V để dán ảnh"
+      aria-label="Hình ảnh sản phẩm. Bấm vào ô rồi nhấn Ctrl+V để dán ảnh, hoặc chọn Tải ảnh."
+      onPaste={(event) => {
+        if (busy) return;
+        const imageItem = Array.from(event.clipboardData.items).find(
+          (item) => item.kind === "file" && item.type.startsWith("image/"),
+        );
+        const file = imageItem?.getAsFile();
+        if (!file) {
+          setError("Clipboard không có ảnh để dán.");
+          return;
+        }
+        event.preventDefault();
+        void handleImage(file, "paste");
+      }}
+    >
       {path ? (
         <a href={path} target="_blank" rel="noreferrer" className="inline-flex">
           <img src={path} alt="Hình sản phẩm" className="h-10 w-12 rounded border border-slate-200 bg-white object-contain" />
         </a>
       ) : null}
-      <label className="cursor-pointer break-words font-medium text-cyan-700 hover:underline">
-        {busy ? "Đang tải" : path ? "Đổi ảnh" : "Tải ảnh"}
+      <span className="font-semibold text-cyan-800">{busy ? "Đang tải..." : "Ctrl+V để dán"}</span>
+      <label className={`break-words font-medium text-cyan-700 hover:underline ${busy ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}>
+        {path ? "Đổi / tải ảnh" : "Tải ảnh"}
         <input
           className="hidden"
           type="file"
@@ -954,16 +996,8 @@ function ImageCell({ path, onUpload }: { path: string; onUpload: (file: File) =>
           onChange={async (e) => {
             const file = e.target.files?.[0];
             if (!file) return;
-            setBusy(true);
-            setError("");
-            try {
-              await onUpload(file);
-            } catch (uploadError) {
-              setError(uploadError instanceof Error ? uploadError.message : "Không thể tải ảnh.");
-            } finally {
-              setBusy(false);
-              e.target.value = "";
-            }
+            await handleImage(file, "file");
+            e.target.value = "";
           }}
         />
       </label>
