@@ -112,9 +112,14 @@ async function writeTopBanner(ws: Worksheet, workbook: ExcelJS.Workbook, order: 
   ws.getCell("D1").font = { ...BASE_FONT, bold: true, size: 12, color: { argb: NAVY } };
   ws.getCell("D1").alignment = { horizontal: "left", vertical: "middle", shrinkToFit: true };
 
-  ws.getCell("D2").value = "Địa chỉ: Cụm CN Non Sáo, Xã Tân Dĩnh, Bắc Ninh  |  SĐT: 1900 8135  |  Email: Goldmaxdoor@gmail.com";
-  ws.getCell("D2").font = { ...BASE_FONT, size: 8.5, color: { argb: MUTED } };
-  ws.getCell("D2").alignment = { horizontal: "left", vertical: "middle", shrinkToFit: true };
+  ws.getCell("D2").value = [
+    "GPĐKKD Số: 2401031714",
+    "VP Miền Bắc: Số 670 Toàn Thắng - Xã Thuận An - TP. Hà Nội",
+    "VP Miền Nam: A34 Shophouse Phú Mỹ Hiệp - TP. Hồ Chí Minh",
+    "NHÀ MÁY SẢN XUẤT: Cụm CN Non Sáo, Xã Tân Dĩnh, Bắc Ninh",
+  ].join("\n");
+  ws.getCell("D2").font = { ...BASE_FONT, size: 7.8, color: { argb: MUTED } };
+  ws.getCell("D2").alignment = { horizontal: "left", vertical: "top", wrapText: true };
 
   ws.getCell("L1").value = "THÔNG TIN ĐƠN HÀNG";
   ws.getCell("L1").font = { ...BASE_FONT, bold: true, size: 14, color: { argb: NAVY } };
@@ -161,7 +166,7 @@ async function writeTopBanner(ws: Worksheet, workbook: ExcelJS.Workbook, order: 
   styleRange(ws, "A4:S5", "FFF8FAFC", true);
 
   ws.getRow(1).height = 34;
-  ws.getRow(2).height = 28;
+  ws.getRow(2).height = 54;
   ws.getRow(3).height = 7;
   ws.getRow(4).height = 22;
   ws.getRow(5).height = 22;

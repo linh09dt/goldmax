@@ -55,7 +55,12 @@ PALE_AMBER = colors.HexColor("#FFF7E6")
 WHITE = colors.white
 
 COMPANY = "CÔNG TY TNHH SXTM GOLDMAX VIỆT NAM"
-COMPANY_LINE = "Địa chỉ: Cụm CN Non Sáo, Xã Tân Dĩnh, Bắc Ninh  |  SĐT: 1900 8135  |  Email: Goldmaxdoor@gmail.com"
+COMPANY_LINE = "\n".join([
+    "GPĐKKD Số: 2401031714",
+    "VP Miền Bắc: Số 670 Toàn Thắng - Xã Thuận An - TP. Hà Nội",
+    "VP Miền Nam: A34 Shophouse Phú Mỹ Hiệp - TP. Hồ Chí Minh",
+    "NHÀ MÁY SẢN XUẤT: Cụm CN Non Sáo, Xã Tân Dĩnh, Bắc Ninh",
+])
 TITLE = "THÔNG TIN ĐƠN HÀNG"
 
 # Logo GOLDMAX nhúng trực tiếp để PDF V2 vẫn có logo trên Vercel Python Function.
@@ -156,7 +161,7 @@ def pstyle(name: str, *, size: float = 8, leading: float | None = None, font: st
 
 S = {
     "company": pstyle("company", size=12, font="bold", color=NAVY),
-    "company_line": pstyle("company_line", size=8.5, color=MUTED),
+    "company_line": pstyle("company_line", size=7.2, leading=9.0, color=MUTED),
     "title": pstyle("title", size=14, font="bold", color=NAVY, align=TA_RIGHT),
     "order_code": pstyle("order_code", size=8.5, font="bold", color=AMBER, align=TA_RIGHT),
     "meta": pstyle("meta", size=8.0),
