@@ -11,7 +11,7 @@ export default async function PrintOrderPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ auto?: string }>;
+  searchParams: Promise<{ auto?: string; note?: string }>;
 }) {
   const { id } = await params;
   const query = await searchParams;
@@ -29,6 +29,7 @@ export default async function PrintOrderPage({
 
   const groups = buildOutputGroups(order.items as any, resolveOrderItemDetails as any);
   const totals = calculateOutputTotals(groups, order);
+  const exportNote = normalizeExportNote(query.note);
 
   return (
     <main className="order-print-root">
@@ -111,6 +112,7 @@ export default async function PrintOrderPage({
             {!groups.length ? <tr><td colSpan={20} className="empty">Không có dòng hàng hóa nào có KH/Lượng để xuất.</td></tr> : null}
           </tbody>
           <tfoot>
+            {exportNote ? <tr className="export-note-row"><td colSpan={20}>{exportNote}</td></tr> : null}
             {totals.shippingFee > 0 ? <TotalRow label="CƯỚC VẬN CHUYỂN" value={totals.shippingFee} /> : null}
             <TotalRow label="TỔNG ĐƠN HÀNG" value={totals.orderTotal} />
             {totals.discountPercent > 0 && totals.discountAmount > 0 ? (
@@ -144,6 +146,9 @@ function TotalRow({ label, value, red = false }: { label: string; value: number;
 function detailDimensionClass(main: boolean, value: unknown) {
   const n = Number(String(value ?? ""));
   return !main && Number.isFinite(n) && n !== 0 ? "detail-dimension" : undefined;
+}
+function normalizeExportNote(value: string | undefined) {
+  return (value || "").replace(/\r\n?/g, "\n").trim().slice(0, 1000);
 }
 function formatDate(value: Date | null) { return value ? new Intl.DateTimeFormat("vi-VN").format(value) : ""; }
 function money(value: unknown) { const n = Number(String(value ?? "")); return Number.isFinite(n) ? new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(n) : ""; }

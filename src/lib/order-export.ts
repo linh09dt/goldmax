@@ -39,7 +39,7 @@ export type ExportableOrder = {
   requirements: Array<{ questionText: string; answer: string | null; note: string | null; sortOrder: number }>;
 };
 
-export async function buildOrderExcel(order: ExportableOrder): Promise<Buffer> {
+export async function buildOrderExcel(order: ExportableOrder, exportNote = ""): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Door Production ERP";
   workbook.company = "GOLDMAX";
@@ -85,6 +85,7 @@ export async function buildOrderExcel(order: ExportableOrder): Promise<Buffer> {
     rowNo += 2;
   }
 
+  rowNo = writeExportNote(ws, rowNo, exportNote);
   rowNo = writeTotals(ws, rowNo, totals);
   rowNo += 1;
   rowNo = writeNotes(ws, rowNo, order);
@@ -291,6 +292,23 @@ async function writeLine(
       ws.getCell(`D${rowNo}`).fill = YELLOW_FILL;
     }
   }
+}
+
+function writeExportNote(ws: Worksheet, startRow: number, exportNote: string) {
+  const note = cleanText(exportNote)?.trim();
+  if (!note) return startRow;
+
+  const lineCount = Math.max(1, note.split("\n").length);
+  ws.mergeCells(`A${startRow}:T${startRow}`);
+  const cell = ws.getCell(`A${startRow}`);
+  cell.value = note;
+  cell.font = { ...BODY_FONT, size: 12, bold: true, color: { argb: "FFFF0000" } };
+  cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  styleRange(ws, `A${startRow}:T${startRow}`, WHITE_FILL, true);
+  cell.font = { ...BODY_FONT, size: 12, bold: true, color: { argb: "FFFF0000" } };
+  cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  ws.getRow(startRow).height = Math.max(24, 18 * lineCount);
+  return startRow + 1;
 }
 
 function writeTotals(ws: Worksheet, startRow: number, totals: ReturnType<typeof calculateOutputTotals>) {

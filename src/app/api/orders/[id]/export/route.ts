@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { buildOrderExcel } from "@/lib/order-export";
 
@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
@@ -62,7 +62,8 @@ export async function GET(
       );
     }
 
-    const file = await buildOrderExcel(order as any);
+    const exportNote = normalizeExportNote(new URL(request.url).searchParams.get("note"));
+    const file = await buildOrderExcel(order as any, exportNote);
 
     const safeCode = sanitizeFileName(
       order.orderCode || `don-hang-${order.id}`,
@@ -115,3 +116,7 @@ function sanitizeFileName(value: string) {
       .slice(0, 120) || "don-hang"
   );
 }
+function normalizeExportNote(value: string | null) {
+  return (value || "").replace(/\r\n?/g, "\n").trim().slice(0, 1000);
+}
+
