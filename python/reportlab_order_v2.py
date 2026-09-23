@@ -18,6 +18,7 @@ import math
 import os
 import re
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Iterable
@@ -324,13 +325,13 @@ def totals(order: dict[str, Any], groups: list[dict[str, Any]]) -> dict[str, flo
     }
 
 
-def _download_image_bytes(url: str, max_bytes: int = 5_000_000) -> bytes | None:
+def _download_image_bytes(url: str, max_bytes: int = 6_000_000, timeout: float = 1.5) -> bytes | None:
     """Tải ảnh sản phẩm với giới hạn dung lượng để bảo vệ Vercel Function."""
     if not url or not re.match(r"^https?://", url, re.I):
         return None
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "GoldMax-PDF-V2/1.0"})
-        with urllib.request.urlopen(req, timeout=3) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = resp.read(max_bytes + 1)
             if len(data) > max_bytes:
                 return None
@@ -367,14 +368,60 @@ def _optimize_product_image(data: bytes) -> bytes | None:
         return None
 
 
+def _fetch_and_optimize_image(url: str) -> tuple[str, bytes | None]:
+    """Tải + thu nhỏ một ảnh trong worker riêng.
+
+    Quan trọng với Vercel: không giữ toàn bộ ảnh gốc trong RAM cùng lúc và không
+    tải tuần tự từng ảnh khi ReportLab đang layout nhiều trang.
+    """
+    raw = _download_image_bytes(url, timeout=1.5)
+    return url, (_optimize_product_image(raw) if raw else None)
+
+
+def _prefetch_product_images(groups: list[dict[str, Any]]) -> dict[str, bytes | None]:
+    """Prefetch ảnh sản phẩm song song trước khi dựng bảng.
+
+    Bản cũ tải ảnh *ngay trong* `_image_flowable`. Với đơn nhiều bộ cửa, mỗi URL
+    có thể chờ đến 3 giây nên Vercel dễ chạm timeout khi PDF sang trang 2+.
+    Bản này tải tối đa 6 ảnh song song, timeout ngắn; ảnh nào chậm/lỗi sẽ để trống
+    thay vì làm hỏng toàn bộ PDF. Cache chỉ giữ thumbnail JPEG đã nén.
+    """
+    urls: list[str] = []
+    seen: set[str] = set()
+    for group in groups:
+        url = clean(group.get("imagePath"))
+        if url and re.match(r"^https?://", url, re.I) and url not in seen:
+            seen.add(url)
+            urls.append(url)
+
+    cache: dict[str, bytes | None] = {url: None for url in urls}
+    if not urls:
+        return cache
+
+    # Giữ concurrency vừa phải để không tăng RAM đột biến trên Vercel.
+    workers = min(6, len(urls))
+    executor = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="gm-img")
+    futures = [executor.submit(_fetch_and_optimize_image, url) for url in urls]
+    try:
+        for future in as_completed(futures):
+            try:
+                url, data = future.result()
+                cache[url] = data
+            except Exception:
+                # Ảnh lỗi không được phép làm hỏng PDF.
+                continue
+    finally:
+        executor.shutdown(wait=True, cancel_futures=True)
+    return cache
+
+
 def _image_flowable(url: str, cache: dict[str, bytes | None]) -> Any:
     if not url:
         return para("", "center")
 
-    if url not in cache:
-        raw = _download_image_bytes(url)
-        cache[url] = _optimize_product_image(raw) if raw else None
-
+    # Không tải mạng ở đây. ReportLab có thể gọi/split bảng nhiều lần khi phân
+    # trang; network I/O trong quá trình layout là nguyên nhân PDF nhiều trang
+    # chậm và dễ 500 trên Vercel.
     data = cache.get(url)
     if not data:
         return para("", "center")
@@ -386,38 +433,25 @@ def _image_flowable(url: str, cache: dict[str, bytes | None]) -> Any:
         return para("", "center")
 
 
-class NumberedCanvas(pdfcanvas.Canvas):
-    def __init__(self, *args: Any, order_code: str = "", **kwargs: Any):
-        super().__init__(*args, **kwargs)
-        self._saved_page_states: list[dict[str, Any]] = []
-        self._order_code = order_code
+def _draw_footer(canvas: pdfcanvas.Canvas, doc: SimpleDocTemplate, order_code: str) -> None:
+    """Footer nhẹ, không lưu lại toàn bộ state của từng trang.
 
-    def showPage(self) -> None:
-        self._saved_page_states.append(dict(self.__dict__))
-        self._startPage()
+    Bản NumberedCanvas cũ giữ page state cho đến cuối tài liệu để tính X/Y.
+    Trên serverless, tài liệu nhiều trang + nhiều ảnh có thể làm peak memory tăng mạnh.
+    Footer này vẽ trực tiếp từng trang nên RAM ổn định hơn.
+    """
+    canvas.saveState()
+    y = 5.5 * mm
+    canvas.setStrokeColor(colors.HexColor("#E5E7EB"))
+    canvas.setLineWidth(0.5)
+    canvas.line(LEFT, y + 4 * mm, PAGE_W - RIGHT, y + 4 * mm)
+    canvas.setFillColor(MUTED)
+    canvas.setFont(FONTS["regular"], 6.5)
+    canvas.drawString(LEFT, y, f"{COMPANY} - Thông tin Đơn hàng #{order_code}")
+    canvas.drawRightString(PAGE_W - RIGHT, y, f"Trang {canvas.getPageNumber()}")
+    canvas.restoreState()
 
-    def save(self) -> None:
-        page_count = len(self._saved_page_states)
-        for state in self._saved_page_states:
-            self.__dict__.update(state)
-            self._draw_footer(page_count)
-            pdfcanvas.Canvas.showPage(self)
-        pdfcanvas.Canvas.save(self)
-
-    def _draw_footer(self, page_count: int) -> None:
-        self.saveState()
-        y = 5.5 * mm
-        self.setStrokeColor(colors.HexColor("#E5E7EB"))
-        self.setLineWidth(0.5)
-        self.line(LEFT, y + 4 * mm, PAGE_W - RIGHT, y + 4 * mm)
-        self.setFillColor(MUTED)
-        self.setFont(FONTS["regular"], 6.5)
-        self.drawString(LEFT, y, f"{COMPANY} - Thông tin Đơn hàng #{self._order_code}")
-        self.drawRightString(PAGE_W - RIGHT, y, f"Trang {self._pageNumber} / {page_count}")
-        self.restoreState()
-
-
-def build_order_pdf(order: dict[str, Any], output: str | os.PathLike[str] | io.BytesIO, export_note: str = "") -> None:
+def build_order_pdf(order: dict[str, Any], output: str | os.PathLike[str] | io.BytesIO, export_note: str = "", include_images: bool = True) -> None:
     groups = build_groups(order)
     calc = totals(order, groups)
     order_code = clean(order.get("orderCode")) or f"DH-{order.get('id', '')}"
@@ -437,8 +471,10 @@ def build_order_pdf(order: dict[str, Any], output: str | os.PathLike[str] | io.B
     story: list[Any] = []
     story.extend(_header(order, order_code))
     story.append(Spacer(1, 3 * mm))
-    # Cache ảnh chỉ tồn tại trong một lần xuất PDF, tránh tải/giải mã lại cùng URL.
-    image_cache: dict[str, bytes | None] = {}
+    # Prefetch thumbnail trước khi ReportLab bắt đầu layout. Điều này đặc biệt
+    # quan trọng với đơn nhiều trang trên Vercel vì tránh network I/O lặp trong
+    # quá trình Table.split()/layout.
+    image_cache = _prefetch_product_images(groups) if include_images else {}
     story.append(_data_table(groups, image_cache))
 
     if export_note.strip():
@@ -457,15 +493,13 @@ def build_order_pdf(order: dict[str, Any], output: str | os.PathLike[str] | io.B
     story.append(Spacer(1, 3 * mm))
     story.append(KeepTogether([_bottom_section(order, calc)]))
 
-    doc.build(
-        story,
-        canvasmaker=lambda *args, **kwargs: NumberedCanvas(*args, order_code=order_code, **kwargs),
-    )
+    footer = lambda canvas, doc_obj: _draw_footer(canvas, doc_obj, order_code)
+    doc.build(story, onFirstPage=footer, onLaterPages=footer)
 
 
-def build_order_pdf_bytes(order: dict[str, Any], export_note: str = "") -> bytes:
+def build_order_pdf_bytes(order: dict[str, Any], export_note: str = "", include_images: bool = True) -> bytes:
     output = io.BytesIO()
-    build_order_pdf(order, output, export_note=export_note)
+    build_order_pdf(order, output, export_note=export_note, include_images=include_images)
     return output.getvalue()
 
 

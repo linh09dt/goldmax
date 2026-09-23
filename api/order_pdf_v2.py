@@ -113,10 +113,11 @@ class handler(BaseHTTPRequestHandler):
             query = parse_qs(urlparse(self.path).query)
             raw_id = (query.get("orderId") or [""])[0]
             note = (query.get("note") or [""])[0][:1000]
+            no_images = (query.get("noImages") or [""])[0] in {"1", "true", "yes"}
             order_id = int(raw_id)
             order = load_order(order_id)
             from python.reportlab_order_v2 import build_order_pdf_bytes
-            pdf = build_order_pdf_bytes(order, export_note=note)
+            pdf = build_order_pdf_bytes(order, export_note=note, include_images=not no_images)
             code = str(order.get("orderCode") or order_id).replace('"', "").replace("/", "-")
 
             self.send_response(200)
@@ -124,6 +125,7 @@ class handler(BaseHTTPRequestHandler):
             self.send_header("Content-Disposition", f'attachment; filename="Bao-gia-V2-{code}.pdf"')
             self.send_header("Content-Length", str(len(pdf)))
             self.send_header("Cache-Control", "no-store")
+            self.send_header("X-GoldMax-PDF-Version", "V41.10")
             self.end_headers()
             self.wfile.write(pdf)
         except ValueError:

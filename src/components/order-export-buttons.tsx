@@ -23,6 +23,8 @@ export function OrderExportButtons({
 }: Props) {
   const [exportType, setExportType] = useState<ExportType>(null);
   const [note, setNote] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
 
   const defaultButton = compact
     ? "inline-flex h-8 items-center justify-center rounded-md px-3 text-[11px] font-semibold text-white shadow-sm transition"
@@ -43,15 +45,38 @@ export function OrderExportButtons({
 
   function openDialog(type: Exclude<ExportType, null>) {
     setNote("");
+    setExportError("");
     setExportType(type);
   }
 
   function closeDialog() {
+    if (isExporting) return;
     setExportType(null);
     setNote("");
+    setExportError("");
   }
 
-  function confirmExport() {
+  async function downloadPdfV2(url: string) {
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(body || `HTTP ${response.status}`);
+    }
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const disposition = response.headers.get("content-disposition") || "";
+    const match = disposition.match(/filename="?([^";]+)"?/i);
+    const filename = match?.[1] || `Thong-tin-don-hang-V2-${orderId}.pdf`;
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
+  }
+
+  async function confirmExport() {
     if (!exportType) return;
     const trimmed = note.trim();
     const query = trimmed ? `?note=${encodeURIComponent(trimmed)}` : "";
@@ -64,10 +89,34 @@ export function OrderExportButtons({
     } else if (exportType === "excelV2") {
       window.location.href = `/api/orders/${orderId}/export-v2${query}`;
     } else {
-      const separator = query ? "&" : "?";
-      window.location.href = `/api/order_pdf_v2?orderId=${orderId}${query ? `${separator}${query.slice(1)}` : ""}`;
+      const notePart = trimmed ? `&note=${encodeURIComponent(trimmed)}` : "";
+      setIsExporting(true);
+      setExportError("");
+      try {
+        await downloadPdfV2(`/api/order_pdf_v2?orderId=${orderId}${notePart}`);
+        setExportType(null);
+        setNote("");
+      } catch {
+        // Chế độ an toàn chỉ chạy khi PDF đầy đủ thất bại. Mục tiêu là tránh
+        // người dùng bị kẹt ở trang 500; cột Hình ảnh SP vẫn còn nhưng ảnh để trống.
+        try {
+          await downloadPdfV2(`/api/order_pdf_v2?orderId=${orderId}&noImages=1${notePart}`);
+          setExportError("PDF đã xuất ở chế độ an toàn vì ảnh sản phẩm tải quá chậm. Vui lòng thử lại PDF V2 để lấy bản có ảnh.");
+          window.alert("PDF V2 đầy đủ gặp lỗi trên server. Hệ thống đã tự xuất bản an toàn không nhúng ảnh sản phẩm.");
+          setExportType(null);
+          setNote("");
+        } catch (safeError) {
+          const message = safeError instanceof Error ? safeError.message : String(safeError);
+          setExportError(`Không thể xuất PDF V2: ${message}`);
+        }
+      } finally {
+        setIsExporting(false);
+      }
+      return;
     }
-    closeDialog();
+    setExportType(null);
+    setNote("");
+    setExportError("");
   }
 
   const actionLabel = exportType === "excel" ? "Xuất Excel"
@@ -93,9 +142,10 @@ export function OrderExportButtons({
               placeholder="Nhập chú thích cần in trên đơn hàng..."
               autoFocus
             />
+            {exportError ? <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{exportError}</div> : null}
             <div className="mt-4 flex justify-end gap-2">
-              <button type="button" className="erp-button-secondary" onClick={closeDialog}>Hủy</button>
-              <button type="button" className="erp-button" onClick={confirmExport}>{actionLabel}</button>
+              <button type="button" className="erp-button-secondary" onClick={closeDialog} disabled={isExporting}>Hủy</button>
+              <button type="button" className="erp-button" onClick={confirmExport} disabled={isExporting}>{isExporting ? "Đang xuất..." : actionLabel}</button>
             </div>
           </div>
         </div>
