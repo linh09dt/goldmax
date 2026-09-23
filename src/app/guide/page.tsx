@@ -46,7 +46,7 @@ export default function GuidePage() {
 
         <GuideSection title="3. Tạo / sửa đơn hàng" href="/orders/new" linkLabel="Mở Tạo đơn hàng">
           <ol className="grid gap-2 text-sm text-slate-700 md:grid-cols-2">
-            <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 1.</b> Chọn Mã Đại Lý từ Danh mục cấu hình, nhập thông tin khách hàng, người nhận và hạn giao.</li>
+            <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 1.</b> Nhập đầy đủ toàn bộ trường trong Thông tin đơn hàng; tất cả các trường có dấu * đều bắt buộc.</li>
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 2.</b> Thêm bộ cửa và chọn hàng hóa từ Danh mục hàng hóa.</li>
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 3.</b> Nhập kích thước, số lượng, KH/Lượng, đơn giá và ghi chú.</li>
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 4.</b> Thêm chi tiết / phụ kiện / phụ phí nếu bộ cửa có phát sinh.</li>
@@ -62,8 +62,8 @@ export default function GuidePage() {
             ["Đại lý / Bán lẻ", "Chọn nhanh mức giá đã cấu hình trong Danh mục hàng hóa."],
             ["Dán / Tải ảnh", "Bấm vào ô Hình ảnh SP rồi nhấn Ctrl+V để dán ảnh từ Clipboard, hoặc tải file ảnh như trước. Ảnh được lưu trên Supabase Storage."],
             ["Xóa", "Xóa một dòng chi tiết / phụ kiện / phụ phí."],
-            ["Lưu đơn hàng", "Lưu đơn mới."],
-            ["Lưu thay đổi", "Ghi lại các chỉnh sửa của đơn hiện có."],
+            ["Lưu đơn hàng", "Lưu đơn mới khi toàn bộ Thông tin đơn hàng đã nhập đầy đủ."],
+            ["Lưu thay đổi", "Ghi lại chỉnh sửa khi toàn bộ Thông tin đơn hàng đã nhập đầy đủ."],
           ]} />
         </GuideSection>
 

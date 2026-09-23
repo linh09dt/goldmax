@@ -75,7 +75,8 @@ export type NormalizedOrder = {
 export function normalizeOrderPayload(input: unknown): NormalizedOrder {
   if (!isRecord(input)) throw new Error("Dữ liệu đơn hàng không hợp lệ.");
 
-  const orderCode = requiredText(input.orderCode, "Mã đơn hàng");
+  const requiredInfo = normalizeRequiredOrderInfo(input);
+  const orderCode = requiredInfo.orderCode;
   const rawItems = Array.isArray(input.items) ? input.items : [];
   if (rawItems.length === 0) throw new Error("Đơn hàng phải có ít nhất 1 bộ cửa.");
 
@@ -128,21 +129,21 @@ export function normalizeOrderPayload(input: unknown): NormalizedOrder {
   return {
     orderCode,
     orderData: {
-      status: optionalText(input.status) || "NHAP",
-      customerCode: optionalText(input.customerCode),
-      customerName: optionalText(input.customerName),
-      salesEmployeeCode: optionalText(input.salesEmployeeCode),
-      orderDate: parseDate(input.orderDate),
-      requiredDeliveryDate: parseDate(input.requiredDeliveryDate),
-      receiverName: optionalText(input.receiverName),
-      receiverPhone: optionalText(input.receiverPhone),
-      receiverAddress: optionalText(input.receiverAddress),
-      deliveryKm: nonNegativeNumber(input.deliveryKm),
-      region: optionalText(input.region),
-      groupNo: integerOrNull(input.groupNo),
-      excelUpdateDate: parseDate(input.excelUpdateDate),
-      formCode: optionalText(input.formCode),
-      formEffectiveDate: parseDate(input.formEffectiveDate),
+      status: requiredInfo.status,
+      customerCode: requiredInfo.customerCode,
+      customerName: requiredInfo.customerName,
+      salesEmployeeCode: requiredInfo.salesEmployeeCode,
+      orderDate: requiredInfo.orderDate,
+      requiredDeliveryDate: requiredInfo.requiredDeliveryDate,
+      receiverName: requiredInfo.receiverName,
+      receiverPhone: requiredInfo.receiverPhone,
+      receiverAddress: requiredInfo.receiverAddress,
+      deliveryKm: requiredInfo.deliveryKm,
+      region: requiredInfo.region,
+      groupNo: requiredInfo.groupNo,
+      excelUpdateDate: requiredInfo.excelUpdateDate,
+      formCode: requiredInfo.formCode,
+      formEffectiveDate: requiredInfo.formEffectiveDate,
       shippingFee,
       subtotal,
       discountPercent,
@@ -154,6 +155,66 @@ export function normalizeOrderPayload(input: unknown): NormalizedOrder {
     },
     items,
     requirements,
+  };
+}
+
+function normalizeRequiredOrderInfo(input: UnknownRecord) {
+  const textFields = [
+    ["customerCode", "Mã Đại Lý"],
+    ["customerName", "Tên khách hàng"],
+    ["salesEmployeeCode", "NVKD phụ trách"],
+    ["orderCode", "Mã đơn hàng"],
+    ["status", "Trạng thái"],
+    ["receiverName", "Người nhận"],
+    ["receiverPhone", "Số điện thoại"],
+    ["region", "Vùng miền"],
+    ["formCode", "Mã biểu mẫu"],
+    ["receiverAddress", "Địa chỉ nhận hàng"],
+  ] as const;
+  const dateFields = [
+    ["orderDate", "Ngày đặt hàng"],
+    ["requiredDeliveryDate", "Ngày cần giao hàng"],
+    ["excelUpdateDate", "Ngày cập nhật"],
+    ["formEffectiveDate", "Ngày hiệu lực"],
+  ] as const;
+  const numberFields = [
+    ["deliveryKm", "Số Km giao hàng"],
+    ["groupNo", "Nhóm"],
+  ] as const;
+
+  const missing = [
+    ...textFields.filter(([key]) => !optionalText(input[key])).map(([, label]) => label),
+    ...dateFields.filter(([key]) => !optionalText(input[key])).map(([, label]) => label),
+    ...numberFields.filter(([key]) => input[key] === null || input[key] === undefined || String(input[key]).trim() === "").map(([, label]) => label),
+  ];
+  if (missing.length) {
+    throw new Error(`Vui lòng nhập đầy đủ thông tin bắt buộc: ${missing.join(", ")}.`);
+  }
+
+  const orderDate = requiredDate(input.orderDate, "Ngày đặt hàng");
+  const requiredDeliveryDate = requiredDate(input.requiredDeliveryDate, "Ngày cần giao hàng");
+  const excelUpdateDate = requiredDate(input.excelUpdateDate, "Ngày cập nhật");
+  const formEffectiveDate = requiredDate(input.formEffectiveDate, "Ngày hiệu lực");
+  const deliveryKm = requiredNonNegativeNumber(input.deliveryKm, "Số Km giao hàng");
+  const groupNo = requiredInteger(input.groupNo, "Nhóm");
+
+  return {
+    customerCode: requiredText(input.customerCode, "Mã Đại Lý"),
+    customerName: requiredText(input.customerName, "Tên khách hàng"),
+    salesEmployeeCode: requiredText(input.salesEmployeeCode, "NVKD phụ trách"),
+    orderCode: requiredText(input.orderCode, "Mã đơn hàng"),
+    status: requiredText(input.status, "Trạng thái"),
+    orderDate,
+    requiredDeliveryDate,
+    excelUpdateDate,
+    receiverName: requiredText(input.receiverName, "Người nhận"),
+    receiverPhone: requiredText(input.receiverPhone, "Số điện thoại"),
+    deliveryKm,
+    region: requiredText(input.region, "Vùng miền"),
+    groupNo,
+    formCode: requiredText(input.formCode, "Mã biểu mẫu"),
+    formEffectiveDate,
+    receiverAddress: requiredText(input.receiverAddress, "Địa chỉ nhận hàng"),
   };
 }
 
@@ -242,6 +303,24 @@ function parseDate(value: unknown) {
   const match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return null;
   return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+}
+
+function requiredDate(value: unknown, label: string) {
+  const result = parseDate(value);
+  if (!result) throw new Error(`${label} không hợp lệ.`);
+  return result;
+}
+
+function requiredNonNegativeNumber(value: unknown, label: string) {
+  const parsed = numberOrNull(value);
+  if (parsed === null || parsed < 0) throw new Error(`${label} không hợp lệ.`);
+  return parsed;
+}
+
+function requiredInteger(value: unknown, label: string) {
+  const parsed = numberOrNull(value);
+  if (parsed === null || !Number.isInteger(parsed)) throw new Error(`${label} không hợp lệ.`);
+  return parsed;
 }
 
 function clamp(value: number, min: number, max: number) {

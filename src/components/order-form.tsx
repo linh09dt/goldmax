@@ -41,6 +41,27 @@ type Props = {
 
 type SaveOrderResponse = { ok: boolean; id?: number; error?: string };
 
+const REQUIRED_ORDER_INFO_FIELDS = [
+  { key: "customerCode", label: "Mã Đại Lý" },
+  { key: "customerName", label: "Tên khách hàng" },
+  { key: "salesEmployeeCode", label: "NVKD phụ trách" },
+  { key: "orderCode", label: "Mã đơn hàng" },
+  { key: "orderDate", label: "Ngày đặt hàng" },
+  { key: "requiredDeliveryDate", label: "Ngày cần giao hàng" },
+  { key: "status", label: "Trạng thái" },
+  { key: "excelUpdateDate", label: "Ngày cập nhật" },
+  { key: "receiverName", label: "Người nhận" },
+  { key: "receiverPhone", label: "Số điện thoại" },
+  { key: "deliveryKm", label: "Số Km giao hàng" },
+  { key: "region", label: "Vùng miền" },
+  { key: "groupNo", label: "Nhóm" },
+  { key: "formCode", label: "Mã biểu mẫu" },
+  { key: "formEffectiveDate", label: "Ngày hiệu lực" },
+  { key: "receiverAddress", label: "Địa chỉ nhận hàng" },
+] as const satisfies ReadonlyArray<{ key: keyof OrderFormData; label: string }>;
+
+type RequiredOrderInfoKey = (typeof REQUIRED_ORDER_INFO_FIELDS)[number]["key"];
+
 async function readJsonResponse(response: Response): Promise<SaveOrderResponse> {
   const text = await response.text();
   if (!text.trim()) {
@@ -64,6 +85,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
   const [form, setForm] = useState<OrderFormData>(() => initialData ?? createDefaultOrderForm());
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ type: "ok" | "error"; text: string } | null>(null);
+  const [invalidOrderInfoFields, setInvalidOrderInfoFields] = useState<Set<RequiredOrderInfoKey>>(() => new Set());
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
   const [masterOptions, setMasterOptions] = useState<MasterOption[]>([]);
   const excelInputRef = useRef<HTMLInputElement>(null);
@@ -111,6 +133,12 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
 
   function setField<K extends keyof OrderFormData>(key: K, value: OrderFormData[K]) {
     setForm((current) => ({ ...current, [key]: value }));
+    setInvalidOrderInfoFields((current) => {
+      if (!current.has(key as RequiredOrderInfoKey)) return current;
+      const next = new Set(current);
+      next.delete(key as RequiredOrderInfoKey);
+      return next;
+    });
   }
 
   function addItem() {
@@ -275,8 +303,23 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
   }
 
   async function save() {
-    setBusy(true);
     setMessage(null);
+    const missingFields = REQUIRED_ORDER_INFO_FIELDS.filter(({ key }) => {
+      const value = form[key];
+      return typeof value !== "string" || value.trim() === "";
+    });
+    if (missingFields.length) {
+      setInvalidOrderInfoFields(new Set(missingFields.map(({ key }) => key)));
+      setMessage({
+        type: "error",
+        text: `Vui lòng nhập đầy đủ thông tin bắt buộc: ${missingFields.map(({ label }) => label).join(", ")}.`,
+      });
+      document.getElementById("order-information")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    setInvalidOrderInfoFields(new Set());
+    setBusy(true);
     try {
       const url = mode === "create" ? "/api/orders" : `/api/orders/${orderId}`;
       const response = await fetch(url, {
@@ -321,29 +364,29 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
         ) : null}
       </section>
 
-      <section className="erp-card">
+      <section id="order-information" className="erp-card scroll-mt-4">
         <SectionTitle title="Thông tin đơn hàng" />
         <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
-          <Field label="Mã Đại Lý"><DealerCodeSelect value={form.customerCode} options={optionValues.dealer} onChange={(v) => setField("customerCode", v)} /></Field>
-          <Field label="Tên khách hàng"><TextInput value={form.customerName} onChange={(v) => setField("customerName", v)} /></Field>
-          <Field label="NVKD phụ trách"><TextInput value={form.salesEmployeeCode} onChange={(v) => setField("salesEmployeeCode", v)} /></Field>
-          <Field label="Mã đơn hàng" required><TextInput value={form.orderCode} onChange={(v) => setField("orderCode", v)} /></Field>
-          <Field label="Ngày đặt hàng"><DateInput value={form.orderDate} onChange={(v) => setField("orderDate", v)} /></Field>
-          <Field label="Ngày cần giao hàng"><DateInput value={form.requiredDeliveryDate} onChange={(v) => setField("requiredDeliveryDate", v)} /></Field>
-          <Field label="Trạng thái">
+          <Field label="Mã Đại Lý" required invalid={invalidOrderInfoFields.has("customerCode")}><DealerCodeSelect value={form.customerCode} options={optionValues.dealer} onChange={(v) => setField("customerCode", v)} /></Field>
+          <Field label="Tên khách hàng" required invalid={invalidOrderInfoFields.has("customerName")}><TextInput value={form.customerName} onChange={(v) => setField("customerName", v)} /></Field>
+          <Field label="NVKD phụ trách" required invalid={invalidOrderInfoFields.has("salesEmployeeCode")}><TextInput value={form.salesEmployeeCode} onChange={(v) => setField("salesEmployeeCode", v)} /></Field>
+          <Field label="Mã đơn hàng" required invalid={invalidOrderInfoFields.has("orderCode")}><TextInput value={form.orderCode} onChange={(v) => setField("orderCode", v)} /></Field>
+          <Field label="Ngày đặt hàng" required invalid={invalidOrderInfoFields.has("orderDate")}><DateInput value={form.orderDate} onChange={(v) => setField("orderDate", v)} /></Field>
+          <Field label="Ngày cần giao hàng" required invalid={invalidOrderInfoFields.has("requiredDeliveryDate")}><DateInput value={form.requiredDeliveryDate} onChange={(v) => setField("requiredDeliveryDate", v)} /></Field>
+          <Field label="Trạng thái" required invalid={invalidOrderInfoFields.has("status")}>
             <select className="erp-input" value={form.status} onChange={(e) => setField("status", e.target.value)}>
               {ORDER_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </Field>
-          <Field label="Ngày cập nhật"><DateInput value={form.excelUpdateDate} onChange={(v) => setField("excelUpdateDate", v)} /></Field>
-          <Field label="Người nhận"><TextInput value={form.receiverName} onChange={(v) => setField("receiverName", v)} /></Field>
-          <Field label="Số điện thoại"><TextInput value={form.receiverPhone} onChange={(v) => setField("receiverPhone", v)} /></Field>
-          <Field label="Số Km giao hàng"><NumberInput value={form.deliveryKm} onChange={(v) => setField("deliveryKm", v)} /></Field>
-          <Field label="Vùng miền"><TextInput value={form.region} onChange={(v) => setField("region", v)} /></Field>
-          <Field label="Nhóm"><NumberInput value={form.groupNo} onChange={(v) => setField("groupNo", v)} /></Field>
-          <Field label="Mã biểu mẫu"><TextInput value={form.formCode} onChange={(v) => setField("formCode", v)} /></Field>
-          <Field label="Ngày hiệu lực"><DateInput value={form.formEffectiveDate} onChange={(v) => setField("formEffectiveDate", v)} /></Field>
-          <Field label="Địa chỉ nhận hàng" wide><textarea className="erp-input min-h-20 resize-y" value={form.receiverAddress} onChange={(e) => setField("receiverAddress", e.target.value)} /></Field>
+          <Field label="Ngày cập nhật" required invalid={invalidOrderInfoFields.has("excelUpdateDate")}><DateInput value={form.excelUpdateDate} onChange={(v) => setField("excelUpdateDate", v)} /></Field>
+          <Field label="Người nhận" required invalid={invalidOrderInfoFields.has("receiverName")}><TextInput value={form.receiverName} onChange={(v) => setField("receiverName", v)} /></Field>
+          <Field label="Số điện thoại" required invalid={invalidOrderInfoFields.has("receiverPhone")}><TextInput value={form.receiverPhone} onChange={(v) => setField("receiverPhone", v)} /></Field>
+          <Field label="Số Km giao hàng" required invalid={invalidOrderInfoFields.has("deliveryKm")}><NumberInput value={form.deliveryKm} onChange={(v) => setField("deliveryKm", v)} /></Field>
+          <Field label="Vùng miền" required invalid={invalidOrderInfoFields.has("region")}><TextInput value={form.region} onChange={(v) => setField("region", v)} /></Field>
+          <Field label="Nhóm" required invalid={invalidOrderInfoFields.has("groupNo")}><NumberInput value={form.groupNo} onChange={(v) => setField("groupNo", v)} /></Field>
+          <Field label="Mã biểu mẫu" required invalid={invalidOrderInfoFields.has("formCode")}><TextInput value={form.formCode} onChange={(v) => setField("formCode", v)} /></Field>
+          <Field label="Ngày hiệu lực" required invalid={invalidOrderInfoFields.has("formEffectiveDate")}><DateInput value={form.formEffectiveDate} onChange={(v) => setField("formEffectiveDate", v)} /></Field>
+          <Field label="Địa chỉ nhận hàng" required invalid={invalidOrderInfoFields.has("receiverAddress")} wide><textarea className="erp-input min-h-20 resize-y" value={form.receiverAddress} onChange={(e) => setField("receiverAddress", e.target.value)} /></Field>
         </div>
       </section>
 
@@ -717,7 +760,20 @@ function percent(value: string) { return Math.min(100, Math.max(0, numeric(value
 function formatMoney(value: number) { return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(value); }
 
 function SectionTitle({ title }: { title: string }) { return <div className="border-b border-slate-200 bg-slate-50 px-5 py-4"><h2 className="font-bold text-slate-900">{title}</h2></div>; }
-function Field({ label, children, required, wide }: { label: string; children: React.ReactNode; required?: boolean; wide?: boolean }) { return <label className={wide ? "md:col-span-2 xl:col-span-2" : ""}><span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">{label}{required ? " *" : ""}</span>{children}</label>; }
+function Field({ label, children, required, invalid, wide }: { label: string; children: React.ReactNode; required?: boolean; invalid?: boolean; wide?: boolean }) {
+  const invalidClass = invalid
+    ? " [&_input]:border-red-500 [&_select]:border-red-500 [&_textarea]:border-red-500 [&_input]:ring-1 [&_select]:ring-1 [&_textarea]:ring-1 [&_input]:ring-red-200 [&_select]:ring-red-200 [&_textarea]:ring-red-200"
+    : "";
+  return (
+    <label className={`${wide ? "md:col-span-2 xl:col-span-2" : ""}${invalidClass}`}>
+      <span className={`mb-1.5 block text-xs font-semibold uppercase tracking-wide ${invalid ? "text-red-600" : "text-slate-500"}`}>
+        {label}{required ? " *" : ""}
+      </span>
+      {children}
+      {invalid ? <span className="mt-1 block text-xs font-medium text-red-600">Bắt buộc nhập</span> : null}
+    </label>
+  );
+}
 function TextInput({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder?: string }) { return <input className="erp-input" value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />; }
 function DealerCodeSelect({ value, options, onChange }: { value: string; options: MasterOption[]; onChange: (value: string) => void }) {
   const hasCurrent = Boolean(value) && !options.some((item) => item.code === value);
