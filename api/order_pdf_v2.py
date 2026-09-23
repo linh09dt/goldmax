@@ -2,21 +2,24 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
+import time
 from datetime import date, datetime
 from decimal import Decimal
 from http.server import BaseHTTPRequestHandler
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-# Các dependency Python nặng được import lazy trong request.
-# Nhờ vậy nếu Vercel thiếu dependency/font, API vẫn trả JSON lỗi chi tiết
-# thay vì trang 500 trắng do lỗi ngay lúc cold-start/import module.
+
+def _log(stage: str, **extra) -> None:
+    payload = {"stage": stage, **extra}
+    print("[PDF_V2] " + json.dumps(payload, ensure_ascii=False, default=str), flush=True)
 
 
 def _db_url() -> str:
     url = os.getenv("DIRECT_URL") or os.getenv("DATABASE_URL")
     if not url:
         raise RuntimeError("Thiếu DIRECT_URL/DATABASE_URL.")
-    # Prisma đôi khi dùng tham số riêng; psycopg không cần các tham số pool của Prisma.
     parsed = urlparse(url)
     query = parse_qs(parsed.query)
     for key in ["pgbouncer", "connection_limit", "pool_timeout"]:
@@ -45,7 +48,7 @@ def _camel(row: dict) -> dict:
         "frame_mm": "frameMm", "clear_height_mm": "clearHeightMm", "clear_width_mm": "clearWidthMm",
         "panel_info": "panelInfo", "trim_bars_per_set": "trimBarsPerSet", "trim_type": "trimType",
         "lock_model": "lockModel", "window_bars": "windowBars", "leaves_per_set": "leavesPerSet",
-        "pricing_quantity": "pricingQuantity", "unit_price": "unitPrice", "image_path": "imagePath", "raw_block": "rawBlock",
+        "pricing_quantity": "pricingQuantity", "unit_price": "unitPrice", "image_path": "imagePath",
         "row_order": "rowOrder", "detail_type": "detailType", "question_text": "questionText", "sort_order": "sortOrder",
     }
     return {mapping.get(k, k): _json_value(v) for k, v in row.items()}
@@ -55,6 +58,7 @@ def load_order(order_id: int) -> dict:
     import psycopg
     from psycopg.rows import dict_row
 
+    started = time.monotonic()
     with psycopg.connect(_db_url(), row_factory=dict_row, connect_timeout=8) as conn:
         order = conn.execute("""
             SELECT id, order_code, customer_code, customer_name, sales_employee_code,
@@ -66,12 +70,14 @@ def load_order(order_id: int) -> dict:
         if not order:
             raise LookupError("Không tìm thấy đơn hàng.")
 
+        # V41.11: không lấy raw_block cho toàn bộ đơn. Trường này chỉ là dữ liệu import
+        # dự phòng và có thể rất lớn với đơn nhiều bộ, gây tăng RAM/network trên serverless.
         items = conn.execute("""
             SELECT id, order_id, line_no, set_no, product_name, product_code, model,
                    opening_direction, trim_direction, paint_color, height_mm, width_mm,
                    frame_mm, clear_height_mm, clear_width_mm, panel_info, trim_bars_per_set,
                    trim_type, lock_model, window_bars, leaves_per_set, quantity, unit,
-                   pricing_quantity, unit_price, amount, note, image_path, raw_block
+                   pricing_quantity, unit_price, amount, note, image_path
             FROM sales_order_items WHERE order_id = %s ORDER BY line_no ASC
         """, (order_id,)).fetchall()
 
@@ -99,47 +105,116 @@ def load_order(order_id: int) -> dict:
 
     result = _camel(order)
     result["items"] = []
+    detail_count = 0
     for row in items:
         item = _camel(row)
-        item["details"] = details_by_item.get(row["id"], [])
+        item_details = details_by_item.get(row["id"], [])
+        detail_count += len(item_details)
+        item["details"] = item_details
         result["items"].append(item)
     result["requirements"] = [_camel(row) for row in requirements]
+    _log("db_loaded", orderId=order_id, items=len(items), details=detail_count,
+         requirements=len(requirements), elapsedMs=round((time.monotonic() - started) * 1000))
     return result
+
+
+def _count_pages(path: Path) -> int:
+    try:
+        data = path.read_bytes()
+        # /Type /Pages cũng chứa prefix /Type /Page, nên loại bằng regex đơn giản.
+        import re
+        return len(re.findall(rb"/Type\s*/Page\b", data))
+    except Exception:
+        return 0
 
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        tmp_path: Path | None = None
+        started = time.monotonic()
         try:
             query = parse_qs(urlparse(self.path).query)
             raw_id = (query.get("orderId") or [""])[0]
             note = (query.get("note") or [""])[0][:1000]
-            no_images = (query.get("noImages") or [""])[0] in {"1", "true", "yes"}
+            no_images = (query.get("noImages") or [""])[0].lower() in {"1", "true", "yes"}
+            diag = (query.get("diag") or [""])[0].lower() in {"1", "true", "yes"}
             order_id = int(raw_id)
-            order = load_order(order_id)
-            from python.reportlab_order_v2 import build_order_pdf_bytes
-            pdf = build_order_pdf_bytes(order, export_note=note, include_images=not no_images)
-            code = str(order.get("orderCode") or order_id).replace('"', "").replace("/", "-")
 
+            _log("start", orderId=order_id, noImages=no_images, diag=diag)
+            order = load_order(order_id)
+            if diag:
+                detail_count = sum(len(item.get("details") or []) for item in order.get("items") or [])
+                self._json(200, {
+                    "ok": True,
+                    "version": "V41.11",
+                    "orderId": order_id,
+                    "items": len(order.get("items") or []),
+                    "details": detail_count,
+                    "requirements": len(order.get("requirements") or []),
+                    "noImages": no_images,
+                })
+                return
+
+            from python.reportlab_order_v2 import build_order_pdf
+
+            fd, name = tempfile.mkstemp(prefix=f"goldmax-pdf-v2-{order_id}-", suffix=".pdf", dir="/tmp")
+            os.close(fd)
+            tmp_path = Path(name)
+
+            build_started = time.monotonic()
+            build_order_pdf(order, tmp_path, export_note=note, include_images=not no_images)
+            file_size = tmp_path.stat().st_size
+            pages = _count_pages(tmp_path)
+            _log("pdf_built", orderId=order_id, bytes=file_size, pages=pages,
+                 elapsedMs=round((time.monotonic() - build_started) * 1000))
+
+            # Vercel Function response có hard limit 4.5 MB. Chặn trước để trả lỗi rõ ràng.
+            if file_size > 4_300_000:
+                raise RuntimeError(
+                    f"PDF V2 quá lớn để trả trực tiếp qua Vercel ({file_size / 1024 / 1024:.2f} MB)."
+                )
+
+            code = str(order.get("orderCode") or order_id).replace('"', "").replace("/", "-")
             self.send_response(200)
             self.send_header("Content-Type", "application/pdf")
             self.send_header("Content-Disposition", f'attachment; filename="Bao-gia-V2-{code}.pdf"')
-            self.send_header("Content-Length", str(len(pdf)))
+            self.send_header("Content-Length", str(file_size))
             self.send_header("Cache-Control", "no-store")
-            self.send_header("X-GoldMax-PDF-Version", "V41.10")
+            self.send_header("X-GoldMax-PDF-Version", "V41.11")
+            self.send_header("X-GoldMax-PDF-Pages", str(pages))
             self.end_headers()
-            self.wfile.write(pdf)
+
+            # Stream từ /tmp để không giữ thêm một bản PDF bytes trong RAM.
+            with tmp_path.open("rb") as source:
+                while True:
+                    chunk = source.read(64 * 1024)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+            _log("response_done", orderId=order_id, bytes=file_size,
+                 elapsedMs=round((time.monotonic() - started) * 1000))
         except ValueError:
             self._error(400, "orderId không hợp lệ.")
         except LookupError as exc:
             self._error(404, str(exc))
         except Exception as exc:
+            _log("error", error=repr(exc), elapsedMs=round((time.monotonic() - started) * 1000))
             self._error(500, f"Không thể xuất PDF V2: {exc}")
+        finally:
+            if tmp_path:
+                try:
+                    tmp_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
 
-    def _error(self, status: int, message: str):
-        data = json.dumps({"ok": False, "error": message}, ensure_ascii=False).encode("utf-8")
+    def _json(self, status: int, payload: dict):
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(data)
+
+    def _error(self, status: int, message: str):
+        self._json(status, {"ok": False, "version": "V41.11", "error": message})

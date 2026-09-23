@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/order_pdf_v2.py": {
+      "maxDuration": 300
+    }
+  }
+}

@@ -33,8 +33,8 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas as pdfcanvas
 from reportlab.platypus import (
     Image,
-    KeepTogether,
     Paragraph,
+    LongTable,
     SimpleDocTemplate,
     Spacer,
     Table,
@@ -491,7 +491,8 @@ def build_order_pdf(order: dict[str, Any], output: str | os.PathLike[str] | io.B
         story.append(note_box)
 
     story.append(Spacer(1, 3 * mm))
-    story.append(KeepTogether([_bottom_section(order, calc)]))
+    # Không bọc KeepTogether: để ReportLab tự dời/phân trang phần cuối khi cần.
+    story.append(_bottom_section(order, calc))
 
     footer = lambda canvas, doc_obj: _draw_footer(canvas, doc_obj, order_code)
     doc.build(story, onFirstPage=footer, onLaterPages=footer)
@@ -669,7 +670,16 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
     # Tổng đúng 273 mm = 297 - 12 - 12 mm lề.
     widths_mm = [5.5, 10.5, 27, 21, 9, 9, 9, 9, 19, 9, 9, 9, 7, 8, 13, 17, 19, 44, 19]
     assert sum(widths_mm) == 273
-    table = Table(data, colWidths=[w * mm for w in widths_mm], repeatRows=2, splitByRow=1, hAlign="LEFT")
+    # LongTable tối ưu cho bảng dài. splitInRow cho phép một dòng rất cao
+    # (ví dụ ghi chú kỹ thuật dài) được tách an toàn khi vượt chiều cao trang.
+    table = LongTable(
+        data,
+        colWidths=[w * mm for w in widths_mm],
+        repeatRows=2,
+        splitByRow=1,
+        splitInRow=1,
+        hAlign="LEFT",
+    )
     commands: list[tuple[Any, ...]] = [
         ("BACKGROUND", (0, 0), (-1, 1), NAVY),
         ("TEXTCOLOR", (0, 0), (-1, 1), WHITE),
@@ -695,8 +705,6 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
         commands.append(("BACKGROUND", (0, row_no), (-1, row_no), LIGHT if idx % 2 else WHITE))
     for row_no in detail_row_numbers:
         commands.append(("BACKGROUND", (0, row_no), (-1, row_no), colors.HexColor("#FBFDFF")))
-    for start_row, end_row in group_ranges:
-        commands.append(("NOSPLIT", (0, start_row), (-1, end_row)))
     table.setStyle(TableStyle(commands))
     return table
 
