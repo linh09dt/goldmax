@@ -76,14 +76,15 @@ export default async function PrintOrderPage({
             <col style={{ width: "4.5%" }} />
             <col style={{ width: "6%" }} />
             <col style={{ width: "7%" }} />
-            <col style={{ width: "15%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "8%" }} />
           </colgroup>
           <thead>
             <tr>
               <th rowSpan={2}>STT</th><th rowSpan={2}>BỘ SỐ</th><th rowSpan={2}>Tên sản phẩm<br/>(1)</th><th rowSpan={2}>Model<br/>(2)</th>
               <th rowSpan={2}>Ô THOÁNG</th><th rowSpan={2}>Hướng mở<br/>(3)</th><th rowSpan={2}>Phào<br/>(Thuận - Nghịch)<br/>(4)</th><th rowSpan={2} className="paint-header">Màu sơn<br/>(5)</th>
               <th colSpan={3}>Kích thước cửa (mm)</th><th colSpan={2}>KT thông thủy</th><th rowSpan={2}>Số lượng bộ<br/>(13)</th>
-              <th colSpan={4}>Tính giá</th><th rowSpan={2}>Ghi chú<br/>(18)</th>
+              <th colSpan={4}>Tính giá</th><th rowSpan={2}>Ghi chú<br/>(18)</th><th rowSpan={2}>Hình ảnh SP<br/>(19)</th>
             </tr>
             <tr><th>Cao<br/>(7)</th><th>Rộng<br/>(8)</th><th>Khuôn<br/>(9)</th><th>Cao<br/>(10)</th><th>Rộng<br/>(11)</th><th>ĐVT<br/>(14)</th><th>KH/Lượng<br/>(15)</th><th>Đơn giá<br/>(16)</th><th>Thành tiền<br/>(17)</th></tr>
           </thead>
@@ -102,9 +103,10 @@ export default async function PrintOrderPage({
                 <td>{number(entry.row.clearHeightMm)}</td><td>{number(entry.row.clearWidthMm)}</td><td>{number(entry.row.quantity)}</td>
                 <td>{cleanText(entry.row.unit) || ""}</td><td>{decimal(entry.row.pricingQuantity)}</td><td>{money(entry.row.unitPrice)}</td><td>{money(outputLineAmount(entry.row))}</td>
                 <td className="note">{cleanText(entry.row.note) || ""}</td>
+                <td className="product-image">{entry.main && group.imagePath ? <img src={group.imagePath} alt={`Bộ ${group.setNo || group.lineNo}`} /> : ""}</td>
               </tr>
             )))}
-            {!groups.length ? <tr><td colSpan={19} className="empty">Không có dòng hàng hóa nào có KH/Lượng để xuất.</td></tr> : null}
+            {!groups.length ? <tr><td colSpan={20} className="empty">Không có dòng hàng hóa nào có KH/Lượng để xuất.</td></tr> : null}
           </tbody>
           <tfoot>
             {totals.shippingFee > 0 ? <TotalRow label="CƯỚC VẬN CHUYỂN" value={totals.shippingFee} /> : null}
@@ -133,7 +135,7 @@ function Meta({ label, value }: { label: string; value: string }) {
   return <div className="order-print-meta"><strong>{label}:</strong> <span>{value}</span></div>;
 }
 function TotalRow({ label, value, red = false }: { label: string; value: number; red?: boolean }) {
-  return <tr className={red ? "total-row red" : "total-row"}><td colSpan={16}>{label}</td><td colSpan={3}>{money(value)}</td></tr>;
+  return <tr className={red ? "total-row red" : "total-row"}><td colSpan={17}>{label}</td><td colSpan={3}>{money(value)}</td></tr>;
 }
 function formatDate(value: Date | null) { return value ? new Intl.DateTimeFormat("vi-VN").format(value) : ""; }
 function money(value: unknown) { const n = Number(String(value ?? "")); return Number.isFinite(n) ? new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(n) : ""; }

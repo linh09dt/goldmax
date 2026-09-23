@@ -70,18 +70,18 @@ export async function buildOrderExcel(order: ExportableOrder): Promise<Buffer> {
   let rowNo = 8;
   for (const group of groups) {
     for (const entry of group.rows) {
-      writeLine(ws, rowNo, group, entry.row, entry.main, entry.firstInGroup);
+      await writeLine(ws, workbook, rowNo, group, entry.row, entry.main, entry.firstInGroup);
       ws.getRow(rowNo).height = entry.main ? 24 : 21;
       rowNo += 1;
     }
   }
 
   if (!groups.length) {
-    ws.mergeCells(`A${rowNo}:S${rowNo + 1}`);
+    ws.mergeCells(`A${rowNo}:T${rowNo + 1}`);
     ws.getCell(`A${rowNo}`).value = "Không có dòng hàng hóa nào có KH/Lượng để xuất.";
     ws.getCell(`A${rowNo}`).alignment = CENTER;
     ws.getCell(`A${rowNo}`).font = { ...BODY_FONT, bold: true, color: { argb: "FFC00000" } };
-    styleRange(ws, `A${rowNo}:S${rowNo + 1}`, WHITE_FILL, true);
+    styleRange(ws, `A${rowNo}:T${rowNo + 1}`, WHITE_FILL, true);
     rowNo += 2;
   }
 
@@ -90,7 +90,7 @@ export async function buildOrderExcel(order: ExportableOrder): Promise<Buffer> {
   rowNo = writeNotes(ws, rowNo, order);
 
   ws.pageSetup.printTitlesRow = "6:7";
-  ws.pageSetup.printArea = `A1:S${rowNo}`;
+  ws.pageSetup.printArea = `A1:T${rowNo}`;
   ws.views = [{ state: "frozen", ySplit: 7, showGridLines: false }];
 
   const buffer = await workbook.xlsx.writeBuffer();
@@ -98,13 +98,13 @@ export async function buildOrderExcel(order: ExportableOrder): Promise<Buffer> {
 }
 
 function setupColumns(ws: Worksheet) {
-  // Bố cục bám file mẫu: 19 cột, Ghi chú là cột cuối và rộng hơn.
-  const widths = [5, 10, 22, 20, 10, 8, 10, 9, 7.5, 7.5, 7.5, 7.5, 7.5, 9, 8, 10, 13, 15, 28];
+  // Bố cục bám file mẫu và giữ cột Hình ảnh SP ở cuối.
+  const widths = [5, 10, 22, 20, 10, 8, 10, 9, 7.5, 7.5, 7.5, 7.5, 7.5, 9, 8, 10, 13, 15, 24, 16];
   widths.forEach((width, index) => { ws.getColumn(index + 1).width = width; });
 }
 
 async function writeHeader(ws: Worksheet, workbook: ExcelJS.Workbook, order: ExportableOrder) {
-  styleRange(ws, "A1:S5", TOP_FILL, false);
+  styleRange(ws, "A1:T5", TOP_FILL, false);
 
   const logoPath = path.join(process.cwd(), "public", "goldmax-logo.png");
   try {
@@ -118,7 +118,7 @@ async function writeHeader(ws: Worksheet, workbook: ExcelJS.Workbook, order: Exp
     ws.getCell("A1").alignment = CENTER;
   }
 
-  ws.mergeCells("C1:S1");
+  ws.mergeCells("C1:T1");
   ws.getCell("C1").value = "CÔNG TY TNHH SXTM GOLDMAX VIỆT NAM";
   ws.getCell("C1").font = { ...BODY_FONT, size: 16, bold: true };
   ws.getCell("C1").alignment = CENTER;
@@ -128,21 +128,21 @@ async function writeHeader(ws: Worksheet, workbook: ExcelJS.Workbook, order: Exp
   ws.getCell("C2").font = { ...BODY_FONT, size: 15, bold: true, color: { argb: "FF003399" } };
   ws.getCell("C2").alignment = CENTER;
 
-  ws.mergeCells("Q2:S2");
-  ws.getCell("Q2").value = "MẪU CỬA";
-  ws.getCell("Q2").fill = BADGE_FILL;
-  ws.getCell("Q2").font = { ...BODY_FONT, size: 10, bold: true, color: { argb: "FFFFFFFF" } };
-  ws.getCell("Q2").alignment = LEFT;
+  ws.mergeCells("R2:T2");
+  ws.getCell("R2").value = "MẪU CỬA";
+  ws.getCell("R2").fill = BADGE_FILL;
+  ws.getCell("R2").font = { ...BODY_FONT, size: 10, bold: true, color: { argb: "FFFFFFFF" } };
+  ws.getCell("R2").alignment = LEFT;
 
   setInfo(ws, "A4", "Tên đại lý:", "B4:D4", order.customerName || order.customerCode);
   setInfo(ws, "E4", "Địa chỉ:", "F4:J4", order.receiverAddress);
   setInfo(ws, "K4", "SĐT:", "L4:N4", order.receiverPhone);
-  setInfo(ws, "O4", "Số đơn:", "P4:S4", order.orderCode);
+  setInfo(ws, "O4", "Số đơn:", "P4:T4", order.orderCode);
 
   setInfo(ws, "A5", "Mã ĐL:", "B5:D5", order.customerCode);
   setInfo(ws, "E5", "Ngày đặt hàng:", "F5:J5", order.orderDate, true);
   setInfo(ws, "K5", "Ngày trả dự kiến:", "L5:N5", order.requiredDeliveryDate, true);
-  setInfo(ws, "O5", "Mã đơn sx:", "P5:S5", order.orderCode);
+  setInfo(ws, "O5", "Mã đơn sx:", "P5:T5", order.orderCode);
 
   ws.getRow(1).height = 24;
   ws.getRow(2).height = 27;
@@ -166,7 +166,7 @@ function setInfo(ws: Worksheet, labelCell: string, label: string, valueRange: st
 function writeTableHeader(ws: Worksheet) {
   const merges = [
     "A6:A7", "B6:B7", "C6:C7", "D6:D7", "E6:E7", "F6:F7", "G6:G7", "H6:H7",
-    "I6:K6", "L6:M6", "N6:N7", "O6:R6", "S6:S7",
+    "I6:K6", "L6:M6", "N6:N7", "O6:R6", "S6:S7", "T6:T7",
   ];
   merges.forEach((range) => ws.mergeCells(range));
 
@@ -176,14 +176,14 @@ function writeTableHeader(ws: Worksheet) {
   v("I6", "Kích thước cửa (mm)"); v("I7", "Cao\n(7)"); v("J7", "Rộng\n(8)"); v("K7", "Khuôn\n(9)");
   v("L6", "KT thông thủy"); v("L7", "Cao\n(10)"); v("M7", "Rộng\n(11)"); v("N6", "Số lượng bộ\n(13)");
   v("O6", "Tính giá"); v("O7", "ĐVT\n(14)"); v("P7", "KH/Lượng\n(15)"); v("Q7", "Đơn giá\n(16)"); v("R7", "Thành tiền\n(17)");
-  v("S6", "Ghi chú\n(18)");
+  v("S6", "Ghi chú\n(18)"); v("T6", "Hình ảnh SP\n(19)");
 
-  styleRange(ws, "A6:S7", HEADER_FILL, true);
+  styleRange(ws, "A6:T7", HEADER_FILL, true);
   // File mẫu làm nổi riêng tiêu đề Màu sơn.
   ws.getCell("H6").fill = YELLOW_FILL;
 
   for (let row = 6; row <= 7; row += 1) {
-    for (let col = 1; col <= 19; col += 1) {
+    for (let col = 1; col <= 20; col += 1) {
       const cell = ws.getCell(row, col);
       cell.font = { ...BODY_FONT, size: 8, bold: true };
       cell.alignment = CENTER;
@@ -193,10 +193,11 @@ function writeTableHeader(ws: Worksheet) {
   ws.getRow(7).height = 24;
 }
 
-function writeLine(
+async function writeLine(
   ws: Worksheet,
+  workbook: ExcelJS.Workbook,
   rowNo: number,
-  group: { lineNo: number; setNo: string | null },
+  group: { lineNo: number; setNo: string | null; imagePath: string | null },
   row: Record<string, any>,
   main: boolean,
   firstInGroup: boolean,
@@ -221,10 +222,11 @@ function writeLine(
     toNumber(row.unitPrice),
     outputLineAmount(row),
     cleanText(row.note),
+    "",
   ];
   values.forEach((value, index) => { ws.getCell(rowNo, index + 1).value = value as any; });
 
-  for (let col = 1; col <= 19; col += 1) {
+  for (let col = 1; col <= 20; col += 1) {
     const cell = ws.getCell(rowNo, col);
     cell.fill = main ? MAIN_FILL : WHITE_FILL;
     cell.border = ALL_BORDERS;
@@ -239,6 +241,35 @@ function writeLine(
   if (cleanText(row.note)) {
     ws.getCell(`S${rowNo}`).font = { ...BODY_FONT, size: 9, bold: true, color: { argb: "FFFF0000" } };
     ws.getCell(`S${rowNo}`).alignment = CENTER;
+  }
+
+
+  const imageUrl = main ? cleanText(group.imagePath) : null;
+  if (imageUrl) {
+    const imageCell = ws.getCell(`T${rowNo}`);
+    imageCell.value = { text: "Xem ảnh", hyperlink: imageUrl, tooltip: "Mở hình ảnh sản phẩm" };
+    imageCell.font = { ...BODY_FONT, size: 8, color: { argb: "FF0563C1" }, underline: true };
+    imageCell.alignment = CENTER;
+    try {
+      const response = await fetch(imageUrl, { cache: "no-store" });
+      if (response.ok) {
+        const contentType = response.headers.get("content-type") || "";
+        const extension = contentType.includes("png") ? "png" : contentType.includes("jpeg") || contentType.includes("jpg") ? "jpeg" : null;
+        if (extension) {
+          const imageBuffer = Buffer.from(await response.arrayBuffer());
+          const imageId = workbook.addImage({ buffer: imageBuffer as any, extension });
+          ws.addImage(imageId, {
+            tl: { col: 19.08, row: rowNo - 0.92 },
+            ext: { width: 82, height: 48 },
+            editAs: "oneCell",
+          });
+          ws.getRow(rowNo).height = Math.max(ws.getRow(rowNo).height || 0, 39);
+          imageCell.value = null;
+        }
+      }
+    } catch {
+      // Giữ link Xem ảnh nếu không tải được ảnh để nhúng vào Excel.
+    }
   }
 
   if (!main && cleanText(row.productName)?.toLocaleUpperCase("vi-VN").includes("KHÓA")) {
@@ -260,16 +291,16 @@ function writeTotals(ws: Worksheet, startRow: number, totals: ReturnType<typeof 
   lines.push(["CÒN LẠI VẪN THANH TOÁN", totals.paymentDue, { bold: true, red: true }]);
 
   for (const [label, amount, options] of lines) {
-    ws.mergeCells(`A${row}:P${row}`);
-    ws.mergeCells(`Q${row}:S${row}`);
+    ws.mergeCells(`A${row}:Q${row}`);
+    ws.mergeCells(`R${row}:T${row}`);
     ws.getCell(`A${row}`).value = label;
-    ws.getCell(`Q${row}`).value = amount;
-    styleRange(ws, `A${row}:S${row}`, WHITE_FILL, true);
+    ws.getCell(`R${row}`).value = amount;
+    styleRange(ws, `A${row}:T${row}`, WHITE_FILL, true);
     ws.getCell(`A${row}`).alignment = CENTER;
-    ws.getCell(`Q${row}`).alignment = CENTER;
-    ws.getCell(`Q${row}`).numFmt = "#,##0";
+    ws.getCell(`R${row}`).alignment = CENTER;
+    ws.getCell(`R${row}`).numFmt = "#,##0";
     ws.getCell(`A${row}`).font = { ...BODY_FONT, bold: options.bold ?? true, color: { argb: options.red ? "FFFF0000" : "FF000000" } };
-    ws.getCell(`Q${row}`).font = { ...BODY_FONT, bold: true, color: { argb: options.red ? "FFFF0000" : "FF000000" } };
+    ws.getCell(`R${row}`).font = { ...BODY_FONT, bold: true, color: { argb: options.red ? "FFFF0000" : "FF000000" } };
     ws.getRow(row).height = 21;
     row += 1;
   }
@@ -289,12 +320,12 @@ function writeNotes(ws: Worksheet, startRow: number, order: ExportableOrder) {
     ...requirementLines,
   ];
   const heightRows = Math.max(4, lines.length + 1);
-  ws.mergeCells(`A${startRow}:S${startRow + heightRows - 1}`);
+  ws.mergeCells(`A${startRow}:T${startRow + heightRows - 1}`);
   const cell = ws.getCell(`A${startRow}`);
   cell.value = lines.join("\n");
   cell.font = { ...BODY_FONT, bold: false, size: 9 };
   cell.alignment = { horizontal: "left", vertical: "top", wrapText: true, indent: 1 };
-  styleRange(ws, `A${startRow}:S${startRow + heightRows - 1}`, NOTE_FILL, false);
+  styleRange(ws, `A${startRow}:T${startRow + heightRows - 1}`, NOTE_FILL, false);
   for (let row = startRow; row < startRow + heightRows; row += 1) ws.getRow(row).height = 18;
   return startRow + heightRows - 1;
 }

@@ -191,6 +191,20 @@ textarea {
   text-align: center;
   white-space: pre-wrap;
 }
+
+.order-print-table td.product-image {
+  padding: 2px;
+  text-align: center;
+}
+.order-print-table td.product-image img {
+  display: block;
+  width: 100%;
+  max-width: 86px;
+  max-height: 58px;
+  margin: 0 auto;
+  object-fit: contain;
+}
+
 .order-print-table .empty { padding: 18px; font-weight: 700; color: #b91c1c; }
 .order-print-table .total-row td { height: 24px; background: #fff; font-size: 10px; font-weight: 700; }
 .order-print-table .total-row td:first-child,
@@ -218,6 +232,9 @@ textarea {
     width: 100%;
     max-width: none;
     box-shadow: none;
+    overflow: visible !important;
+    break-inside: auto;
+    page-break-inside: auto;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
@@ -232,11 +249,25 @@ textarea {
   .order-print-badge { padding: 3px 7px; font-size: 8px; }
   .order-print-meta-grid { column-gap: 16px; row-gap: 2px; margin-top: 4px; }
   .order-print-meta { font-size: 6.8px; gap: 3px; }
-  .order-print-table { font-size: 6.4px; line-height: 1.05; }
+  .order-print-table {
+    font-size: 6.4px;
+    line-height: 1.05;
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+  .order-print-table thead { display: table-header-group; }
+  .order-print-table tfoot { display: table-row-group; }
+  .order-print-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    break-after: auto;
+    page-break-after: auto;
+  }
   .order-print-table th,
   .order-print-table td { padding: 1.6px 2px; }
   .order-print-table .main-row td { height: 18px; }
   .order-print-table .detail-row td { height: 16px; }
+  .order-print-table td.product-image img { max-width: 48px; max-height: 34px; }
   .order-print-table .total-row td { height: 18px; font-size: 7px; }
   .order-print-notes { min-height: 64px; padding: 4px 46px 5px; font-size: 6.8px; }
   .order-print-notes .note-indent { margin-left: 38px; }
