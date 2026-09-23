@@ -254,7 +254,7 @@ async function writeLine(
   }
 
 
-  const imageUrl = main ? cleanText(group.imagePath) : null;
+  const imageUrl = cleanText(row.imagePath) || (main ? cleanText(group.imagePath) : null);
   if (imageUrl) {
     const imageCell = ws.getCell(`T${rowNo}`);
     imageCell.value = { text: "Xem ảnh", hyperlink: imageUrl, tooltip: "Mở hình ảnh sản phẩm" };

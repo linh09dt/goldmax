@@ -106,7 +106,7 @@ export default async function PrintOrderPage({
                 <td>{number(entry.row.clearHeightMm)}</td><td>{number(entry.row.clearWidthMm)}</td><td>{number(entry.row.quantity)}</td>
                 <td>{cleanText(entry.row.unit) || ""}</td><td>{decimal(entry.row.pricingQuantity)}</td><td>{money(entry.row.unitPrice)}</td><td>{money(outputLineAmount(entry.row))}</td>
                 <td className="note">{cleanText(entry.row.note) || ""}</td>
-                <td className="product-image">{entry.main && group.imagePath ? <img src={group.imagePath} alt={`Bộ ${group.setNo || group.lineNo}`} /> : ""}</td>
+                <td className="product-image">{rowImagePath(entry.row, entry.main, group.imagePath) ? <img src={rowImagePath(entry.row, entry.main, group.imagePath)!} alt={entry.main ? `Bộ ${group.setNo || group.lineNo}` : cleanText(entry.row.productName) || "Chi tiết / phụ kiện"} /> : ""}</td>
               </tr>
             )))}
             {!groups.length ? <tr><td colSpan={20} className="empty">Không có dòng hàng hóa nào có KH/Lượng để xuất.</td></tr> : null}
@@ -150,6 +150,10 @@ function detailDimensionClass(main: boolean, value: unknown) {
 function normalizeExportNote(value: string | undefined) {
   return (value || "").replace(/\r\n?/g, "\n").trim().slice(0, 1000);
 }
+function rowImagePath(row: Record<string, any>, main: boolean, groupImagePath: string | null) {
+  return cleanText(row.imagePath) || (main ? cleanText(groupImagePath) : null);
+}
+
 function formatDate(value: Date | null) { return value ? new Intl.DateTimeFormat("vi-VN").format(value) : ""; }
 function money(value: unknown) { const n = Number(String(value ?? "")); return Number.isFinite(n) ? new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(n) : ""; }
 function number(value: unknown) { const n = Number(String(value ?? "")); return Number.isFinite(n) && n !== 0 ? new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(n) : ""; }

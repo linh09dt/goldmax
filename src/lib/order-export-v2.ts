@@ -278,7 +278,7 @@ async function writeDataRow(
   ws.getCell(`Q${rowNo}`).numFmt = "#,##0";
   if (cleanText(row.note)) ws.getCell(`R${rowNo}`).font = { ...ws.getCell(`R${rowNo}`).font, color: { argb: main ? TEXT : MUTED } };
 
-  const imageUrl = main ? cleanText(group.imagePath) : null;
+  const imageUrl = cleanText(row.imagePath) || (main ? cleanText(group.imagePath) : null);
   if (imageUrl) {
     const imageCell = ws.getCell(`S${rowNo}`);
     imageCell.value = { text: "Xem ảnh", hyperlink: imageUrl, tooltip: "Mở hình ảnh sản phẩm" };

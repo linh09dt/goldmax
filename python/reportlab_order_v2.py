@@ -388,11 +388,20 @@ def _prefetch_product_images(groups: list[dict[str, Any]]) -> dict[str, bytes | 
     """
     urls: list[str] = []
     seen: set[str] = set()
-    for group in groups:
-        url = clean(group.get("imagePath"))
+
+    def add_url(value: Any) -> None:
+        url = clean(value)
         if url and re.match(r"^https?://", url, re.I) and url not in seen:
             seen.add(url)
             urls.append(url)
+
+    for group in groups:
+        # Ảnh của dòng sản phẩm chính.
+        add_url(group.get("imagePath"))
+        # V41.21: tải cả ảnh riêng của các dòng chi tiết / phụ kiện / phụ phí.
+        for entry in group.get("rows") or []:
+            row = entry.get("row") or {}
+            add_url(row.get("imagePath"))
 
     cache: dict[str, bytes | None] = {url: None for url in urls}
     if not urls:
@@ -639,6 +648,7 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
             w = integer(row.get("widthMm"))
             size_text = f"{h} x {w}" if h and w else h or w
             name = clean(row.get("productName"))
+            image_url = clean(row.get("imagePath")) or (clean(group.get("imagePath")) if main else "")
             row_values: list[Any] = [
                 para(group.get("lineNo") if first else "", "center"),
                 para(group.get("setNo") if first else "", "center"),
@@ -659,7 +669,7 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
                 para(money(row.get("unitPrice")), "num_bold" if main else "detail_right"),
                 para(money(line_amount(row)), "num_bold" if main else "detail_right"),
                 para(clean(row.get("note")), "note" if main else "detail"),
-                _image_flowable(clean(group.get("imagePath")), image_cache) if main else para("", "center"),
+                _image_flowable(image_url, image_cache) if image_url else para("", "center"),
             ]
             data.append(row_values)
             if main:
