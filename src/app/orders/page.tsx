@@ -226,6 +226,12 @@ export default async function OrdersPage({
             <div>
               <h2 className="font-bold">Danh sách đơn hàng</h2>
             </div>
+            <a
+              className="inline-flex h-9 items-center justify-center rounded-md border border-emerald-700 bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
+              href={buildOrderListExportHref(query)}
+            >
+              Xuất Excel danh sách
+            </a>
           </div>
         </div>
 
@@ -372,6 +378,24 @@ export default async function OrdersPage({
       </section>
     </ErpShell>
   );
+}
+
+function buildOrderListExportHref(query: OrderQuery) {
+  const params = new URLSearchParams();
+  const values: Array<[keyof OrderQuery, string]> = [
+    ["date", clean(query.date)],
+    ["month", clean(query.month)],
+    ["year", clean(query.year)],
+    ["from", clean(query.from)],
+    ["to", clean(query.to)],
+    ["dealer", clean(query.dealer)],
+    ["customer", clean(query.customer)],
+  ];
+  for (const [key, value] of values) {
+    if (value) params.set(key, value);
+  }
+  const qs = params.toString();
+  return qs ? `/api/orders/export-list?${qs}` : "/api/orders/export-list";
 }
 
 function hasKhLuong(value: number | null | undefined) {
