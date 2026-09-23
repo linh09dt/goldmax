@@ -11,7 +11,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from http.server import BaseHTTPRequestHandler
 
-VERSION = "V41.15-debug"
+VERSION = "V41.16-debug-response"
 
 
 def _rss_mb():
@@ -118,9 +118,9 @@ class handler(BaseHTTPRequestHandler):
                 if test == "font":
                     return self._json(200, result, started)
 
-            if test in {"db", "data", "build", "all"}:
+            if test in {"db", "data", "build", "response", "all"}:
                 if order_id is None:
-                    raise ValueError("Các test db/data/build/all cần orderId, ví dụ ?orderId=14&test=db")
+                    raise ValueError("Các test db/data/build/response/all cần orderId, ví dụ ?orderId=14&test=db")
                 def db_load():
                     from api.order_pdf_v2 import load_order
                     o = load_order(order_id)
@@ -156,7 +156,7 @@ class handler(BaseHTTPRequestHandler):
                     if test == "data":
                         return self._json(200, result, started)
 
-                if test in {"build", "all"}:
+                if test in {"build", "response", "all"}:
                     def build():
                         nonlocal tmp
                         from python.reportlab_order_v2 import build_order_pdf
@@ -166,9 +166,33 @@ class handler(BaseHTTPRequestHandler):
                         build_order_pdf(order, tmp, export_note="DEBUG", include_images=not no_images)
                         size = tmp.stat().st_size
                         return {"bytes": size, "pages": _pages(tmp), "itemsBuilt": len(order.get("items") or [])}
-                    check("06_REPORTLAB_BUILD", build)
+                    build_result = check("06_REPORTLAB_BUILD", build)
                     if test == "build":
                         return self._json(200, result, started)
+
+                    # V41.16: response test THẬT. Dùng chính file PDF vừa được
+                    # ReportLab tạo trên Vercel và trả binary application/pdf.
+                    # Không trả JSON ở nhánh này. Nếu trình duyệt tải/mở PDF được,
+                    # binary response của debug endpoint hoạt động.
+                    if test == "response":
+                        stage = "07_BINARY_RESPONSE"
+                        pdf_bytes = tmp.read_bytes()
+                        if not pdf_bytes.startswith(b"%PDF-"):
+                            raise RuntimeError("File build xong nhưng không có PDF signature %PDF-.")
+                        if len(pdf_bytes) != int(build_result.get("bytes") or 0):
+                            raise RuntimeError("Kích thước PDF thay đổi trước khi gửi response.")
+                        filename = f"goldmax-debug-response-{order_id}.pdf"
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/pdf")
+                        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+                        self.send_header("Cache-Control", "no-store")
+                        self.send_header("Content-Length", str(len(pdf_bytes)))
+                        self.send_header("X-GoldMax-Debug-Version", VERSION)
+                        self.send_header("X-GoldMax-Debug-Pages", str(build_result.get("pages") or 0))
+                        self.end_headers()
+                        self.wfile.write(pdf_bytes)
+                        self.wfile.flush()
+                        return
 
             return self._json(200, result, started)
         except Exception as exc:
