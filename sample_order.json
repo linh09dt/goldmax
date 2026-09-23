@@ -1,0 +1,16 @@
+{
+  "id": 14,
+  "orderCode": "26092201LD01DH04",
+  "customerCode": "LD01",
+  "customerName": "Anh Lân",
+  "receiverName": "Anh Lân",
+  "receiverAddress": "Lâm Đồng",
+  "orderDate": "2026-09-22T00:00:00",
+  "requiredDeliveryDate": "2026-10-07T00:00:00",
+  "discountPercent": 0,
+  "depositAmount": 0,
+  "shippingFee": 0,
+  "warehouseReceiptDeduction": 0,
+  "items": [],
+  "requirements": []
+}

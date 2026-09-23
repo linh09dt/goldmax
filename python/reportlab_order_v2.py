@@ -60,6 +60,8 @@ COMPANY_LINE = "\n".join([
     "VP Miền Bắc: Số 670 Toàn Thắng - Xã Thuận An - TP. Hà Nội",
     "VP Miền Nam: A34 Shophouse Phú Mỹ Hiệp - TP. Hồ Chí Minh",
     "NHÀ MÁY SẢN XUẤT: Cụm CN Non Sáo, Xã Tân Dĩnh, Bắc Ninh",
+    "Hotline: 1900 8135",
+    "Email: Goldmaxdoor@gmail.com",
 ])
 TITLE = "THÔNG TIN ĐƠN HÀNG"
 
@@ -161,7 +163,7 @@ def pstyle(name: str, *, size: float = 8, leading: float | None = None, font: st
 
 S = {
     "company": pstyle("company", size=12, font="bold", color=NAVY),
-    "company_line": pstyle("company_line", size=7.2, leading=9.0, color=MUTED),
+    "company_line": pstyle("company_line", size=7.0, leading=8.4, color=MUTED),
     "title": pstyle("title", size=14, font="bold", color=NAVY, align=TA_RIGHT),
     "order_code": pstyle("order_code", size=8.5, font="bold", color=AMBER, align=TA_RIGHT),
     "meta": pstyle("meta", size=8.0),

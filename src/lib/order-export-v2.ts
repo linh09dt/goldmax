@@ -59,7 +59,7 @@ export async function buildOrderExcelV2(order: ExportableOrderV2, exportNote = "
 
   const groups = buildOutputGroups(order.items as any, resolveOrderItemDetails as any);
   const totals = calculateOutputTotals(groups, order);
-  let rowNo = 9;
+  let rowNo = 14;
 
   let stripe = 0;
   for (const group of groups) {
@@ -85,9 +85,9 @@ export async function buildOrderExcelV2(order: ExportableOrderV2, exportNote = "
   rowNo = writeChecklistAndSummary(ws, rowNo, order, totals);
   rowNo += 1;
 
-  ws.pageSetup.printTitlesRow = "7:8";
+  ws.pageSetup.printTitlesRow = "12:13";
   ws.pageSetup.printArea = `A1:S${rowNo}`;
-  ws.views = [{ state: "frozen", ySplit: 8, showGridLines: false }];
+  ws.views = [{ state: "frozen", ySplit: 13, showGridLines: false }];
   ws.headerFooter.oddFooter = `&L Công ty TNHH SXTM GoldMax Việt Nam - Thông tin Đơn hàng #${order.orderCode}&R Trang &P / &N`;
 
   const buffer = await workbook.xlsx.writeBuffer();
@@ -101,32 +101,39 @@ function setupColumns(ws: Worksheet) {
 }
 
 async function writeTopBanner(ws: Worksheet, workbook: ExcelJS.Workbook, order: ExportableOrderV2) {
-  // Bố cục đồng bộ PDF V2: Logo | Công ty | THÔNG TIN ĐƠN HÀNG.
-  ws.mergeCells("A1:C2");
+  // Bố cục V2: Logo | thông tin công ty từng dòng | THÔNG TIN ĐƠN HÀNG.
+  ws.mergeCells("A1:C6");
   ws.mergeCells("D1:K1");
-  ws.mergeCells("D2:K2");
-  ws.mergeCells("L1:S1");
-  ws.mergeCells("L2:S2");
+  ws.mergeCells("L1:S2");
+  ws.mergeCells("L3:S3");
 
   ws.getCell("D1").value = "CÔNG TY TNHH SXTM GOLDMAX VIỆT NAM";
   ws.getCell("D1").font = { ...BASE_FONT, bold: true, size: 12, color: { argb: NAVY } };
   ws.getCell("D1").alignment = { horizontal: "left", vertical: "middle", shrinkToFit: true };
 
-  ws.getCell("D2").value = [
+  const companyLines = [
     "GPĐKKD Số: 2401031714",
     "VP Miền Bắc: Số 670 Toàn Thắng - Xã Thuận An - TP. Hà Nội",
     "VP Miền Nam: A34 Shophouse Phú Mỹ Hiệp - TP. Hồ Chí Minh",
     "NHÀ MÁY SẢN XUẤT: Cụm CN Non Sáo, Xã Tân Dĩnh, Bắc Ninh",
-  ].join("\n");
-  ws.getCell("D2").font = { ...BASE_FONT, size: 7.8, color: { argb: MUTED } };
-  ws.getCell("D2").alignment = { horizontal: "left", vertical: "top", wrapText: true };
+    "Hotline: 1900 8135",
+    "Email: Goldmaxdoor@gmail.com",
+  ];
+  companyLines.forEach((line, index) => {
+    const row = index + 2;
+    ws.mergeCells(`D${row}:K${row}`);
+    const cell = ws.getCell(`D${row}`);
+    cell.value = line;
+    cell.font = { ...BASE_FONT, size: 7.8, color: { argb: MUTED } };
+    cell.alignment = { horizontal: "left", vertical: "middle", wrapText: false, shrinkToFit: true };
+  });
 
   ws.getCell("L1").value = "THÔNG TIN ĐƠN HÀNG";
   ws.getCell("L1").font = { ...BASE_FONT, bold: true, size: 14, color: { argb: NAVY } };
   ws.getCell("L1").alignment = { horizontal: "right", vertical: "middle", shrinkToFit: true };
-  ws.getCell("L2").value = `Mã ĐH: ${order.orderCode}`;
-  ws.getCell("L2").font = { ...BASE_FONT, bold: true, italic: true, size: 9, color: { argb: AMBER } };
-  ws.getCell("L2").alignment = { horizontal: "right", vertical: "middle", shrinkToFit: true };
+  ws.getCell("L3").value = `Mã ĐH: ${order.orderCode}`;
+  ws.getCell("L3").font = { ...BASE_FONT, bold: true, italic: true, size: 9, color: { argb: AMBER } };
+  ws.getCell("L3").alignment = { horizontal: "right", vertical: "middle", shrinkToFit: true };
 
   const croppedLogoPath = path.join(process.cwd(), "public", "goldmax-logo-cropped.png");
   const originalLogoPath = path.join(process.cwd(), "public", "goldmax-logo.png");
@@ -139,19 +146,18 @@ async function writeTopBanner(ws: Worksheet, workbook: ExcelJS.Workbook, order: 
   try {
     await access(logoPath);
     const imageId = workbook.addImage({ filename: logoPath, extension: "png" });
-    // Logo đã crop vùng trong suốt và tăng kích thước để tương quan với PDF V2.
-    ws.addImage(imageId, { tl: { col: 0.15, row: 0.25 }, ext: { width: 128, height: 48 }, editAs: "oneCell" });
+    ws.addImage(imageId, { tl: { col: 0.12, row: 0.55 }, ext: { width: 136, height: 52 }, editAs: "oneCell" });
   } catch {
     // Không chặn xuất nếu thiếu logo.
   }
 
   const infoRows: Array<[string, string, string]> = [
-    ["A4:H4", "Tên đại lý / Khách hàng", order.customerName || order.receiverName || order.customerCode || ""],
-    ["I4:N4", "Mã Đơn Sản Xuất", order.orderCode],
-    ["O4:S4", "Ngày Đặt Hàng", formatDate(order.orderDate)],
-    ["A5:H5", "Mã Đại Lý", order.customerCode || ""],
-    ["I5:N5", "Địa Chỉ Lắp Đặt", order.receiverAddress || ""],
-    ["O5:S5", "Ngày Trả Dự Kiến", formatDate(order.requiredDeliveryDate)],
+    ["A9:H9", "Tên đại lý / Khách hàng", order.customerName || order.receiverName || order.customerCode || ""],
+    ["I9:N9", "Mã Đơn Sản Xuất", order.orderCode],
+    ["O9:S9", "Ngày Đặt Hàng", formatDate(order.orderDate)],
+    ["A10:H10", "Mã Đại Lý", order.customerCode || ""],
+    ["I10:N10", "Địa Chỉ Lắp Đặt", order.receiverAddress || ""],
+    ["O10:S10", "Ngày Trả Dự Kiến", formatDate(order.requiredDeliveryDate)],
   ];
 
   for (const [range, label, value] of infoRows) {
@@ -163,46 +169,46 @@ async function writeTopBanner(ws: Worksheet, workbook: ExcelJS.Workbook, order: 
     ] };
     cell.alignment = { horizontal: "left", vertical: "middle", wrapText: false, shrinkToFit: true };
   }
-  styleRange(ws, "A4:S5", "FFF8FAFC", true);
+  styleRange(ws, "A9:S10", "FFF8FAFC", true);
 
-  ws.getRow(1).height = 34;
-  ws.getRow(2).height = 54;
-  ws.getRow(3).height = 7;
-  ws.getRow(4).height = 22;
-  ws.getRow(5).height = 22;
-  ws.getRow(6).height = 7;
+  ws.getRow(1).height = 26;
+  for (let row = 2; row <= 7; row += 1) ws.getRow(row).height = 15;
+  ws.getRow(8).height = 7;
+  ws.getRow(9).height = 22;
+  ws.getRow(10).height = 22;
+  ws.getRow(11).height = 7;
 }
 
 function writeDataHeader(ws: Worksheet) {
   const mergedHeaders: Array<[string, string]> = [
-    ["A7:A8", "STT"],
-    ["B7:B8", "BỘ SỐ"],
-    ["C7:C8", "TÊN SẢN PHẨM / QUY CÁCH"],
-    ["D7:D8", "MODEL"],
-    ["E7:E8", "Ô TH."],
-    ["F7:F8", "HƯỚNG"],
-    ["G7:G8", "PHÀO"],
-    ["H7:H8", "MÀU SƠN"],
-    ["I7:I8", "KT CỬA (CAO x RỘNG)"],
-    ["J7:J8", "KHUÔN"],
-    ["K7:L7", "KT THÔNG THỦY"],
-    ["M7:M8", "SL"],
-    ["N7:N8", "ĐVT"],
-    ["O7:O8", "KHỐI LƯỢNG"],
-    ["P7:P8", "ĐƠN GIÁ (Đ)"],
-    ["Q7:Q8", "THÀNH TIỀN (Đ)"],
-    ["R7:R8", "GHI CHÚ KỸ THUẬT"],
-    ["S7:S8", "HÌNH ẢNH SP"],
+    ["A12:A13", "STT"],
+    ["B12:B13", "BỘ SỐ"],
+    ["C12:C13", "TÊN SẢN PHẨM / QUY CÁCH"],
+    ["D12:D13", "MODEL"],
+    ["E12:E13", "Ô TH."],
+    ["F12:F13", "HƯỚNG"],
+    ["G12:G13", "PHÀO"],
+    ["H12:H13", "MÀU SƠN"],
+    ["I12:I13", "KT CỬA (CAO x RỘNG)"],
+    ["J12:J13", "KHUÔN"],
+    ["K12:L12", "KT THÔNG THỦY"],
+    ["M12:M13", "SL"],
+    ["N12:N13", "ĐVT"],
+    ["O12:O13", "KHỐI LƯỢNG"],
+    ["P12:P13", "ĐƠN GIÁ (Đ)"],
+    ["Q12:Q13", "THÀNH TIỀN (Đ)"],
+    ["R12:R13", "GHI CHÚ KỸ THUẬT"],
+    ["S12:S13", "HÌNH ẢNH SP"],
   ];
   for (const [range, value] of mergedHeaders) {
     ws.mergeCells(range);
     const cell = ws.getCell(range.split(":")[0]);
     cell.value = value;
   }
-  ws.getCell("K8").value = "CAO";
-  ws.getCell("L8").value = "RỘNG";
-  styleRange(ws, "A7:S8", NAVY, true);
-  for (let row = 7; row <= 8; row += 1) {
+  ws.getCell("K13").value = "CAO";
+  ws.getCell("L13").value = "RỘNG";
+  styleRange(ws, "A12:S13", NAVY, true);
+  for (let row = 12; row <= 13; row += 1) {
     for (let col = 1; col <= 19; col += 1) {
       const cell = ws.getCell(row, col);
       cell.fill = solid(NAVY);
@@ -211,8 +217,8 @@ function writeDataHeader(ws: Worksheet) {
       cell.border = ALL_BORDERS;
     }
   }
-  ws.getRow(7).height = 22;
-  ws.getRow(8).height = 20;
+  ws.getRow(12).height = 22;
+  ws.getRow(13).height = 20;
 }
 
 async function writeDataRow(
