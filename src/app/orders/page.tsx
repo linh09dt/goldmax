@@ -232,7 +232,7 @@ export default async function OrdersPage({
         <div className="w-full">
           <table className="w-full table-fixed border-collapse text-[8px] 2xl:text-[9px]">
             <colgroup>
-              {[3.2, 5.3, 3.2, 7.5, 3.2, 3.2, 4.3, 3.2, 3.2, 4.3, 2.1, 2.1, 2.1, 2.7, 2.7, 2.7, 2.7, 2.7, 2.7, 2.7, 2.7, 3.2, 2.7, 2.1, 2.1, 3.2, 4.3, 4.3, 4.3].map((width, index) => (
+              {[3.2, 5.3, 3.2, 7.5, 3.2, 3.2, 4.3, 3.2, 3.2, 4.3, 2.1, 2.1, 2.1, 2.7, 2.7, 2.7, 2.7, 2.7, 2.7, 2.7, 2.7, 3.2, 2.7, 2.1, 2.1, 3.2, 4.3, 4.3].map((width, index) => (
                 <col key={index} style={{ width: `${width}%` }} />
               ))}
             </colgroup>
@@ -266,13 +266,12 @@ export default async function OrdersPage({
                 <Th>KH/Lượng</Th>
                 <Th>Đơn giá</Th>
                 <Th>Thành tiền</Th>
-                <Th>Trạng thái</Th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 bg-white">
               {visibleLines.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-12 text-center text-slate-500" colSpan={29}>
+                  <td className="px-4 py-12 text-center text-slate-500" colSpan={28}>
                     Chưa có dòng đơn hàng nào có KH/Lượng lớn hơn 0.
                   </td>
                 </tr>
@@ -301,12 +300,29 @@ export default async function OrdersPage({
                   <Fragment key={`${order.id}-${line.id}`}>
                     {firstLineOfOrder ? (
                       <tr className={`${groupDivider} ${evenGroup ? "bg-cyan-50" : "bg-indigo-50"}`}>
-                        <td colSpan={29} className="border-b border-slate-200 px-1.5 py-1">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <Link className="erp-action-dark" href={`/orders/${order.id}/edit`}>Sửa</Link>
+                        <td colSpan={28} className="border-b border-slate-200 px-2 py-1.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Link
+                              className="inline-flex h-8 items-center justify-center rounded-md border border-cyan-700 bg-cyan-600 px-3 text-[11px] font-semibold text-white shadow-sm transition hover:bg-cyan-500"
+                              href={`/orders/${order.id}/edit`}
+                            >
+                              Sửa
+                            </Link>
                             <OrderDeleteButton orderId={order.id} orderCode={order.orderCode} compact />
-                            <a className="erp-action-dark" href={`/api/orders/${order.id}/export`}>Xuất Excel</a>
-                            <Link className="erp-action-dark" href={`/orders/${order.id}/print?auto=1`} target="_blank">PDF</Link>
+                            <a
+                              className="inline-flex h-8 items-center justify-center rounded-md border border-emerald-700 bg-emerald-600 px-3 text-[11px] font-semibold text-white shadow-sm transition hover:bg-emerald-500"
+                              href={`/api/orders/${order.id}/export`}
+                            >
+                              Xuất Excel
+                            </a>
+                            <Link
+                              className="inline-flex h-8 items-center justify-center rounded-md border border-slate-700 bg-slate-700 px-3 text-[11px] font-semibold text-white shadow-sm transition hover:bg-slate-600"
+                              href={`/orders/${order.id}/print?auto=1`}
+                              target="_blank"
+                            >
+                              PDF
+                            </Link>
+                            <Status value={order.status} />
                           </div>
                         </td>
                       </tr>
@@ -346,7 +362,6 @@ export default async function OrdersPage({
                       <Td className="bg-blue-50 text-right font-bold text-blue-950">{formatDecimal(line.pricingQuantity)}</Td>
                       <Td className="text-right">{formatMoney(line.unitPrice)}</Td>
                       <Td className="text-right font-semibold">{formatMoney(line.amount)}</Td>
-                      <Td>{firstLineOfOrder ? <Status value={order.status} /> : ""}</Td>
                     </tr>
                   </Fragment>
                 );
@@ -475,7 +490,20 @@ function Status({ value }: { value: string }) {
     CHUYEN_SAN_XUAT: "Đã chuyển sản xuất",
     HUY: "Đã hủy",
   };
-  return <span className="inline-block rounded bg-slate-100 px-1 py-0.5 text-[7px] font-semibold leading-tight text-slate-700 2xl:text-[8px]">{labels[value] ?? value}</span>;
+  const styles: Record<string, string> = {
+    NHAP: "border-slate-300 bg-slate-100 text-slate-700",
+    CHO_XAC_NHAN: "border-amber-300 bg-amber-50 text-amber-800",
+    DA_XAC_NHAN: "border-cyan-300 bg-cyan-50 text-cyan-800",
+    CHUYEN_SAN_XUAT: "border-emerald-300 bg-emerald-50 text-emerald-800",
+    HUY: "border-red-300 bg-red-50 text-red-700",
+  };
+  return (
+    <span
+      className={`inline-flex h-8 items-center justify-center rounded-md border px-3 text-[11px] font-semibold shadow-sm ${styles[value] ?? "border-slate-300 bg-white text-slate-700"}`}
+    >
+      {labels[value] ?? value}
+    </span>
+  );
 }
 
 function formatDate(value: Date | null) {

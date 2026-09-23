@@ -50,7 +50,7 @@ export function OrderDeleteButton({ orderId, orderCode, redirectAfterDelete = fa
       disabled={deleting}
       className={
         compact
-          ? "erp-action-danger disabled:cursor-not-allowed disabled:opacity-50"
+          ? "inline-flex h-8 items-center justify-center rounded-md border border-red-700 bg-red-600 px-3 text-[11px] font-semibold text-white shadow-sm transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
           : "rounded-lg border border-red-300 bg-red-50 px-3.5 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
       }
     >
