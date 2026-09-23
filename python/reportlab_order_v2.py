@@ -587,17 +587,17 @@ def _header(order: dict[str, Any], order_code: str) -> list[Any]:
         ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
     ]))
 
-    # Khung thông tin giữ đủ 6 trường chính, không rút gọn dữ liệu.
+    # Khung thông tin 6 trường theo chuẩn xuất đơn hàng.
     meta = [
         [
-            _meta("Tên đại lý / Khách hàng", clean(order.get("customerName")) or clean(order.get("receiverName")) or clean(order.get("customerCode"))),
-            _meta("Mã Đơn Sản Xuất", order_code),
-            _meta("Ngày Đặt Hàng", fmt_date(order.get("orderDate"))),
+            _meta("Tên khách hàng", clean(order.get("customerName")) or clean(order.get("receiverName")) or clean(order.get("customerCode"))),
+            _meta("Địa chỉ", clean(order.get("receiverAddress"))),
+            _meta("Ngày đặt hàng", fmt_date(order.get("orderDate"))),
         ],
         [
-            _meta("Mã Đại Lý", clean(order.get("customerCode"))),
-            _meta("Địa Chỉ Lắp Đặt", clean(order.get("receiverAddress"))),
-            _meta("Ngày Trả Dự Kiến", fmt_date(order.get("requiredDeliveryDate"))),
+            _meta("Mã đại lý", clean(order.get("customerCode"))),
+            _meta("Mã nhân viên", clean(order.get("salesEmployeeCode"))),
+            _meta("Ngày trả dự kiến", fmt_date(order.get("requiredDeliveryDate"))),
         ],
     ]
     meta_table = Table(meta, colWidths=[CONTENT_W * 0.40, CONTENT_W * 0.34, CONTENT_W * 0.26])

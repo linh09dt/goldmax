@@ -135,15 +135,13 @@ async function writeHeader(ws: Worksheet, workbook: ExcelJS.Workbook, order: Exp
   ws.getCell("R2").font = { ...BODY_FONT, size: 10, bold: true, color: { argb: "FFFFFFFF" } };
   ws.getCell("R2").alignment = LEFT;
 
-  setInfoLine(ws, "A4:D4", "Tên đại lý:", order.customerName || order.customerCode);
-  setInfoLine(ws, "E4:J4", "Địa chỉ:", order.receiverAddress);
-  setInfoLine(ws, "K4:N4", "SĐT:", order.receiverPhone);
-  setInfoLine(ws, "O4:T4", "Số đơn:", order.orderCode);
+  setInfoLine(ws, "A4:H4", "Tên khách hàng:", order.customerName || order.receiverName || order.customerCode);
+  setInfoLine(ws, "I4:N4", "Địa chỉ:", order.receiverAddress);
+  setInfoLine(ws, "O4:T4", "Ngày đặt hàng:", order.orderDate, true);
 
-  setInfoLine(ws, "A5:D5", "Mã ĐL:", order.customerCode);
-  setInfoLine(ws, "E5:J5", "Ngày đặt hàng:", order.orderDate, true);
-  setInfoLine(ws, "K5:N5", "Ngày trả dự kiến:", order.requiredDeliveryDate, true);
-  setInfoLine(ws, "O5:T5", "Mã đơn sx:", order.orderCode);
+  setInfoLine(ws, "A5:H5", "Mã đại lý:", order.customerCode);
+  setInfoLine(ws, "I5:N5", "Mã nhân viên:", order.salesEmployeeCode);
+  setInfoLine(ws, "O5:T5", "Ngày trả dự kiến:", order.requiredDeliveryDate, true);
 
   ws.getRow(1).height = 24;
   ws.getRow(2).height = 27;

@@ -152,12 +152,12 @@ async function writeTopBanner(ws: Worksheet, workbook: ExcelJS.Workbook, order: 
   }
 
   const infoRows: Array<[string, string, string]> = [
-    ["A9:H9", "Tên đại lý / Khách hàng", order.customerName || order.receiverName || order.customerCode || ""],
-    ["I9:N9", "Mã Đơn Sản Xuất", order.orderCode],
-    ["O9:S9", "Ngày Đặt Hàng", formatDate(order.orderDate)],
-    ["A10:H10", "Mã Đại Lý", order.customerCode || ""],
-    ["I10:N10", "Địa Chỉ Lắp Đặt", order.receiverAddress || ""],
-    ["O10:S10", "Ngày Trả Dự Kiến", formatDate(order.requiredDeliveryDate)],
+    ["A9:H9", "Tên khách hàng", order.customerName || order.receiverName || order.customerCode || ""],
+    ["I9:N9", "Địa chỉ", order.receiverAddress || ""],
+    ["O9:S9", "Ngày đặt hàng", formatDate(order.orderDate)],
+    ["A10:H10", "Mã đại lý", order.customerCode || ""],
+    ["I10:N10", "Mã nhân viên", order.salesEmployeeCode || ""],
+    ["O10:S10", "Ngày trả dự kiến", formatDate(order.requiredDeliveryDate)],
   ];
 
   for (const [range, label, value] of infoRows) {

@@ -46,14 +46,12 @@ export default async function PrintOrderPage({
           <div className="order-print-badge">MẪU CỬA</div>
 
           <div className="order-print-meta-grid">
-            <Meta label="Tên đại lý" value={order.customerName || order.customerCode || ""} />
+            <Meta label="Tên khách hàng" value={order.customerName || order.receiverName || order.customerCode || ""} />
             <Meta label="Địa chỉ" value={order.receiverAddress || ""} />
-            <Meta label="SĐT" value={order.receiverPhone || ""} />
-            <Meta label="Số đơn" value={order.orderCode} />
-            <Meta label="Mã ĐL" value={order.customerCode || ""} />
             <Meta label="Ngày đặt hàng" value={formatDate(order.orderDate)} />
+            <Meta label="Mã đại lý" value={order.customerCode || ""} />
+            <Meta label="Mã nhân viên" value={order.salesEmployeeCode || ""} />
             <Meta label="Ngày trả dự kiến" value={formatDate(order.requiredDeliveryDate)} />
-            <Meta label="Mã đơn sx" value={order.orderCode} />
           </div>
         </header>
 
