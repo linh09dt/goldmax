@@ -7,10 +7,9 @@ from decimal import Decimal
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 
-import psycopg
-from psycopg.rows import dict_row
-
-from python.reportlab_order_v2 import build_order_pdf_bytes
+# Các dependency Python nặng được import lazy trong request.
+# Nhờ vậy nếu Vercel thiếu dependency/font, API vẫn trả JSON lỗi chi tiết
+# thay vì trang 500 trắng do lỗi ngay lúc cold-start/import module.
 
 
 def _db_url() -> str:
@@ -53,6 +52,9 @@ def _camel(row: dict) -> dict:
 
 
 def load_order(order_id: int) -> dict:
+    import psycopg
+    from psycopg.rows import dict_row
+
     with psycopg.connect(_db_url(), row_factory=dict_row, connect_timeout=8) as conn:
         order = conn.execute("""
             SELECT id, order_code, customer_code, customer_name, sales_employee_code,
@@ -113,6 +115,7 @@ class handler(BaseHTTPRequestHandler):
             note = (query.get("note") or [""])[0][:1000]
             order_id = int(raw_id)
             order = load_order(order_id)
+            from python.reportlab_order_v2 import build_order_pdf_bytes
             pdf = build_order_pdf_bytes(order, export_note=note)
             code = str(order.get("orderCode") or order_id).replace('"', "").replace("/", "-")
 

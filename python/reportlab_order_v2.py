@@ -83,46 +83,27 @@ def _find_font_file(names: Iterable[str]) -> str | None:
     return None
 
 
-def _fontpkg_roboto_root() -> Path | None:
-    """Tìm Roboto từ dependency fontpkg-roboto trên Vercel.
+def _fontpkg_roboto_files() -> tuple[str | None, str | None, str | None]:
+    """Lấy trực tiếp file Roboto từ các package fontpkg trên Vercel.
 
-    Font được đóng gói như dependency Python nên không phụ thuộc font hệ điều hành
-    của Vercel. Đây là đường ưu tiên để tiếng Việt Unicode luôn hiển thị đúng.
+    `fontpkg.path()` trả về *đường dẫn file font*, không phải thư mục.
+    V41.2 đã coi giá trị này là thư mục nên không tìm được .ttf và có thể
+    làm Python Function lỗi ngay lúc import trên Vercel.
     """
     try:
         import fontpkg  # type: ignore
 
-        root = Path(fontpkg.path("Roboto"))
-        return root if root.exists() else None
+        regular = str(fontpkg.path("Roboto"))
+        bold = str(fontpkg.path("Roboto", weight=700))
+        italic = str(fontpkg.path("Roboto", style="italic"))
+        return regular, bold, italic
     except Exception:
-        return None
-
-
-def _pick_ttf(root: Path, preferred_tokens: list[str]) -> str | None:
-    try:
-        files = list(root.rglob("*.ttf"))
-    except OSError:
-        return None
-    if not files:
-        return None
-
-    lowered = [(path, path.name.lower()) for path in files]
-    for token in preferred_tokens:
-        token_l = token.lower()
-        for path, name in lowered:
-            if token_l in name:
-                return str(path)
-    return str(files[0])
+        return None, None, None
 
 
 def register_fonts() -> dict[str, str]:
-    # 1) Ưu tiên font Unicode được đóng gói qua pip trên Vercel.
-    packaged = _fontpkg_roboto_root()
-    regular = bold = italic = None
-    if packaged:
-        regular = _pick_ttf(packaged, ["regular", "variablefont_wdth,wght", "variablefont", "roboto"])
-        bold = _pick_ttf(packaged, ["bold", "700", "variablefont_wdth,wght", "variablefont"])
-        italic = _pick_ttf(packaged, ["italic", "oblique", "variablefont_ital", "variablefont"])
+    # 1) Ưu tiên Roboto Unicode đóng gói bằng pip trên Vercel.
+    regular, bold, italic = _fontpkg_roboto_files()
 
     # 2) Cho phép override bằng env và fallback sang font Unicode của hệ điều hành khi chạy local.
     regular = os.getenv("REPORTLAB_FONT_PATH") or regular or _find_font_file([

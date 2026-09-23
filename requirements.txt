@@ -1,3 +1,4 @@
 reportlab>=4.4,<5
 psycopg[binary]>=3.2,<4
+fontpkg==0.1.0
 fontpkg-roboto==3.15
