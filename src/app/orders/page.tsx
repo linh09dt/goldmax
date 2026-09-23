@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { ErpShell } from "@/components/erp-shell";
 import { OrderDeleteButton } from "@/components/order-delete-button";
+import { OrderExportButtons } from "@/components/order-export-buttons";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -315,19 +316,7 @@ export default async function OrdersPage({
                               Sửa
                             </Link>
                             <OrderDeleteButton orderId={order.id} orderCode={order.orderCode} compact />
-                            <a
-                              className="inline-flex h-8 items-center justify-center rounded-md border border-emerald-700 bg-emerald-600 px-3 text-[11px] font-semibold text-white shadow-sm transition hover:bg-emerald-500"
-                              href={`/api/orders/${order.id}/export`}
-                            >
-                              Xuất Excel
-                            </a>
-                            <Link
-                              className="inline-flex h-8 items-center justify-center rounded-md border border-slate-700 bg-slate-700 px-3 text-[11px] font-semibold text-white shadow-sm transition hover:bg-slate-600"
-                              href={`/orders/${order.id}/print?auto=1`}
-                              target="_blank"
-                            >
-                              PDF
-                            </Link>
+                            <OrderExportButtons orderId={order.id} compact />
                             <Status value={order.status} />
                           </div>
                         </td>
