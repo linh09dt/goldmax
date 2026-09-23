@@ -86,7 +86,10 @@ async function ensurePublicBucket(config: StorageConfig) {
 
   if (existing.ok) return;
   if (existing.status !== 404) {
-    throw new Error(`Không thể kiểm tra bucket hình ảnh (${existing.status}).`);
+    const detail = await safeResponseText(existing);
+    throw new Error(
+      `Không thể kiểm tra bucket hình ảnh (${existing.status})${detail ? `: ${detail}` : "."}`,
+    );
   }
 
   const created = await fetch(`${config.url}/storage/v1/bucket`, {
@@ -133,11 +136,17 @@ async function uploadToSupabase(
   return `${config.url}/storage/v1/object/public/${encodeURIComponent(config.bucket)}/${encodedPath}`;
 }
 
-function authHeaders(key: string) {
-  return {
-    apikey: key,
-    Authorization: `Bearer ${key}`,
-  };
+function authHeaders(key: string): Record<string, string> {
+  const headers: Record<string, string> = { apikey: key };
+
+  // Legacy service_role keys are JWTs and may be sent as Bearer tokens.
+  // New Supabase secret keys (sb_secret_...) are API keys, not JWTs;
+  // sending them as Authorization: Bearer causes Storage to return HTTP 400.
+  if (key.startsWith("eyJ")) {
+    headers.Authorization = `Bearer ${key}`;
+  }
+
+  return headers;
 }
 
 async function safeResponseText(response: Response) {
