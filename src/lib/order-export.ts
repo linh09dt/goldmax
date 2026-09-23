@@ -134,15 +134,15 @@ async function writeHeader(ws: Worksheet, workbook: ExcelJS.Workbook, order: Exp
   ws.getCell("R2").font = { ...BODY_FONT, size: 10, bold: true, color: { argb: "FFFFFFFF" } };
   ws.getCell("R2").alignment = LEFT;
 
-  setInfo(ws, "A4", "Tên đại lý:", "B4:D4", order.customerName || order.customerCode);
-  setInfo(ws, "E4", "Địa chỉ:", "F4:J4", order.receiverAddress);
-  setInfo(ws, "K4", "SĐT:", "L4:N4", order.receiverPhone);
-  setInfo(ws, "O4", "Số đơn:", "P4:T4", order.orderCode);
+  setInfoLine(ws, "A4:D4", "Tên đại lý:", order.customerName || order.customerCode);
+  setInfoLine(ws, "E4:J4", "Địa chỉ:", order.receiverAddress);
+  setInfoLine(ws, "K4:N4", "SĐT:", order.receiverPhone);
+  setInfoLine(ws, "O4:T4", "Số đơn:", order.orderCode);
 
-  setInfo(ws, "A5", "Mã ĐL:", "B5:D5", order.customerCode);
-  setInfo(ws, "E5", "Ngày đặt hàng:", "F5:J5", order.orderDate, true);
-  setInfo(ws, "K5", "Ngày trả dự kiến:", "L5:N5", order.requiredDeliveryDate, true);
-  setInfo(ws, "O5", "Mã đơn sx:", "P5:T5", order.orderCode);
+  setInfoLine(ws, "A5:D5", "Mã ĐL:", order.customerCode);
+  setInfoLine(ws, "E5:J5", "Ngày đặt hàng:", order.orderDate, true);
+  setInfoLine(ws, "K5:N5", "Ngày trả dự kiến:", order.requiredDeliveryDate, true);
+  setInfoLine(ws, "O5:T5", "Mã đơn sx:", order.orderCode);
 
   ws.getRow(1).height = 24;
   ws.getRow(2).height = 27;
@@ -151,16 +151,25 @@ async function writeHeader(ws: Worksheet, workbook: ExcelJS.Workbook, order: Exp
   ws.getRow(5).height = 19;
 }
 
-function setInfo(ws: Worksheet, labelCell: string, label: string, valueRange: string, value: unknown, date = false) {
-  ws.getCell(labelCell).value = label;
-  ws.getCell(labelCell).font = { ...BODY_FONT, size: 9, bold: true, italic: true };
-  ws.getCell(labelCell).alignment = LEFT;
-  ws.mergeCells(valueRange);
-  const valueCell = ws.getCell(valueRange.split(":")[0]);
-  valueCell.value = value instanceof Date ? value : cleanText(value);
-  valueCell.font = { ...BODY_FONT, size: 9, bold: true };
-  valueCell.alignment = LEFT;
-  if (date) valueCell.numFmt = "dd/mm/yyyy";
+function setInfoLine(ws: Worksheet, range: string, label: string, value: unknown, date = false) {
+  ws.mergeCells(range);
+  const cell = ws.getCell(range.split(":")[0]);
+  const displayValue = date && value instanceof Date
+    ? formatExcelDate(value)
+    : cleanText(value) || "";
+  cell.value = {
+    richText: [
+      { text: `${label} `, font: { ...BODY_FONT, size: 9, bold: true, italic: true } },
+      { text: displayValue, font: { ...BODY_FONT, size: 9, bold: true } },
+    ],
+  };
+  cell.alignment = { horizontal: "left", vertical: "middle", wrapText: false, shrinkToFit: true };
+}
+
+function formatExcelDate(value: Date) {
+  const day = String(value.getDate()).padStart(2, "0");
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  return `${day}/${month}/${value.getFullYear()}`;
 }
 
 function writeTableHeader(ws: Worksheet) {
@@ -272,8 +281,15 @@ async function writeLine(
     }
   }
 
-  if (!main && cleanText(row.productName)?.toLocaleUpperCase("vi-VN").includes("KHÓA")) {
-    ws.getCell(`D${rowNo}`).fill = YELLOW_FILL;
+  if (!main) {
+    // Theo mẫu: các ô kích thước có dữ liệu của dòng chi tiết/phụ kiện dùng nền xanh nhạt.
+    for (const column of ["I", "J", "K"]) {
+      const value = Number(ws.getCell(`${column}${rowNo}`).value ?? 0);
+      if (Number.isFinite(value) && value !== 0) ws.getCell(`${column}${rowNo}`).fill = MAIN_FILL;
+    }
+    if (cleanText(row.productName)?.toLocaleUpperCase("vi-VN").includes("KHÓA")) {
+      ws.getCell(`D${rowNo}`).fill = YELLOW_FILL;
+    }
   }
 }
 
@@ -281,9 +297,11 @@ function writeTotals(ws: Worksheet, startRow: number, totals: ReturnType<typeof 
   let row = startRow;
   const lines: Array<[string, number, { red?: boolean; bold?: boolean }]> = [];
   if (totals.shippingFee > 0) lines.push(["CƯỚC VẬN CHUYỂN", totals.shippingFee, {}]);
+  lines.push(["TỔNG ĐƠN HÀNG", totals.orderTotal, { bold: true }]);
+  if (totals.discountPercent > 0 && totals.discountAmount > 0) {
+    lines.push([`CHIẾT KHẤU ${totals.discountPercent}%`, totals.discountAmount, { bold: true }]);
+  }
   lines.push(
-    ["TỔNG ĐƠN HÀNG", totals.orderTotal, { bold: true }],
-    [`CHIẾT KHẤU ${totals.discountPercent}%`, totals.discountAmount, { bold: true }],
     ["CÒN LẠI", totals.afterDiscount, { bold: true }],
     ["ĐẶT CỌC", totals.depositAmount, { bold: true }],
   );

@@ -99,7 +99,9 @@ export default async function PrintOrderPage({
                 <td>{cleanText(entry.row.openingDirection) || ""}</td>
                 <td>{cleanText(entry.row.trimDirection) || ""}</td>
                 <td>{cleanText(entry.row.paintColor) || ""}</td>
-                <td>{number(entry.row.heightMm)}</td><td>{number(entry.row.widthMm)}</td><td>{number(entry.row.frameMm)}</td>
+                <td className={detailDimensionClass(entry.main, entry.row.heightMm)}>{number(entry.row.heightMm)}</td>
+                <td className={detailDimensionClass(entry.main, entry.row.widthMm)}>{number(entry.row.widthMm)}</td>
+                <td className={detailDimensionClass(entry.main, entry.row.frameMm)}>{number(entry.row.frameMm)}</td>
                 <td>{number(entry.row.clearHeightMm)}</td><td>{number(entry.row.clearWidthMm)}</td><td>{number(entry.row.quantity)}</td>
                 <td>{cleanText(entry.row.unit) || ""}</td><td>{decimal(entry.row.pricingQuantity)}</td><td>{money(entry.row.unitPrice)}</td><td>{money(outputLineAmount(entry.row))}</td>
                 <td className="note">{cleanText(entry.row.note) || ""}</td>
@@ -111,7 +113,9 @@ export default async function PrintOrderPage({
           <tfoot>
             {totals.shippingFee > 0 ? <TotalRow label="CƯỚC VẬN CHUYỂN" value={totals.shippingFee} /> : null}
             <TotalRow label="TỔNG ĐƠN HÀNG" value={totals.orderTotal} />
-            <TotalRow label={`CHIẾT KHẤU ${totals.discountPercent}%`} value={totals.discountAmount} />
+            {totals.discountPercent > 0 && totals.discountAmount > 0 ? (
+              <TotalRow label={`CHIẾT KHẤU ${totals.discountPercent}%`} value={totals.discountAmount} />
+            ) : null}
             <TotalRow label="CÒN LẠI" value={totals.afterDiscount} />
             <TotalRow label="ĐẶT CỌC" value={totals.depositAmount} />
             {totals.warehouseReceiptDeduction > 0 ? <TotalRow label="TRỪ TIỀN NHẬN HÀNG TẠI KHO" value={totals.warehouseReceiptDeduction} /> : null}
@@ -136,6 +140,10 @@ function Meta({ label, value }: { label: string; value: string }) {
 }
 function TotalRow({ label, value, red = false }: { label: string; value: number; red?: boolean }) {
   return <tr className={red ? "total-row red" : "total-row"}><td colSpan={17}>{label}</td><td colSpan={3}>{money(value)}</td></tr>;
+}
+function detailDimensionClass(main: boolean, value: unknown) {
+  const n = Number(String(value ?? ""));
+  return !main && Number.isFinite(n) && n !== 0 ? "detail-dimension" : undefined;
 }
 function formatDate(value: Date | null) { return value ? new Intl.DateTimeFormat("vi-VN").format(value) : ""; }
 function money(value: unknown) { const n = Number(String(value ?? "")); return Number.isFinite(n) ? new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(n) : ""; }

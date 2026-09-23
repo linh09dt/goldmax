@@ -156,14 +156,14 @@ textarea {
   min-width: 0;
   font-size: 11px;
   font-style: italic;
-  overflow-wrap: anywhere;
-  display: grid;
-  grid-template-columns: max-content 1fr;
+  display: flex;
   gap: 6px;
   align-items: baseline;
+  white-space: nowrap;
+  overflow: hidden;
 }
-.order-print-meta strong { white-space: nowrap; }
-.order-print-meta span { font-weight: 700; }
+.order-print-meta strong { flex: 0 0 auto; white-space: nowrap; }
+.order-print-meta span { min-width: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .order-print-table {
   width: 100%;
   border-collapse: collapse;
@@ -183,6 +183,7 @@ textarea {
 .order-print-table thead th.paint-header { background: #ffff00; }
 .order-print-table .main-row td { background: #e2f0d9; font-weight: 500; }
 .order-print-table .detail-row td { background: #fff; }
+.order-print-table .detail-row td.detail-dimension { background: #e2f0d9; }
 .order-print-table td:nth-child(3),
 .order-print-table td:nth-child(4) { text-align: left; }
 .order-print-table td.note {
@@ -248,7 +249,8 @@ textarea {
   .order-print-title h2 { margin-top: 5px; font-size: 11px; }
   .order-print-badge { padding: 3px 7px; font-size: 8px; }
   .order-print-meta-grid { column-gap: 16px; row-gap: 2px; margin-top: 4px; }
-  .order-print-meta { font-size: 6.8px; gap: 3px; }
+  .order-print-meta { font-size: 6.6px; gap: 3px; white-space: nowrap; overflow: visible; }
+  .order-print-meta span { overflow: visible; text-overflow: clip; white-space: nowrap; }
   .order-print-table {
     font-size: 6.4px;
     line-height: 1.05;
