@@ -60,7 +60,19 @@ export function OrderExportButtons({
     const response = await fetch(url, { cache: "no-store" });
     if (!response.ok) {
       const body = await response.text().catch(() => "");
-      throw new Error(body || `HTTP ${response.status}`);
+      const contentType = response.headers.get("content-type") || "";
+      const looksLikeHtml = contentType.includes("text/html") || /^\s*<!doctype html/i.test(body) || /^\s*<html/i.test(body);
+      if (looksLikeHtml) {
+        throw new Error(`Vercel trả HTTP ${response.status} khi tạo PDF V2. Không hiển thị HTML lỗi thô.`);
+      }
+      let apiError = "";
+      try {
+        const parsed = JSON.parse(body) as { error?: string };
+        apiError = parsed.error || "";
+      } catch {
+        // Không phải JSON: chỉ giữ tối đa một đoạn ngắn, tránh đổ cả trang HTML vào UI.
+      }
+      throw new Error(apiError || body.slice(0, 600) || `HTTP ${response.status}`);
     }
     const blob = await response.blob();
     const objectUrl = URL.createObjectURL(blob);

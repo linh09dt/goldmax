@@ -131,22 +131,26 @@ def _count_pages(path: Path) -> int:
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         tmp_path: Path | None = None
+        response_started = False
         started = time.monotonic()
         try:
             query = parse_qs(urlparse(self.path).query)
             raw_id = (query.get("orderId") or [""])[0]
             note = (query.get("note") or [""])[0][:1000]
             no_images = (query.get("noImages") or [""])[0].lower() in {"1", "true", "yes"}
-            diag = (query.get("diag") or [""])[0].lower() in {"1", "true", "yes"}
+            diag_mode = (query.get("diag") or [""])[0].strip().lower()
+            diag_db = diag_mode in {"1", "true", "yes", "db"}
+            diag_build = diag_mode in {"build", "pdf"}
             order_id = int(raw_id)
 
-            _log("start", orderId=order_id, noImages=no_images, diag=diag)
+            _log("start", orderId=order_id, noImages=no_images, diag=diag_mode or "off")
             order = load_order(order_id)
-            if diag:
+            if diag_db:
                 detail_count = sum(len(item.get("details") or []) for item in order.get("items") or [])
                 self._json(200, {
                     "ok": True,
-                    "version": "V41.12",
+                    "version": "V41.13",
+                    "stage": "db",
                     "orderId": order_id,
                     "items": len(order.get("items") or []),
                     "details": detail_count,
@@ -168,38 +172,65 @@ class handler(BaseHTTPRequestHandler):
             _log("pdf_built", orderId=order_id, bytes=file_size, pages=pages,
                  elapsedMs=round((time.monotonic() - build_started) * 1000))
 
+            # Chẩn đoán riêng bước ReportLab: tạo xong PDF nhưng chỉ trả JSON nhỏ.
+            # Nếu diag=build chạy OK trên Vercel mà tải PDF thường lỗi, nguyên nhân nằm
+            # ở tầng response/transport chứ không phải DB hoặc phân trang ReportLab.
+            if diag_build:
+                self._json(200, {
+                    "ok": True,
+                    "version": "V41.13",
+                    "stage": "build",
+                    "orderId": order_id,
+                    "pages": pages,
+                    "bytes": file_size,
+                    "noImages": no_images,
+                    "elapsedMs": round((time.monotonic() - started) * 1000),
+                })
+                return
+
             # Vercel Function response có hard limit 4.5 MB. Chặn trước để trả lỗi rõ ràng.
             if file_size > 4_300_000:
                 raise RuntimeError(
                     f"PDF V2 quá lớn để trả trực tiếp qua Vercel ({file_size / 1024 / 1024:.2f} MB)."
                 )
 
+            # V41.13: đọc file đã giới hạn <= 4.3 MB và write đúng MỘT lần.
+            # Tránh gửi nhiều chunk qua BaseHTTPRequestHandler trên Python Runtime,
+            # vì lỗi transport sau khi headers đã gửi sẽ bị Vercel thay bằng HTML 500.
+            pdf_bytes = tmp_path.read_bytes()
+            if len(pdf_bytes) != file_size:
+                raise RuntimeError("Dung lượng PDF thay đổi trong lúc chuẩn bị response.")
+
             code = str(order.get("orderCode") or order_id).replace('"', "").replace("/", "-")
+            response_started = True
             self.send_response(200)
             self.send_header("Content-Type", "application/pdf")
             self.send_header("Content-Disposition", f'attachment; filename="Bao-gia-V2-{code}.pdf"')
-            self.send_header("Content-Length", str(file_size))
+            self.send_header("Content-Length", str(len(pdf_bytes)))
             self.send_header("Cache-Control", "no-store")
-            self.send_header("X-GoldMax-PDF-Version", "V41.12")
+            self.send_header("Connection", "close")
+            self.send_header("X-GoldMax-PDF-Version", "V41.13")
             self.send_header("X-GoldMax-PDF-Pages", str(pages))
             self.end_headers()
-
-            # Stream từ /tmp để không giữ thêm một bản PDF bytes trong RAM.
-            with tmp_path.open("rb") as source:
-                while True:
-                    chunk = source.read(64 * 1024)
-                    if not chunk:
-                        break
-                    self.wfile.write(chunk)
-            _log("response_done", orderId=order_id, bytes=file_size,
+            self.wfile.write(pdf_bytes)
+            try:
+                self.wfile.flush()
+            except Exception:
+                pass
+            _log("response_done", orderId=order_id, bytes=len(pdf_bytes), pages=pages,
                  elapsedMs=round((time.monotonic() - started) * 1000))
         except ValueError:
             self._error(400, "orderId không hợp lệ.")
         except LookupError as exc:
             self._error(404, str(exc))
         except Exception as exc:
-            _log("error", error=repr(exc), elapsedMs=round((time.monotonic() - started) * 1000))
-            self._error(500, f"Không thể xuất PDF V2: {exc}")
+            _log("error", error=repr(exc), responseStarted=response_started,
+                 elapsedMs=round((time.monotonic() - started) * 1000))
+            # Khi binary response đã bắt đầu, tuyệt đối không ghi thêm một HTTP response
+            # thứ hai. Việc send_response(500) sau 200 headers có thể làm transport của
+            # Vercel coi response là hỏng và trả HTML Internal Server Error.
+            if not response_started:
+                self._error(500, f"Không thể xuất PDF V2: {exc}")
         finally:
             if tmp_path:
                 try:
@@ -217,4 +248,4 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def _error(self, status: int, message: str):
-        self._json(status, {"ok": False, "version": "V41.12", "error": message})
+        self._json(status, {"ok": False, "version": "V41.13", "error": message})
