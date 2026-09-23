@@ -141,6 +141,21 @@ class handler(BaseHTTPRequestHandler):
             diag_mode = (query.get("diag") or [""])[0].strip().lower()
             diag_db = diag_mode in {"1", "true", "yes", "db"}
             diag_build = diag_mode in {"build", "pdf"}
+
+            # V41.14: smoke test không chạm DB. Dùng để xác nhận riêng tầng
+            # Python runtime + binary PDF response trên Vercel.
+            if diag_mode == "smoke":
+                from io import BytesIO
+                from reportlab.pdfgen import canvas as pdfcanvas
+
+                buf = BytesIO()
+                c = pdfcanvas.Canvas(buf)
+                c.drawString(72, 800, "GoldMax PDF V2 smoke test")
+                c.save()
+                pdf = buf.getvalue()
+                self._send_pdf(pdf, "goldmax-pdf-v2-smoke.pdf", pages=1)
+                return
+
             order_id = int(raw_id)
 
             _log("start", orderId=order_id, noImages=no_images, diag=diag_mode or "off")
@@ -149,7 +164,7 @@ class handler(BaseHTTPRequestHandler):
                 detail_count = sum(len(item.get("details") or []) for item in order.get("items") or [])
                 self._json(200, {
                     "ok": True,
-                    "version": "V41.13",
+                    "version": "V41.14",
                     "stage": "db",
                     "orderId": order_id,
                     "items": len(order.get("items") or []),
@@ -178,7 +193,7 @@ class handler(BaseHTTPRequestHandler):
             if diag_build:
                 self._json(200, {
                     "ok": True,
-                    "version": "V41.13",
+                    "version": "V41.14",
                     "stage": "build",
                     "orderId": order_id,
                     "pages": pages,
@@ -203,22 +218,10 @@ class handler(BaseHTTPRequestHandler):
 
             code = str(order.get("orderCode") or order_id).replace('"', "").replace("/", "-")
             response_started = True
-            self.send_response(200)
-            self.send_header("Content-Type", "application/pdf")
-            self.send_header("Content-Disposition", f'attachment; filename="Bao-gia-V2-{code}.pdf"')
-            self.send_header("Content-Length", str(len(pdf_bytes)))
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("Connection", "close")
-            self.send_header("X-GoldMax-PDF-Version", "V41.13")
-            self.send_header("X-GoldMax-PDF-Pages", str(pages))
-            self.end_headers()
-            self.wfile.write(pdf_bytes)
-            try:
-                self.wfile.flush()
-            except Exception:
-                pass
+            self._send_pdf(pdf_bytes, f"Bao-gia-V2-{code}.pdf", pages=pages)
             _log("response_done", orderId=order_id, bytes=len(pdf_bytes), pages=pages,
                  elapsedMs=round((time.monotonic() - started) * 1000))
+            return
         except ValueError:
             self._error(400, "orderId không hợp lệ.")
         except LookupError as exc:
@@ -238,6 +241,22 @@ class handler(BaseHTTPRequestHandler):
                 except Exception:
                     pass
 
+    def _send_pdf(self, pdf_bytes: bytes, filename: str, pages: int = 0):
+        # V41.14: giữ response tối giản đúng pattern BaseHTTPRequestHandler mà
+        # Vercel tài liệu hóa. Không tự set hop-by-hop header `Connection` và
+        # không ép Content-Length; adapter của Vercel sẽ đóng gói response.
+        # `Connection: close` từng được thêm ở V41.13 và có thể làm proxy/runtime
+        # xem response là không hợp lệ, dẫn đến HTML 500 dù PDF đã build xong.
+        self.send_response(200)
+        self.send_header("Content-Type", "application/pdf")
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-GoldMax-PDF-Version", "V41.14")
+        if pages:
+            self.send_header("X-GoldMax-PDF-Pages", str(pages))
+        self.end_headers()
+        self.wfile.write(pdf_bytes)
+
     def _json(self, status: int, payload: dict):
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
@@ -248,4 +267,4 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def _error(self, status: int, message: str):
-        self._json(status, {"ok": False, "version": "V41.13", "error": message})
+        self._json(status, {"ok": False, "version": "V41.14", "error": message})
