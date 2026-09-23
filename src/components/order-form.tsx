@@ -936,8 +936,42 @@ function GridPriceInput({ value, onChange, catalog }: { value: string; onChange:
 }
 function ImageCell({ path, onUpload }: { path: string; onUpload: (file: File) => Promise<void> }) {
   const [busy, setBusy] = useState(false);
-  return <div className="flex min-h-8 flex-col items-center justify-center gap-0 px-0.5 py-0.5 text-center text-[8px] leading-tight">{path ? <a className="max-w-full truncate text-cyan-700 hover:underline" href={path} target="_blank">Xem</a> : null}<label className="cursor-pointer break-words text-cyan-700 hover:underline">{busy ? "Đang tải" : "Tải ảnh"}<input className="hidden" type="file" accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; setBusy(true); try { await onUpload(file); } finally { setBusy(false); e.target.value = ""; } }} /></label></div>;
+  const [error, setError] = useState("");
+  return (
+    <div className="flex min-h-12 flex-col items-center justify-center gap-1 px-0.5 py-1 text-center text-[8px] leading-tight">
+      {path ? (
+        <a href={path} target="_blank" rel="noreferrer" className="inline-flex">
+          <img src={path} alt="Hình sản phẩm" className="h-10 w-12 rounded border border-slate-200 bg-white object-contain" />
+        </a>
+      ) : null}
+      <label className="cursor-pointer break-words font-medium text-cyan-700 hover:underline">
+        {busy ? "Đang tải" : path ? "Đổi ảnh" : "Tải ảnh"}
+        <input
+          className="hidden"
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          disabled={busy}
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            setBusy(true);
+            setError("");
+            try {
+              await onUpload(file);
+            } catch (uploadError) {
+              setError(uploadError instanceof Error ? uploadError.message : "Không thể tải ảnh.");
+            } finally {
+              setBusy(false);
+              e.target.value = "";
+            }
+          }}
+        />
+      </label>
+      {error ? <span className="max-w-full break-words text-[7px] text-red-600">{error}</span> : null}
+    </div>
+  );
 }
+
 function MasterDatalist({ id, items }: { id: string; items: MasterOption[] }) {
   return <datalist id={id}>{items.map((item) => <option key={`${item.groupCode}-${item.id}`} value={item.code}>{item.name}</option>)}</datalist>;
 }

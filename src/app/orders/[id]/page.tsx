@@ -193,8 +193,21 @@ function ReadRow({ lineNo, row, main = false }: { lineNo: number | null; main?: 
       <Td>{lineNo ?? ""}</Td><Td>{row.setNo || ""}</Td><Td wide>{row.productName || ""}</Td><Td>{row.productCode || row.model || ""}</Td><Td wide>{row.panelInfo || ""}</Td>
       <Td>{row.openingDirection || ""}</Td><Td>{row.trimDirection || ""}</Td><Td>{row.paintColor || ""}</Td><Td>{row.heightMm ?? ""}</Td><Td>{row.widthMm ?? ""}</Td><Td>{row.frameMm ?? ""}</Td>
       <Td>{row.clearHeightMm ?? ""}</Td><Td>{row.clearWidthMm ?? ""}</Td><Td>{row.quantity ?? ""}</Td><Td>{row.unit || ""}</Td><Td>{formatNumber(row.pricingQuantity)}</Td><Td>{formatMoney(row.unitPrice)}</Td><Td>{formatMoney(row.amount)}</Td>
-      <Td wide>{row.note || ""}</Td><Td>{row.imagePath ? <a className="text-cyan-700 hover:underline" href={row.imagePath} target="_blank">Xem ảnh</a> : ""}</Td>
+      <Td wide>{row.note || ""}</Td><Td>{row.imagePath ? <ProductImage path={row.imagePath} /> : ""}</Td>
     </tr>
+  );
+}
+
+function ProductImage({ path }: { path: string }) {
+  return (
+    <a href={path} target="_blank" rel="noreferrer" className="inline-flex">
+      <img
+        src={path}
+        alt="Hình sản phẩm"
+        className="h-14 w-14 rounded border border-slate-200 bg-white object-contain"
+        loading="lazy"
+      />
+    </a>
   );
 }
 function Info({ title, value }: { title: string; value: string }) { return <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</p><p className="mt-1 font-semibold text-slate-900">{value}</p></div>; }
