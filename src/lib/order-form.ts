@@ -48,6 +48,11 @@ export type OrderLineForm = {
   imagePath: string;
   modelCheck: string;
   priceCheck: string;
+  /**
+   * V59: chỉ dùng ở giao diện. "1" = người dùng đã nhập KH/Lượng bằng tay
+   * → hệ thống giữ nguyên, không tính lại tự động cho dòng đó. Không lưu xuống DB.
+   */
+  pricingManual?: string;
 };
 
 export type OrderItemForm = Omit<OrderLineForm, "rowOrder" | "detailType"> & {

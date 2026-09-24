@@ -189,7 +189,9 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
   function updateMain(index: number, key: keyof Omit<OrderItemForm, "clientId" | "lineNo" | "details">, value: string) {
     setForm((current) => {
       const items = [...current.items];
-      const nextItem = { ...items[index], [key]: value };
+      // V59: KH/Lượng nhập tay được đánh dấu để không bị tính lại tự động.
+      const draft = { ...items[index], [key]: value };
+      const nextItem = key === "pricingQuantity" ? { ...draft, pricingManual: "1" } : draft;
       items[index] = recalculateAutomaticPricingQuantity(nextItem, catalogItems, calculationConfig, { applyDoorUnitPrice: key === "frameMm" });
       return { ...current, items };
     });
@@ -206,6 +208,8 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
         model: catalog.code,
         unit: catalog.unit ?? currentItem.unit,
         unitPrice: catalogDefaultPrice(catalog, currentItem.unitPrice),
+        // V59: đổi Model thì bỏ đánh dấu nhập tay để KH/Lượng tự tính lại theo cấu hình.
+        pricingManual: "",
       }, catalogItems, calculationConfig, { applyDoorUnitPrice: true });
       return { ...current, items };
     });
@@ -224,6 +228,8 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
         model: catalog.code,
         unit: catalog.unit ?? currentDetail.unit,
         unitPrice: catalogDefaultPrice(catalog, currentDetail.unitPrice),
+        // V59: đổi Model thì bỏ đánh dấu nhập tay để KH/Lượng tự tính lại theo cấu hình.
+        pricingManual: "",
       }, item, catalog, calculationConfig);
       items[itemIndex] = recalculateAutomaticPricingQuantity({ ...item, details }, catalogItems, calculationConfig);
       return { ...current, items };
@@ -235,7 +241,9 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
       const items = [...current.items];
       const item = items[itemIndex];
       const details = [...item.details];
-      details[detailIndex] = { ...details[detailIndex], [key]: value };
+      // V59: KH/Lượng nhập tay được đánh dấu để không bị tính lại tự động.
+      const draft = { ...details[detailIndex], [key]: value };
+      details[detailIndex] = key === "pricingQuantity" ? { ...draft, pricingManual: "1" } : draft;
       items[itemIndex] = recalculateAutomaticPricingQuantity({ ...item, details }, catalogItems, calculationConfig);
       return { ...current, items };
     });
@@ -449,7 +457,6 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
               onMainCatalogSelect={applyMainCatalog}
               onDetailCatalogSelect={applyDetailCatalog}
               optionValues={optionValues}
-              calculationConfig={calculationConfig}
             />
           ))}
         </div>
@@ -507,7 +514,6 @@ function DoorSetCard({
   onMainCatalogSelect,
   onDetailCatalogSelect,
   optionValues,
-  calculationConfig,
 }: {
   item: OrderItemForm;
   itemIndex: number;
@@ -526,7 +532,6 @@ function DoorSetCard({
   onMainCatalogSelect: (index: number, item: CatalogItem) => void;
   onDetailCatalogSelect: (itemIndex: number, detailIndex: number, item: CatalogItem) => void;
   optionValues: { panel: MasterOption[]; opening: MasterOption[]; trim: MasterOption[]; color: MasterOption[] };
-  calculationConfig: CalculationConfig;
 }) {
   const inferredGroup = catalogGroupForCode(doorCatalogItems, item.productCode) || catalogGroupFromText(doorGroups, item.productName);
   const [selectedGroup, setSelectedGroup] = useState(inferredGroup);
@@ -540,12 +545,6 @@ function DoorSetCard({
 
   const groupItems = selectedGroup ? doorCatalogItems.filter((catalog) => sameText(catalog.name, selectedGroup)) : [];
   const itemTotal = lineAmount(item) + item.details.reduce((sum, detail) => sum + lineAmount(detail), 0);
-  const mainCalculation = resolveCalculationRule(calculationConfig, {
-    scope: "MAIN",
-    groupName: findCatalog(catalogItems, item.productCode)?.name || item.productName,
-    itemCode: item.productCode,
-  });
-  const mainAutomaticPricing = mainCalculation.pricingRule !== "MANUAL";
 
   function changeGroup(nextGroup: string) {
     setSelectedGroup(nextGroup);
@@ -621,7 +620,7 @@ function DoorSetCard({
           <CardField label="KT thông thủy - Rộng"><CardNumberInput value={item.clearWidthMm} onChange={change("clearWidthMm")} /></CardField>
           <CardField label="SL bộ"><CardNumberInput value={item.quantity} onChange={change("quantity")} /></CardField>
           <CardField label="ĐVT"><CardInput value={item.unit} onChange={change("unit")} /></CardField>
-          <CardField label="KH/Lượng"><CardNumberInput value={item.pricingQuantity} onChange={change("pricingQuantity")} step="0.01" readOnly={mainAutomaticPricing} autoCalculated={mainAutomaticPricing} /></CardField>
+          <CardField label="KH/Lượng"><CardNumberInput value={item.pricingQuantity} onChange={change("pricingQuantity")} step="0.01" /></CardField>
           <CardField label="Đơn giá">
             <CardSelectShell><GridPriceInput value={item.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, item.productCode)} /></CardSelectShell>
           </CardField>
@@ -666,7 +665,6 @@ function DoorSetCard({
                 accessoryCatalogItems={accessoryCatalogItems}
                 accessoryGroups={accessoryGroups}
                 onCatalogSelect={onDetailCatalogSelect}
-                calculationConfig={calculationConfig}
               />
             ))}
           </div>
@@ -688,7 +686,6 @@ function DetailMasterRow({
   accessoryCatalogItems,
   accessoryGroups,
   onCatalogSelect,
-  calculationConfig,
 }: {
   row: OrderLineForm;
   itemIndex: number;
@@ -699,7 +696,6 @@ function DetailMasterRow({
   accessoryCatalogItems: CatalogItem[];
   accessoryGroups: string[];
   onCatalogSelect: (itemIndex: number, detailIndex: number, item: CatalogItem) => void;
-  calculationConfig: CalculationConfig;
 }) {
   const inferredGroup = catalogGroupForCode(accessoryCatalogItems, row.productCode) || catalogGroupFromText(accessoryGroups, row.productName);
   const [selectedGroup, setSelectedGroup] = useState(inferredGroup);
@@ -711,12 +707,6 @@ function DetailMasterRow({
   }, [accessoryCatalogItems, accessoryGroups, row.productCode, row.productName, selectedGroup]);
 
   const groupItems = selectedGroup ? accessoryCatalogItems.filter((catalog) => sameText(catalog.name, selectedGroup)) : [];
-  const detailCalculation = resolveCalculationRule(calculationConfig, {
-    scope: "DETAIL",
-    groupName: findCatalog(catalogItems, row.productCode)?.name || row.productName,
-    itemCode: row.productCode,
-  });
-  const automaticPricing = detailCalculation.pricingRule !== "MANUAL";
   const orientation = detailOrientation(row);
 
   function changeGroup(nextGroup: string) {
@@ -763,7 +753,7 @@ function DetailMasterRow({
             <CardField label="Rộng" emphasized={orientation === "horizontal"}><CardNumberInput value={row.widthMm} onChange={change("widthMm")} /></CardField>
             <CardField label="Khuôn"><CardNumberInput value={row.frameMm} onChange={change("frameMm")} /></CardField>
             <CardField label="ĐVT"><CardInput value={row.unit} onChange={change("unit")} /></CardField>
-            <CardField label="KH/Lượng"><CardNumberInput value={row.pricingQuantity} onChange={change("pricingQuantity")} step="0.01" readOnly={automaticPricing} autoCalculated={automaticPricing} /></CardField>
+            <CardField label="KH/Lượng"><CardNumberInput value={row.pricingQuantity} onChange={change("pricingQuantity")} step="0.01" /></CardField>
             <CardField label="Đơn giá"><CardSelectShell><GridPriceInput value={row.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, row.productCode)} /></CardSelectShell></CardField>
             <CardField label="Thành tiền">
               <div className="flex h-8 min-w-0 items-center justify-end rounded-md border border-slate-200 bg-slate-50 px-1.5 text-[10px] font-semibold tabular-nums text-sky-900" title={`${formatMoney(lineAmount(row))}đ`}>
@@ -1101,7 +1091,9 @@ function recalculateAutomaticPricingQuantity(item: OrderItemForm, catalogItems: 
     itemCode: item.productCode || item.model,
   });
 
-  const mainPricingQuantity = calculatePricingQuantityByRule(mainRule.pricingRule, item, item);
+  const mainPricingQuantity = item.pricingManual === "1"
+    ? null
+    : calculatePricingQuantityByRule(mainRule.pricingRule, item, item);
   if (mainPricingQuantity !== null && item.pricingQuantity !== mainPricingQuantity) {
     nextItem = { ...nextItem, pricingQuantity: mainPricingQuantity, amount: "" };
     changed = true;
@@ -1123,6 +1115,8 @@ function recalculateAutomaticPricingQuantity(item: OrderItemForm, catalogItems: 
   }
 
   const details = nextItem.details.map((detail) => {
+    // V59: dòng đã nhập KH/Lượng bằng tay thì giữ nguyên.
+    if (detail.pricingManual === "1") return detail;
     const catalog = findCatalog(catalogItems, detail.productCode || detail.model);
     const resolved = resolveCalculationRule(calculationConfig, {
       scope: "DETAIL",
