@@ -11,7 +11,7 @@ export default function GuidePage() {
         <section className="erp-card p-5">
           <h2 className="text-lg font-bold text-slate-950">Quy trình sử dụng nhanh</h2>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <Step no="1" title="Cấu hình dữ liệu" text="Kiểm tra Danh mục hàng hóa, giá và các danh mục chọn." href="/items" />
+            <Step no="1" title="Cấu hình dữ liệu" text="Kiểm tra Danh mục hàng hóa, danh mục chọn và rule tính KH/Lượng." href="/items" />
             <Step no="2" title="Tạo đơn hàng" text="Nhập thông tin khách hàng, bộ cửa, chi tiết và giá." href="/orders/new" />
             <Step no="3" title="Tính vận chuyển" text="Chọn đơn, vùng miền, quãng đường và áp dụng cước." href="/shipping" />
             <Step no="4" title="Quản lý đơn" text="Tra cứu, sửa, xuất PDF hoặc xóa đơn." href="/orders" />
@@ -48,7 +48,7 @@ export default function GuidePage() {
           <ol className="grid gap-2 text-sm text-slate-700 md:grid-cols-2">
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 1.</b> Nhập đầy đủ toàn bộ trường trong Thông tin đơn hàng; tất cả các trường có dấu * đều bắt buộc.</li>
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 2.</b> Thêm bộ cửa, chọn Nhóm cửa + Model và nhập theo các card Sản phẩm / Kích thước & cấu hình / Số lượng & giá.</li>
-            <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 3.</b> Nhập kích thước, số lượng, KH/Lượng, đơn giá và ghi chú.</li>
+            <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 3.</b> Nhập kích thước, số lượng và đơn giá. KH/Lượng sẽ tự tính nếu Model/Nhóm hàng đã được gán rule trong Cấu hình tính toán; nếu không thì nhập tay.</li>
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 4.</b> Thêm chi tiết / phụ kiện / phụ phí. Mỗi dòng là một mini-card; bấm mở để nhập kỹ thuật đầy đủ, không cần cuộn ngang.</li>
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 5.</b> Dán ảnh bằng Ctrl+V hoặc tải ảnh sản phẩm nếu cần, sau đó kiểm tra tổng giá trị.</li>
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 6.</b> Bấm Lưu đơn hàng hoặc Lưu thay đổi.</li>
@@ -60,7 +60,6 @@ export default function GuidePage() {
             ["+ Thêm dòng", "Thêm một mini-card chi tiết / phụ kiện / phụ phí vào bộ cửa đang chọn."],
             ["Thông số thêm", "Mở các trường kỹ thuật nâng cao như KT thông thủy, ảnh, thông số phào/khóa và dữ liệu bổ sung."],
             ["Xóa bộ", "Xóa toàn bộ bộ cửa và các dòng chi tiết thuộc bộ đó."],
-            ["Đại lý / Bán lẻ", "Chọn nhanh mức giá đã cấu hình trong Danh mục hàng hóa."],
             ["Dán / Tải ảnh", "Bấm vào ô Hình ảnh SP rồi nhấn Ctrl+V để dán ảnh từ Clipboard, hoặc tải file ảnh như trước. Ảnh được lưu trên Supabase Storage."],
             ["Xóa", "Xóa một dòng chi tiết / phụ kiện / phụ phí."],
             ["Lưu đơn hàng", "Lưu đơn mới khi toàn bộ Thông tin đơn hàng đã nhập đầy đủ."],
@@ -113,7 +112,20 @@ export default function GuidePage() {
           ]} />
         </GuideSection>
 
-        <GuideSection title="7. Tính cước vận chuyển" href="/shipping" linkLabel="Mở Tính cước vận chuyển">
+        <GuideSection title="7. Cấu hình tính toán" href="/calculation-config" linkLabel="Mở Cấu hình tính toán">
+          <p className="text-sm text-slate-600">Gán cách tính KH/Lượng và nguồn đề xuất Cao/Rộng cho đúng Nhóm hàng hoặc đúng Model. Rule Model ưu tiên hơn rule Nhóm hàng.</p>
+          <ActionTable rows={[
+            ["Làm tròn KH/Lượng", "Chọn số chữ số thập phân dùng cho các giá trị KH/Lượng tự tính; mặc định 2."],
+            ["Bộ cửa chính", "Dùng công thức Cao × Rộng / 1.000.000 hoặc chọn Nhập tay nếu cần."],
+            ["Theo nhóm hàng", "Áp một công thức chung cho toàn bộ Model thuộc Nhóm hàng, ví dụ Phào / Ô thoáng / Khóa."],
+            ["Theo Model / hàng hóa", "Gán rule riêng cho đúng Model. Có thể kế thừa công thức KH/Lượng từ Nhóm nhưng cấu hình Cao/Rộng riêng."],
+            ["Đề xuất Cao / Rộng", "Chọn Cao cửa, Rộng cửa, Để trống hoặc Nhập tay / giữ nguyên. Đề xuất chỉ điền khi chọn hàng hóa và vẫn sửa tay được."],
+            ["Tạo lại cấu hình gợi ý", "Quét Danh mục hàng hóa để tạo mẫu cho Phào, Ô thoáng, Khóa và các loại Phào rời / biệt thự."],
+            ["Lưu cấu hình", "Áp dụng rule mới cho màn Tạo/Sửa đơn hàng. Không thay đổi dữ liệu đơn đã lưu."],
+          ]} />
+        </GuideSection>
+
+        <GuideSection title="8. Tính cước vận chuyển" href="/shipping" linkLabel="Mở Tính cước vận chuyển">
           <div className="grid gap-4 xl:grid-cols-3">
             <MiniCard title="Tính cước theo đơn hàng" items={[
               "Chọn đơn hàng.",

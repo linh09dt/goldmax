@@ -12,6 +12,14 @@ import {
   type OrderItemForm,
   type OrderLineForm,
 } from "@/lib/order-form";
+import {
+  DEFAULT_CALCULATION_CONFIG,
+  cloneCalculationConfig,
+  resolveCalculationRule,
+  type CalculationConfig,
+  type InputSuggestionRule,
+  type PricingQuantityRule,
+} from "@/lib/calculation-config";
 
 type Mode = "create" | "edit";
 
@@ -86,6 +94,8 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
   const [invalidOrderInfoFields, setInvalidOrderInfoFields] = useState<Set<RequiredOrderInfoKey>>(() => new Set());
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
   const [masterOptions, setMasterOptions] = useState<MasterOption[]>([]);
+  const [calculationConfig, setCalculationConfig] = useState<CalculationConfig>(() => cloneCalculationConfig(DEFAULT_CALCULATION_CONFIG));
+  const [calculationConfigLoaded, setCalculationConfigLoaded] = useState(false);
   const excelInputRef = useRef<HTMLInputElement>(null);
   const importedFromExcelRef = useRef(false);
   const [excelImportBusy, setExcelImportBusy] = useState(false);
@@ -102,6 +112,13 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
         const result = await response.json() as { ok: boolean; items?: MasterOption[] };
         if (!cancelled && response.ok && result.ok) setMasterOptions(result.items ?? []);
       }),
+      fetch("/api/calculation-config", { cache: "no-store" })
+        .then(async (response) => {
+          const result = await response.json() as { ok: boolean; config?: CalculationConfig };
+          if (!cancelled && response.ok && result.ok && result.config) setCalculationConfig(result.config);
+          if (!cancelled) setCalculationConfigLoaded(true);
+        })
+        .catch(() => { if (!cancelled) setCalculationConfigLoaded(true); }),
     ]).catch(() => undefined);
     return () => { cancelled = true; };
   }, []);
@@ -130,9 +147,9 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
   // KH/Lượng tự động theo loại dòng. Không chạy lại ngay sau import Excel để giữ snapshot import nghiêm ngặt;
   // sau đó mọi chỉnh sửa trên form sẽ áp dụng công thức mới.
   useEffect(() => {
-    if (!catalogItems.length || importedFromExcelRef.current) return;
-    setForm((current) => recalculateAutomaticPricingForm(current, catalogItems));
-  }, [catalogItems]);
+    if (!catalogItems.length || !calculationConfigLoaded || importedFromExcelRef.current) return;
+    setForm((current) => recalculateAutomaticPricingForm(current, catalogItems, calculationConfig));
+  }, [catalogItems, calculationConfig, calculationConfigLoaded]);
 
   const totals = useMemo(() => calculateTotals(form), [form]);
 
@@ -175,7 +192,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
     setForm((current) => {
       const items = [...current.items];
       const nextItem = { ...items[index], [key]: value };
-      items[index] = recalculateAutomaticPricingQuantity(nextItem, catalogItems);
+      items[index] = recalculateAutomaticPricingQuantity(nextItem, catalogItems, calculationConfig);
       return { ...current, items };
     });
   }
@@ -191,7 +208,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
         model: catalog.code,
         unit: catalog.unit ?? currentItem.unit,
         unitPrice: catalogDefaultPrice(catalog, currentItem.unitPrice),
-      }, catalogItems);
+      }, catalogItems, calculationConfig);
       return { ...current, items };
     });
   }
@@ -209,8 +226,8 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
         model: catalog.code,
         unit: catalog.unit ?? currentDetail.unit,
         unitPrice: catalogDefaultPrice(catalog, currentDetail.unitPrice),
-      }, item, catalog);
-      items[itemIndex] = recalculateAutomaticPricingQuantity({ ...item, details }, catalogItems);
+      }, item, catalog, calculationConfig);
+      items[itemIndex] = recalculateAutomaticPricingQuantity({ ...item, details }, catalogItems, calculationConfig);
       return { ...current, items };
     });
   }
@@ -221,7 +238,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
       const item = items[itemIndex];
       const details = [...item.details];
       details[detailIndex] = { ...details[detailIndex], [key]: value };
-      items[itemIndex] = recalculateAutomaticPricingQuantity({ ...item, details }, catalogItems);
+      items[itemIndex] = recalculateAutomaticPricingQuantity({ ...item, details }, catalogItems, calculationConfig);
       return { ...current, items };
     });
   }
@@ -434,6 +451,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
               onMainCatalogSelect={applyMainCatalog}
               onDetailCatalogSelect={applyDetailCatalog}
               optionValues={optionValues}
+              calculationConfig={calculationConfig}
             />
           ))}
         </div>
@@ -519,6 +537,7 @@ function DoorSetCard({
   onMainCatalogSelect,
   onDetailCatalogSelect,
   optionValues,
+  calculationConfig,
 }: {
   item: OrderItemForm;
   itemIndex: number;
@@ -537,6 +556,7 @@ function DoorSetCard({
   onMainCatalogSelect: (index: number, item: CatalogItem) => void;
   onDetailCatalogSelect: (itemIndex: number, detailIndex: number, item: CatalogItem) => void;
   optionValues: { panel: MasterOption[]; opening: MasterOption[]; trim: MasterOption[]; color: MasterOption[] };
+  calculationConfig: CalculationConfig;
 }) {
   const inferredGroup = catalogGroupForCode(doorCatalogItems, item.productCode) || catalogGroupFromText(doorGroups, item.productName);
   const [selectedGroup, setSelectedGroup] = useState(inferredGroup);
@@ -550,6 +570,12 @@ function DoorSetCard({
 
   const groupItems = selectedGroup ? doorCatalogItems.filter((catalog) => sameText(catalog.name, selectedGroup)) : [];
   const itemTotal = lineAmount(item) + item.details.reduce((sum, detail) => sum + lineAmount(detail), 0);
+  const mainCalculation = resolveCalculationRule(calculationConfig, {
+    scope: "MAIN",
+    groupName: findCatalog(catalogItems, item.productCode)?.name || item.productName,
+    itemCode: item.productCode,
+  });
+  const mainAutomaticPricing = mainCalculation.pricingRule !== "MANUAL";
 
   function changeGroup(nextGroup: string) {
     setSelectedGroup(nextGroup);
@@ -625,7 +651,7 @@ function DoorSetCard({
           <CardField label="KT thông thủy - Rộng"><CardNumberInput value={item.clearWidthMm} onChange={change("clearWidthMm")} /></CardField>
           <CardField label="SL bộ"><CardNumberInput value={item.quantity} onChange={change("quantity")} /></CardField>
           <CardField label="ĐVT"><CardInput value={item.unit} onChange={change("unit")} /></CardField>
-          <CardField label="KH/Lượng"><CardNumberInput value={item.pricingQuantity} onChange={change("pricingQuantity")} step="0.01" readOnly autoCalculated /></CardField>
+          <CardField label="KH/Lượng"><CardNumberInput value={item.pricingQuantity} onChange={change("pricingQuantity")} step="0.01" readOnly={mainAutomaticPricing} autoCalculated={mainAutomaticPricing} /></CardField>
           <CardField label="Đơn giá">
             <CardSelectShell><GridPriceInput value={item.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, item.productCode)} /></CardSelectShell>
           </CardField>
@@ -672,6 +698,7 @@ function DoorSetCard({
                 accessoryGroups={accessoryGroups}
                 onCatalogSelect={onDetailCatalogSelect}
                 optionValues={optionValues}
+                calculationConfig={calculationConfig}
               />
             ))}
           </div>
@@ -695,6 +722,7 @@ function DetailMasterRow({
   accessoryGroups,
   onCatalogSelect,
   optionValues,
+  calculationConfig,
 }: {
   row: OrderLineForm;
   itemIndex: number;
@@ -707,6 +735,7 @@ function DetailMasterRow({
   accessoryGroups: string[];
   onCatalogSelect: (itemIndex: number, detailIndex: number, item: CatalogItem) => void;
   optionValues: { panel: MasterOption[]; opening: MasterOption[]; trim: MasterOption[]; color: MasterOption[] };
+  calculationConfig: CalculationConfig;
 }) {
   const inferredGroup = catalogGroupForCode(accessoryCatalogItems, row.productCode) || catalogGroupFromText(accessoryGroups, row.productName);
   const [selectedGroup, setSelectedGroup] = useState(inferredGroup);
@@ -718,7 +747,12 @@ function DetailMasterRow({
   }, [accessoryCatalogItems, accessoryGroups, row.productCode, row.productName, selectedGroup]);
 
   const groupItems = selectedGroup ? accessoryCatalogItems.filter((catalog) => sameText(catalog.name, selectedGroup)) : [];
-  const automaticPricing = automaticDetailPricingType(row, catalogItems) !== null;
+  const detailCalculation = resolveCalculationRule(calculationConfig, {
+    scope: "DETAIL",
+    groupName: findCatalog(catalogItems, row.productCode)?.name || row.productName,
+    itemCode: row.productCode,
+  });
+  const automaticPricing = detailCalculation.pricingRule !== "MANUAL";
   const orientation = detailOrientation(row);
 
   function changeGroup(nextGroup: string) {
@@ -1102,31 +1136,40 @@ function EditableDetailRow({ row, itemIndex, detailIndex, onChange, onUpload, on
   );
 }
 
-type AutomaticDetailPricingType = "trim" | "panel" | "lock";
-
-function recalculateAutomaticPricingForm(form: OrderFormData, catalogItems: CatalogItem[]) {
+function recalculateAutomaticPricingForm(form: OrderFormData, catalogItems: CatalogItem[], calculationConfig: CalculationConfig) {
   let changed = false;
   const items = form.items.map((item) => {
-    const next = recalculateAutomaticPricingQuantity(item, catalogItems);
+    const next = recalculateAutomaticPricingQuantity(item, catalogItems, calculationConfig);
     if (next !== item) changed = true;
     return next;
   });
   return changed ? { ...form, items } : form;
 }
 
-function recalculateAutomaticPricingQuantity(item: OrderItemForm, catalogItems: CatalogItem[]): OrderItemForm {
+function recalculateAutomaticPricingQuantity(item: OrderItemForm, catalogItems: CatalogItem[], calculationConfig: CalculationConfig): OrderItemForm {
   let changed = false;
   let nextItem = item;
+  const mainCatalog = findCatalog(catalogItems, item.productCode || item.model);
+  const mainRule = resolveCalculationRule(calculationConfig, {
+    scope: "MAIN",
+    groupName: mainCatalog?.name || item.productName,
+    itemCode: item.productCode || item.model,
+  });
 
-  // Nhóm cửa: KH/Lượng = (Cao x Rộng) / 1.000.000.
-  const mainPricingQuantity = calculateDoorPricingQuantity(item.heightMm, item.widthMm);
-  if (item.pricingQuantity !== mainPricingQuantity) {
+  const mainPricingQuantity = calculatePricingQuantityByRule(mainRule.pricingRule, item, item, calculationConfig.decimalPlaces);
+  if (mainPricingQuantity !== null && item.pricingQuantity !== mainPricingQuantity) {
     nextItem = { ...nextItem, pricingQuantity: mainPricingQuantity, amount: "" };
     changed = true;
   }
 
   const details = nextItem.details.map((detail) => {
-    const calculated = calculateDetailPricingQuantity(detail, nextItem, catalogItems);
+    const catalog = findCatalog(catalogItems, detail.productCode || detail.model);
+    const resolved = resolveCalculationRule(calculationConfig, {
+      scope: "DETAIL",
+      groupName: catalog?.name || detail.productName,
+      itemCode: detail.productCode || detail.model,
+    });
+    const calculated = calculatePricingQuantityByRule(resolved.pricingRule, detail, nextItem, calculationConfig.decimalPlaces);
     if (calculated === null || detail.pricingQuantity === calculated) return detail;
     changed = true;
     return { ...detail, pricingQuantity: calculated, amount: "" };
@@ -1139,45 +1182,32 @@ function recalculateAutomaticPricingQuantity(item: OrderItemForm, catalogItems: 
   return changed ? nextItem : item;
 }
 
-function calculateDoorPricingQuantity(heightMm: string, widthMm: string) {
-  const height = positiveNumber(heightMm);
-  const width = positiveNumber(widthMm);
-  if (height === null || width === null) return "";
-  return formatPricingQuantity((height * width) / 1_000_000);
-}
+function calculatePricingQuantityByRule(
+  rule: Exclude<PricingQuantityRule, "INHERIT">,
+  line: { heightMm: string; widthMm: string },
+  parent: OrderItemForm,
+  decimalPlaces: number,
+): string | null {
+  if (rule === "MANUAL") return null;
 
-function calculateDetailPricingQuantity(detail: OrderLineForm, parent: OrderItemForm, catalogItems: CatalogItem[]): string | null {
-  const type = automaticDetailPricingType(detail, catalogItems);
-  if (type === null) return null; // Các nhóm khác vẫn nhập KH/Lượng bằng tay.
+  if (rule === "DOOR_AREA") {
+    const height = positiveNumber(line.heightMm);
+    const width = positiveNumber(line.widthMm);
+    if (height === null || width === null) return "";
+    return formatPricingQuantity((height * width) / 1_000_000, decimalPlaces);
+  }
 
-  if (type === "trim") {
-    // Phào/Phao dùng công thức (Cao x 2 + Rộng) / 1000.
-    // Cho phép một trong hai kích thước để trống vì một số loại chỉ dùng Cao hoặc chỉ dùng Rộng:
-    // - Phào biệt thự đứng: chỉ Cao => 2 x Cao / 1000.
-    // - Phào biệt thự ngang/đỉnh: chỉ Rộng => Rộng / 1000.
-    const height = positiveNumber(detail.heightMm);
-    const width = positiveNumber(detail.widthMm);
+  if (rule === "TRIM_LINEAR") {
+    const height = positiveNumber(line.heightMm);
+    const width = positiveNumber(line.widthMm);
     if (height === null && width === null) return "";
-    return formatPricingQuantity(((height ?? 0) * 2 + (width ?? 0)) / 1000);
+    return formatPricingQuantity(((height ?? 0) * 2 + (width ?? 0)) / 1000, decimalPlaces);
   }
 
-  if (type === "panel") {
-    return panelCountFromDoor(parent.panelInfo);
-  }
+  if (rule === "PANEL_COUNT") return panelCountFromDoor(parent.panelInfo);
 
-  // Khóa: theo số lượng bộ cửa của dòng cửa chính.
   const quantity = positiveNumber(parent.quantity);
-  return quantity === null ? "" : formatPricingQuantity(quantity);
-}
-
-function automaticDetailPricingType(detail: OrderLineForm, catalogItems: CatalogItem[]): AutomaticDetailPricingType | null {
-  const catalog = findCatalog(catalogItems, detail.productCode || detail.model);
-  const groupText = normalizeText(catalog?.name || detail.productName || "");
-  if (!groupText) return null;
-  if (groupText === "phao" || groupText.startsWith("phao ")) return "trim";
-  if (groupText === "o thoang" || groupText.startsWith("o thoang ")) return "panel";
-  if (groupText === "khoa" || groupText.startsWith("khoa ")) return "lock";
-  return null;
+  return quantity === null ? "" : formatPricingQuantity(quantity, decimalPlaces);
 }
 
 function panelCountFromDoor(panelInfo: string) {
@@ -1194,28 +1224,40 @@ function positiveNumber(value: string) {
   return Number.isFinite(number) && number > 0 ? number : null;
 }
 
-function formatPricingQuantity(value: number) {
+function formatPricingQuantity(value: number, decimalPlaces = 2) {
   if (!Number.isFinite(value)) return "";
-  // KH/Lượng tự động: làm tròn tối đa 2 chữ số thập phân.
-  return Number(value.toFixed(2)).toString();
+  const places = Math.max(0, Math.min(4, Math.round(decimalPlaces)));
+  return Number(value.toFixed(places)).toString();
 }
 
-function applyAccessoryDimensionSuggestion(detail: OrderLineForm, parent: OrderItemForm, catalog: CatalogItem): OrderLineForm {
-  const source = normalizeText([catalog.name, catalog.productDescription, catalog.code, detail.productName, detail.model].filter(Boolean).join(" "));
-  const parentHeight = String(parent.heightMm || "").trim();
-  const parentWidth = String(parent.widthMm || "").trim();
+function applyAccessoryDimensionSuggestion(
+  detail: OrderLineForm,
+  parent: OrderItemForm,
+  catalog: CatalogItem,
+  calculationConfig: CalculationConfig,
+): OrderLineForm {
+  const resolved = resolveCalculationRule(calculationConfig, {
+    scope: "DETAIL",
+    groupName: catalog.name,
+    itemCode: catalog.code,
+  });
 
-  // Chỉ đề xuất kích thước khi chọn đúng loại phụ kiện. Các dòng khác giữ nguyên để người dùng nhập tay.
-  if (source.includes("phao biet thu dung")) {
-    return { ...detail, heightMm: parentHeight, widthMm: "" };
-  }
-  if (source.includes("phao biet thu ngang") || source.includes("phao biet thu dinh")) {
-    return { ...detail, heightMm: "", widthMm: parentWidth };
-  }
-  if (source.includes("phao roi")) {
-    return { ...detail, heightMm: parentHeight, widthMm: parentWidth };
-  }
-  return detail;
+  return {
+    ...detail,
+    heightMm: suggestedInputValue(resolved.heightSuggestion, detail.heightMm, parent),
+    widthMm: suggestedInputValue(resolved.widthSuggestion, detail.widthMm, parent),
+  };
+}
+
+function suggestedInputValue(
+  rule: Exclude<InputSuggestionRule, "INHERIT">,
+  currentValue: string,
+  parent: OrderItemForm,
+) {
+  if (rule === "PARENT_HEIGHT") return String(parent.heightMm || "").trim();
+  if (rule === "PARENT_WIDTH") return String(parent.widthMm || "").trim();
+  if (rule === "CLEAR") return "";
+  return currentValue;
 }
 
 function emptyDetail(rowOrder: number): OrderLineForm {

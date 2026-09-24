@@ -25,6 +25,7 @@ export function ErpShell({
               <Nav href="/revenue" label="Theo dõi doanh thu" />
               <Nav href="/items" label="Danh mục hàng hóa" />
               <Nav href="/master-options" label="Danh mục cấu hình" />
+              <Nav href="/calculation-config" label="Cấu hình tính toán" />
               <Nav href="/shipping" label="Tính cước vận chuyển" />
               <Nav href="/guide" label="Hướng dẫn sử dụng" />
             </nav>
