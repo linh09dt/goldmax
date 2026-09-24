@@ -57,26 +57,26 @@ export default async function PrintOrderPage({
 
         <table className="order-print-table">
           <colgroup>
-            <col style={{ width: "3%" }} />
-            <col style={{ width: "5%" }} />
-            <col style={{ width: "10%" }} />
-            <col style={{ width: "9%" }} />
-            <col style={{ width: "5%" }} />
-            <col style={{ width: "4%" }} />
-            <col style={{ width: "5%" }} />
-            <col style={{ width: "4%" }} />
-            <col style={{ width: "3%" }} />
-            <col style={{ width: "3%" }} />
-            <col style={{ width: "3%" }} />
-            <col style={{ width: "3%" }} />
-            <col style={{ width: "3%" }} />
-            <col style={{ width: "4%" }} />
-            <col style={{ width: "3.5%" }} />
-            <col style={{ width: "4.5%" }} />
-            <col style={{ width: "6%" }} />
-            <col style={{ width: "7%" }} />
-            <col style={{ width: "12%" }} />
-            <col style={{ width: "8%" }} />
+            <col style={{ width: "2.21%" }} />
+            <col style={{ width: "4.42%" }} />
+            <col style={{ width: "9.71%" }} />
+            <col style={{ width: "8.83%" }} />
+            <col style={{ width: "4.42%" }} />
+            <col style={{ width: "3.53%" }} />
+            <col style={{ width: "4.42%" }} />
+            <col style={{ width: "3.97%" }} />
+            <col style={{ width: "3.31%" }} />
+            <col style={{ width: "3.31%" }} />
+            <col style={{ width: "3.31%" }} />
+            <col style={{ width: "3.31%" }} />
+            <col style={{ width: "3.31%" }} />
+            <col style={{ width: "3.97%" }} />
+            <col style={{ width: "3.53%" }} />
+            <col style={{ width: "4.42%" }} />
+            <col style={{ width: "5.74%" }} />
+            <col style={{ width: "6.62%" }} />
+            <col style={{ width: "10.60%" }} />
+            <col style={{ width: "7.06%" }} />
           </colgroup>
           <thead>
             <tr>

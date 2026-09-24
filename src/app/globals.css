@@ -256,14 +256,14 @@ textarea {
   }
   .order-print-brand { padding-top: 2px; }
   .order-print-brand img { width: 74px; }
-  .order-print-title h1 { font-size: 12px; }
-  .order-print-title h2 { margin-top: 5px; font-size: 11px; }
-  .order-print-badge { padding: 3px 7px; font-size: 8px; }
+  .order-print-title h1 { font-size: 14px; }
+  .order-print-title h2 { margin-top: 5px; font-size: 13px; }
+  .order-print-badge { padding: 3px 7px; font-size: 10px; }
   .order-print-meta-grid { column-gap: 16px; row-gap: 2px; margin-top: 4px; }
-  .order-print-meta { font-size: 6.6px; gap: 3px; white-space: nowrap; overflow: visible; }
+  .order-print-meta { font-size: 8.6px; gap: 3px; white-space: nowrap; overflow: visible; }
   .order-print-meta span { overflow: visible; text-overflow: clip; white-space: nowrap; }
   .order-print-table {
-    font-size: 6.4px;
+    font-size: 8.4px;
     line-height: 1.05;
     break-inside: auto;
     page-break-inside: auto;
@@ -277,16 +277,16 @@ textarea {
     page-break-after: auto;
   }
   .order-print-table th,
-  .order-print-table td { padding: 1.6px 2px; }
-  .order-print-table .main-row td { height: 18px; }
-  .order-print-table .detail-row td { height: 16px; }
+  .order-print-table td { padding: 1.3px 1.7px; }
+  .order-print-table .main-row td { height: 21px; }
+  .order-print-table .detail-row td { height: 19px; }
   .order-print-table td.product-image img { max-width: 48px; max-height: 34px; }
-  .order-print-table .total-row td { height: 18px; font-size: 7px; }
+  .order-print-table .total-row td { height: 18px; font-size: 9px; }
   .order-print-table .export-note-row td {
-    font-size: 8px;
+    font-size: 10px;
     padding: 2px 3px;
     line-height: 1.15;
   }
-  .order-print-notes { min-height: 64px; padding: 4px 46px 5px; font-size: 6.8px; }
+  .order-print-notes { min-height: 64px; padding: 4px 46px 5px; font-size: 8.8px; }
   .order-print-notes .note-indent { margin-left: 38px; }
 }

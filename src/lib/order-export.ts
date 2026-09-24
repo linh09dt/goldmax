@@ -13,7 +13,7 @@ const WHITE_FILL = { type: "pattern" as const, pattern: "solid" as const, fgColo
 const NOTE_FILL = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: "FF92D050" } };
 const YELLOW_FILL = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: "FFFFFF00" } };
 const BADGE_FILL = { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: "FF4472C4" } };
-const BODY_FONT = { name: "Times New Roman", size: 10, color: { argb: "FF000000" } };
+const BODY_FONT = { name: "Times New Roman", size: 12, color: { argb: "FF000000" } };
 const CENTER = { horizontal: "center" as const, vertical: "middle" as const, wrapText: true };
 const LEFT = { horizontal: "left" as const, vertical: "middle" as const, wrapText: true };
 
@@ -57,7 +57,7 @@ export async function buildOrderExcel(order: ExportableOrder, exportNote = ""): 
       horizontalCentered: true,
       margins: { left: 0.12, right: 0.12, top: 0.15, bottom: 0.15, header: 0, footer: 0 },
     },
-    properties: { defaultRowHeight: 18 },
+    properties: { defaultRowHeight: 21 },
   });
 
   setupColumns(ws);
@@ -71,7 +71,7 @@ export async function buildOrderExcel(order: ExportableOrder, exportNote = ""): 
   for (const group of groups) {
     for (const entry of group.rows) {
       await writeLine(ws, workbook, rowNo, group, entry.row, entry.main, entry.firstInGroup);
-      ws.getRow(rowNo).height = entry.main ? 24 : 21;
+      ws.getRow(rowNo).height = entry.main ? 28 : 25;
       rowNo += 1;
     }
   }
@@ -115,24 +115,24 @@ async function writeHeader(ws: Worksheet, workbook: ExcelJS.Workbook, order: Exp
   } catch {
     ws.mergeCells("A1:B2");
     ws.getCell("A1").value = "GOLDMAX";
-    ws.getCell("A1").font = { name: "Arial", size: 17, bold: true, color: { argb: "FFD4AF37" } };
+    ws.getCell("A1").font = { name: "Arial", size: 19, bold: true, color: { argb: "FFD4AF37" } };
     ws.getCell("A1").alignment = CENTER;
   }
 
   ws.mergeCells("C1:T1");
   ws.getCell("C1").value = "CÔNG TY TNHH SXTM GOLDMAX VIỆT NAM";
-  ws.getCell("C1").font = { ...BODY_FONT, size: 16, bold: true };
+  ws.getCell("C1").font = { ...BODY_FONT, size: 18, bold: true };
   ws.getCell("C1").alignment = CENTER;
 
   ws.mergeCells("C2:P2");
   ws.getCell("C2").value = "THÔNG TIN ĐƠN HÀNG";
-  ws.getCell("C2").font = { ...BODY_FONT, size: 15, bold: true, color: { argb: "FF003399" } };
+  ws.getCell("C2").font = { ...BODY_FONT, size: 17, bold: true, color: { argb: "FF003399" } };
   ws.getCell("C2").alignment = CENTER;
 
   ws.mergeCells("R2:T2");
   ws.getCell("R2").value = "MẪU CỬA";
   ws.getCell("R2").fill = BADGE_FILL;
-  ws.getCell("R2").font = { ...BODY_FONT, size: 10, bold: true, color: { argb: "FFFFFFFF" } };
+  ws.getCell("R2").font = { ...BODY_FONT, size: 12, bold: true, color: { argb: "FFFFFFFF" } };
   ws.getCell("R2").alignment = LEFT;
 
   setInfoLine(ws, "A4:H4", "Tên khách hàng:", order.customerName || order.receiverName || order.customerCode);
@@ -143,11 +143,11 @@ async function writeHeader(ws: Worksheet, workbook: ExcelJS.Workbook, order: Exp
   setInfoLine(ws, "I5:N5", "Mã nhân viên:", order.salesEmployeeCode);
   setInfoLine(ws, "O5:T5", "Ngày trả dự kiến:", order.requiredDeliveryDate, true);
 
-  ws.getRow(1).height = 24;
-  ws.getRow(2).height = 27;
+  ws.getRow(1).height = 28;
+  ws.getRow(2).height = 31;
   ws.getRow(3).height = 10;
-  ws.getRow(4).height = 19;
-  ws.getRow(5).height = 19;
+  ws.getRow(4).height = 22;
+  ws.getRow(5).height = 22;
 }
 
 function setInfoLine(ws: Worksheet, range: string, label: string, value: unknown, date = false) {
@@ -158,8 +158,8 @@ function setInfoLine(ws: Worksheet, range: string, label: string, value: unknown
     : cleanText(value) || "";
   cell.value = {
     richText: [
-      { text: `${label} `, font: { ...BODY_FONT, size: 9, bold: true, italic: true } },
-      { text: displayValue, font: { ...BODY_FONT, size: 9, bold: true } },
+      { text: `${label} `, font: { ...BODY_FONT, size: 11, bold: true, italic: true } },
+      { text: displayValue, font: { ...BODY_FONT, size: 11, bold: true } },
     ],
   };
   cell.alignment = { horizontal: "left", vertical: "middle", wrapText: false, shrinkToFit: true };
@@ -193,12 +193,12 @@ function writeTableHeader(ws: Worksheet) {
   for (let row = 6; row <= 7; row += 1) {
     for (let col = 1; col <= 20; col += 1) {
       const cell = ws.getCell(row, col);
-      cell.font = { ...BODY_FONT, size: 8, bold: true };
+      cell.font = { ...BODY_FONT, size: 10, bold: true };
       cell.alignment = CENTER;
     }
   }
-  ws.getRow(6).height = 27;
-  ws.getRow(7).height = 24;
+  ws.getRow(6).height = 31;
+  ws.getRow(7).height = 28;
 }
 
 async function writeLine(
@@ -238,7 +238,7 @@ async function writeLine(
     const cell = ws.getCell(rowNo, col);
     cell.fill = main ? MAIN_FILL : WHITE_FILL;
     cell.border = ALL_BORDERS;
-    cell.font = { ...BODY_FONT, size: 9, bold: main && col <= 4 };
+    cell.font = { ...BODY_FONT, size: 11, bold: main && col <= 4 };
     cell.alignment = col === 3 || col === 4 ? LEFT : CENTER;
   }
 
@@ -247,7 +247,7 @@ async function writeLine(
   ws.getCell(`R${rowNo}`).numFmt = "#,##0";
 
   if (cleanText(row.note)) {
-    ws.getCell(`S${rowNo}`).font = { ...BODY_FONT, size: 9, bold: true, color: { argb: "FFFF0000" } };
+    ws.getCell(`S${rowNo}`).font = { ...BODY_FONT, size: 11, bold: true, color: { argb: "FFFF0000" } };
     ws.getCell(`S${rowNo}`).alignment = CENTER;
   }
 
@@ -256,7 +256,7 @@ async function writeLine(
   if (imageUrl) {
     const imageCell = ws.getCell(`T${rowNo}`);
     imageCell.value = { text: "Xem ảnh", hyperlink: imageUrl, tooltip: "Mở hình ảnh sản phẩm" };
-    imageCell.font = { ...BODY_FONT, size: 8, color: { argb: "FF0563C1" }, underline: true };
+    imageCell.font = { ...BODY_FONT, size: 10, color: { argb: "FF0563C1" }, underline: true };
     imageCell.alignment = CENTER;
     try {
       const response = await fetch(imageUrl, { cache: "no-store" });
@@ -271,7 +271,7 @@ async function writeLine(
             ext: { width: 82, height: 48 },
             editAs: "oneCell",
           });
-          ws.getRow(rowNo).height = Math.max(ws.getRow(rowNo).height || 0, 39);
+          ws.getRow(rowNo).height = Math.max(ws.getRow(rowNo).height || 0, 43);
           imageCell.value = null;
         }
       }
@@ -300,12 +300,12 @@ function writeExportNote(ws: Worksheet, startRow: number, exportNote: string) {
   ws.mergeCells(`A${startRow}:T${startRow}`);
   const cell = ws.getCell(`A${startRow}`);
   cell.value = note;
-  cell.font = { ...BODY_FONT, size: 12, bold: true, color: { argb: "FFFF0000" } };
+  cell.font = { ...BODY_FONT, size: 14, bold: true, color: { argb: "FFFF0000" } };
   cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
   styleRange(ws, `A${startRow}:T${startRow}`, WHITE_FILL, true);
-  cell.font = { ...BODY_FONT, size: 12, bold: true, color: { argb: "FFFF0000" } };
+  cell.font = { ...BODY_FONT, size: 14, bold: true, color: { argb: "FFFF0000" } };
   cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-  ws.getRow(startRow).height = Math.max(24, 18 * lineCount);
+  ws.getRow(startRow).height = Math.max(28, 21 * lineCount);
   return startRow + 1;
 }
 
@@ -335,7 +335,7 @@ function writeTotals(ws: Worksheet, startRow: number, totals: ReturnType<typeof 
     ws.getCell(`R${row}`).numFmt = "#,##0";
     ws.getCell(`A${row}`).font = { ...BODY_FONT, bold: options.bold ?? true, color: { argb: options.red ? "FFFF0000" : "FF000000" } };
     ws.getCell(`R${row}`).font = { ...BODY_FONT, bold: true, color: { argb: options.red ? "FFFF0000" : "FF000000" } };
-    ws.getRow(row).height = 21;
+    ws.getRow(row).height = 24;
     row += 1;
   }
   return row;
@@ -357,10 +357,10 @@ function writeNotes(ws: Worksheet, startRow: number, order: ExportableOrder) {
   ws.mergeCells(`A${startRow}:T${startRow + heightRows - 1}`);
   const cell = ws.getCell(`A${startRow}`);
   cell.value = lines.join("\n");
-  cell.font = { ...BODY_FONT, bold: false, size: 9 };
+  cell.font = { ...BODY_FONT, bold: false, size: 11 };
   cell.alignment = { horizontal: "left", vertical: "top", wrapText: true, indent: 1 };
   styleRange(ws, `A${startRow}:T${startRow + heightRows - 1}`, NOTE_FILL, false);
-  for (let row = startRow; row < startRow + heightRows; row += 1) ws.getRow(row).height = 18;
+  for (let row = startRow; row < startRow + heightRows; row += 1) ws.getRow(row).height = 21;
   return startRow + heightRows - 1;
 }
 

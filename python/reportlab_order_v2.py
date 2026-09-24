@@ -42,9 +42,9 @@ from reportlab.platypus import (
 )
 
 PAGE_W, PAGE_H = landscape(A4)
-LEFT = RIGHT = 12 * mm
+LEFT = RIGHT = 4 * mm
 TOP = BOTTOM = 10 * mm
-CONTENT_W = PAGE_W - LEFT - RIGHT  # 273 mm
+CONTENT_W = PAGE_W - LEFT - RIGHT  # 289 mm - tận dụng gần hết chiều ngang A4 landscape
 
 NAVY = colors.HexColor("#1E3A8A")
 AMBER = colors.HexColor("#D97706")
@@ -163,32 +163,32 @@ def pstyle(name: str, *, size: float = 8, leading: float | None = None, font: st
 
 
 S = {
-    "company": pstyle("company", size=12, font="bold", color=NAVY),
-    "company_line": pstyle("company_line", size=7.0, leading=8.4, color=MUTED),
-    "title": pstyle("title", size=14, font="bold", color=NAVY, align=TA_RIGHT),
-    "order_code": pstyle("order_code", size=8.5, font="bold", color=AMBER, align=TA_RIGHT),
-    "meta": pstyle("meta", size=8.0),
-    "meta_bold": pstyle("meta_bold", size=8.0, font="bold"),
-    "th": pstyle("th", size=6.5, leading=7.2, font="bold", color=WHITE, align=TA_CENTER),
-    "main": pstyle("main", size=6.8, leading=7.8, font="bold"),
-    "body": pstyle("body", size=6.7, leading=7.7),
-    "detail": pstyle("detail", size=6.5, leading=7.4, font="italic", color=MUTED),
-    "detail_right": pstyle("detail_right", size=6.5, leading=7.4, font="italic", color=MUTED, align=TA_RIGHT),
-    "num": pstyle("num", size=6.7, leading=7.7, align=TA_RIGHT),
-    "num_bold": pstyle("num_bold", size=6.7, leading=7.7, font="bold", align=TA_RIGHT),
-    "center": pstyle("center", size=6.7, leading=7.7, align=TA_CENTER),
-    "note": pstyle("note", size=6.3, leading=7.3),
-    "export_note": pstyle("export_note", size=9, leading=10.5, font="bold", color=AMBER, align=TA_CENTER),
-    "check_title": pstyle("check_title", size=7.7, font="bold", color=NAVY),
-    "check": pstyle("check", size=6.7, leading=8.1),
-    "summary": pstyle("summary", size=7.5),
-    "summary_bold": pstyle("summary_bold", size=7.5, font="bold"),
-    "summary_amount": pstyle("summary_amount", size=7.5, font="bold", align=TA_RIGHT),
-    "summary_total": pstyle("summary_total", size=7.5, font="bold", color=WHITE),
-    "summary_total_amount": pstyle("summary_total_amount", size=7.5, font="bold", color=WHITE, align=TA_RIGHT),
-    "words": pstyle("words", size=6.4, leading=7.4, font="italic", color=MUTED, align=TA_RIGHT),
-    "sign": pstyle("sign", size=7.3, leading=8.5, font="bold", align=TA_CENTER),
-    "sign_sub": pstyle("sign_sub", size=6.3, leading=7.3, color=MUTED, align=TA_CENTER),
+    "company": pstyle("company", size=14, font="bold", color=NAVY),
+    "company_line": pstyle("company_line", size=9.0, leading=10.4, color=MUTED),
+    "title": pstyle("title", size=16, font="bold", color=NAVY, align=TA_RIGHT),
+    "order_code": pstyle("order_code", size=10.5, font="bold", color=AMBER, align=TA_RIGHT),
+    "meta": pstyle("meta", size=10.0),
+    "meta_bold": pstyle("meta_bold", size=10.0, font="bold"),
+    "th": pstyle("th", size=8.5, leading=9.4, font="bold", color=WHITE, align=TA_CENTER),
+    "main": pstyle("main", size=8.8, leading=9.8, font="bold"),
+    "body": pstyle("body", size=8.7, leading=9.7),
+    "detail": pstyle("detail", size=8.5, leading=9.4, font="italic", color=MUTED),
+    "detail_right": pstyle("detail_right", size=8.5, leading=9.4, font="italic", color=MUTED, align=TA_RIGHT),
+    "num": pstyle("num", size=8.7, leading=9.7, align=TA_RIGHT),
+    "num_bold": pstyle("num_bold", size=8.7, leading=9.7, font="bold", align=TA_RIGHT),
+    "center": pstyle("center", size=8.7, leading=9.7, align=TA_CENTER),
+    "note": pstyle("note", size=8.3, leading=9.3),
+    "export_note": pstyle("export_note", size=11, leading=12.5, font="bold", color=AMBER, align=TA_CENTER),
+    "check_title": pstyle("check_title", size=9.7, font="bold", color=NAVY),
+    "check": pstyle("check", size=8.7, leading=10.1),
+    "summary": pstyle("summary", size=9.5),
+    "summary_bold": pstyle("summary_bold", size=9.5, font="bold"),
+    "summary_amount": pstyle("summary_amount", size=9.5, font="bold", align=TA_RIGHT),
+    "summary_total": pstyle("summary_total", size=9.5, font="bold", color=WHITE),
+    "summary_total_amount": pstyle("summary_total_amount", size=9.5, font="bold", color=WHITE, align=TA_RIGHT),
+    "words": pstyle("words", size=8.4, leading=9.4, font="italic", color=MUTED, align=TA_RIGHT),
+    "sign": pstyle("sign", size=9.3, leading=10.5, font="bold", align=TA_CENTER),
+    "sign_sub": pstyle("sign_sub", size=8.3, leading=9.3, color=MUTED, align=TA_CENTER),
 }
 
 
@@ -455,7 +455,7 @@ def _draw_footer(canvas: pdfcanvas.Canvas, doc: SimpleDocTemplate, order_code: s
     canvas.setLineWidth(0.5)
     canvas.line(LEFT, y + 4 * mm, PAGE_W - RIGHT, y + 4 * mm)
     canvas.setFillColor(MUTED)
-    canvas.setFont(FONTS["regular"], 6.5)
+    canvas.setFont(FONTS["regular"], 8.5)
     canvas.drawString(LEFT, y, f"{COMPANY} - Thông tin Đơn hàng #{order_code}")
     canvas.drawRightString(PAGE_W - RIGHT, y, f"Trang {canvas.getPageNumber()}")
     canvas.restoreState()
@@ -577,7 +577,7 @@ def _header(order: dict[str, Any], order_code: str) -> list[Any]:
     # Logo lớn hơn và tách thành cột riêng để không làm co tên công ty.
     header = Table(
         [[_logo_flowable(), company_block, title_block]],
-        colWidths=[32 * mm, 123 * mm, 118 * mm],
+        colWidths=[CONTENT_W * (32 / 273), CONTENT_W * (123 / 273), CONTENT_W * (118 / 273)],
     )
     header.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -683,14 +683,15 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
     if len(data) == 2:
         data.append([para("Không có dòng hàng hóa có KH/Lượng để xuất.", "body")] + [""] * 18)
 
-    # Tổng đúng 273 mm = 297 - 12 - 12 mm lề.
-    widths_mm = [5.5, 10.5, 27, 21, 9, 9, 9, 9, 19, 9, 9, 9, 7, 8, 13, 17, 19, 44, 19]
-    assert sum(widths_mm) == 273
+    # Giữ tỷ lệ cột hiện tại nhưng scale đúng CONTENT_W để tận dụng gần hết A4 landscape.
+    # Nhờ vậy tăng font vẫn không làm bảng tràn khỏi lề trái/phải.
+    base_widths_mm = [5.5, 10.5, 27, 21, 9, 9, 9, 9, 19, 9, 9, 9, 7, 8, 13, 20, 22, 39, 18]
+    base_total = sum(base_widths_mm)
     # LongTable tối ưu cho bảng dài. splitInRow cho phép một dòng rất cao
     # (ví dụ ghi chú kỹ thuật dài) được tách an toàn khi vượt chiều cao trang.
     table = LongTable(
         data,
-        colWidths=[w * mm for w in widths_mm],
+        colWidths=[CONTENT_W * (w / base_total) for w in base_widths_mm],
         repeatRows=2,
         splitByRow=1,
         splitInRow=1,
