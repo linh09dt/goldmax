@@ -42,9 +42,9 @@ from reportlab.platypus import (
 )
 
 PAGE_W, PAGE_H = landscape(A4)
-LEFT = RIGHT = 2 * mm
+LEFT = RIGHT = 5 * mm
 TOP = BOTTOM = 10 * mm
-CONTENT_W = PAGE_W - LEFT - RIGHT  # 293 mm - gần sát lề A4 landscape nhưng vẫn an toàn khi in
+CONTENT_W = PAGE_W - LEFT - RIGHT  # A4 landscape, lề trái/phải 5 mm để in sát lề hơn nhưng vẫn an toàn
 
 NAVY = colors.HexColor("#1E3A8A")
 AMBER = colors.HexColor("#D97706")
