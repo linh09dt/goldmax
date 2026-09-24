@@ -417,42 +417,62 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
                 </div>
               </div>
 
-              <div className="w-full overflow-hidden">
-                <table className="w-full table-fixed border-collapse text-[9px] leading-tight xl:text-[10px]">
+              <div className="w-full overflow-x-auto overscroll-x-contain">
+                <table className="min-w-[2340px] table-fixed border-collapse text-[13px] leading-snug text-slate-800">
                   <colgroup>
-                    <col style={{ width: "2%" }} />
-                    <col style={{ width: "3.5%" }} />
-                    <col style={{ width: "11%" }} />
-                    <col style={{ width: "8%" }} />
-                    <col style={{ width: "4.5%" }} />
-                    <col style={{ width: "4%" }} />
-                    <col style={{ width: "5%" }} />
-                    <col style={{ width: "4.5%" }} />
-                    <col style={{ width: "3.5%" }} />
-                    <col style={{ width: "3.5%" }} />
-                    <col style={{ width: "3.5%" }} />
-                    <col style={{ width: "3.5%" }} />
-                    <col style={{ width: "3.5%" }} />
-                    <col style={{ width: "4%" }} />
-                    <col style={{ width: "3.5%" }} />
-                    <col style={{ width: "5%" }} />
-                    <col style={{ width: "5.5%" }} />
-                    <col style={{ width: "6%" }} />
-                    <col style={{ width: "8%" }} />
-                    <col style={{ width: "5.5%" }} />
-                    <col style={{ width: "2.5%" }} />
+                    <col style={{ width: "52px" }} />
+                    <col style={{ width: "74px" }} />
+                    <col style={{ width: "200px" }} />
+                    <col style={{ width: "155px" }} />
+                    <col style={{ width: "110px" }} />
+                    <col style={{ width: "100px" }} />
+                    <col style={{ width: "125px" }} />
+                    <col style={{ width: "110px" }} />
+                    <col style={{ width: "92px" }} />
+                    <col style={{ width: "92px" }} />
+                    <col style={{ width: "92px" }} />
+                    <col style={{ width: "92px" }} />
+                    <col style={{ width: "92px" }} />
+                    <col style={{ width: "96px" }} />
+                    <col style={{ width: "82px" }} />
+                    <col style={{ width: "115px" }} />
+                    <col style={{ width: "135px" }} />
+                    <col style={{ width: "145px" }} />
+                    <col style={{ width: "175px" }} />
+                    <col style={{ width: "125px" }} />
+                    <col style={{ width: "72px" }} />
                   </colgroup>
-                  <thead className="sticky top-0 z-10 bg-slate-200 text-slate-700">
-                    <tr>
-                      <Th w="56" rowSpan={2}>STT</Th><Th w="100" rowSpan={2}>BỘ SỐ</Th><Th w="320" rowSpan={2}>Tên sản phẩm<br/>(1)</Th><Th w="220" rowSpan={2}>Model<br/>(2)</Th><Th w="140" rowSpan={2}>Ô THOÁNG</Th>
-                      <Th w="95" rowSpan={2}>Hướng mở<br/>(3)</Th><Th w="125" rowSpan={2}>Phào<br/>(Thuận - Nghịch)<br/>(4)</Th><Th w="95" rowSpan={2}>Màu sơn<br/>(5)</Th>
-                      <Th w="270" colSpan={3} center>Kích thước cửa (mm)</Th><Th w="190" colSpan={2} center>KT thông thủy</Th><Th w="115" rowSpan={2}>Số lượng bộ<br/>(13)</Th>
-                      <Th w="460" colSpan={4} center>Tính giá</Th><Th w="260" rowSpan={2}>Ghi chú<br/>(18)</Th><Th w="155" rowSpan={2}>Hình ảnh SP</Th><Th w="70" rowSpan={2}>Xóa</Th>
+                  <thead className="sticky top-0 z-10 bg-slate-100 text-[12px] font-semibold text-slate-700">
+                    <tr className="bg-slate-200/90 text-slate-800">
+                      <Th w="52" rowSpan={2} center>STT</Th>
+                      <Th w="74" rowSpan={2} center>Bộ số</Th>
+                      <Th w="355" colSpan={2} center>Thông tin sản phẩm</Th>
+                      <Th w="445" colSpan={4} center>Thông số kỹ thuật</Th>
+                      <Th w="276" colSpan={3} center>Kích thước cửa (mm)</Th>
+                      <Th w="184" colSpan={2} center>KT thông thủy (mm)</Th>
+                      <Th w="573" colSpan={5} center>Thương mại</Th>
+                      <Th w="372" colSpan={3} center>Khác</Th>
                     </tr>
-                    <tr>
-                      <Th w="90" center>Cao<br/>(7)</Th><Th w="90" center>Rộng<br/>(8)</Th><Th w="85" center>Khuôn<br/>(9)</Th>
-                      <Th w="95" center>Cao<br/>(10)</Th><Th w="95" center>Rộng<br/>(11)</Th>
-                      <Th w="85" center>ĐVT<br/>(14)</Th><Th w="110" center>KH/Lượng<br/>(15)</Th><Th w="125" center>Đơn giá<br/>(16)</Th><Th w="140" center>Thành tiền<br/>(17)</Th>
+                    <tr className="bg-slate-100">
+                      <Th w="200">Tên sản phẩm<br/>(1)</Th>
+                      <Th w="155">Model<br/>(2)</Th>
+                      <Th w="110" center>Ô thoáng</Th>
+                      <Th w="100" center>Hướng mở<br/>(3)</Th>
+                      <Th w="125" center>Phào<br/>(Thuận - Nghịch)<br/>(4)</Th>
+                      <Th w="110" center>Màu sơn<br/>(5)</Th>
+                      <Th w="92" center>Cao<br/>(7)</Th>
+                      <Th w="92" center>Rộng<br/>(8)</Th>
+                      <Th w="92" center>Khuôn<br/>(9)</Th>
+                      <Th w="92" center>Cao<br/>(10)</Th>
+                      <Th w="92" center>Rộng<br/>(11)</Th>
+                      <Th w="96" center>Số lượng bộ<br/>(13)</Th>
+                      <Th w="82" center>ĐVT<br/>(14)</Th>
+                      <Th w="115" center>KH/Lượng<br/>(15)</Th>
+                      <Th w="135" center>Đơn giá<br/>(16)</Th>
+                      <Th w="145" center>Thành tiền<br/>(17)</Th>
+                      <Th w="175">Ghi chú<br/>(18)</Th>
+                      <Th w="125" center>Hình ảnh SP</Th>
+                      <Th w="72" center>Xóa</Th>
                     </tr>
                   </thead>
                   <tbody>
@@ -594,11 +614,11 @@ function EditableMainRow({ item, itemIndex, onChange, onUpload, catalogItems, do
   }
 
   return (
-    <tr className="bg-cyan-50 font-medium">
+    <tr className="bg-cyan-50/80 font-medium">
       <CellStatic>{item.lineNo}</CellStatic>
       <Cell><GridInput value={value("setNo")} onChange={change("setNo")} /></Cell>
       <Cell>
-        <div className="min-w-0 divide-y divide-slate-200">
+        <div className="min-w-0 divide-y divide-slate-200 bg-white/40">
           <GridGroupSelect value={selectedGroup} groups={doorGroups} placeholder="Chọn loại cửa" onChange={changeGroup} />
           <GridCatalogSelect
             value={value("productCode")}
@@ -793,18 +813,18 @@ function DealerCodeSelect({ value, options, onChange }: { value: string; options
 function NumberInput({ value, onChange }: { value: string; onChange: (value: string) => void }) { return <input className="erp-input" type="number" value={value} onChange={(e) => onChange(e.target.value)} />; }
 function DateInput({ value, onChange }: { value: string; onChange: (value: string) => void }) { return <input className="erp-input" type="date" value={value} onChange={(e) => onChange(e.target.value)} />; }
 function Button({ children, onClick, variant = "primary" }: { children: React.ReactNode; onClick: () => void; variant?: "primary" | "secondary" }) { return <button className={variant === "primary" ? "erp-button" : "erp-button-secondary"} type="button" onClick={onClick}>{children}</button>; }
-function Th({ children, rowSpan, colSpan, center = false }: { children: React.ReactNode; w: string; rowSpan?: number; colSpan?: number; center?: boolean }) { return <th rowSpan={rowSpan} colSpan={colSpan} className={`overflow-hidden break-words border border-slate-300 px-1 py-1.5 align-middle font-semibold ${center ? "text-center" : "text-left"}`}>{children}</th>; }
-function Cell({ children }: { children: React.ReactNode }) { return <td className="min-w-0 overflow-hidden border border-slate-200 p-0 align-top">{children}</td>; }
-function CellStatic({ children }: { children?: React.ReactNode }) { return <td className="min-w-0 overflow-hidden break-words border border-slate-200 px-1 py-1.5 align-middle text-slate-700">{children}</td>; }
-function GridInput({ value, onChange, listId }: { value: string; onChange: (value: string) => void; listId?: string }) { return <input className="h-8 w-full min-w-0 border-0 bg-transparent px-1 text-[9px] outline-none focus:bg-cyan-50 xl:text-[10px]" list={listId} value={value} onChange={(e) => onChange(e.target.value)} />; }
+function Th({ children, rowSpan, colSpan, center = false }: { children: React.ReactNode; w: string; rowSpan?: number; colSpan?: number; center?: boolean }) { return <th rowSpan={rowSpan} colSpan={colSpan} className={`break-words border border-slate-300 px-2 py-2 align-middle font-semibold ${center ? "text-center" : "text-left"}`}>{children}</th>; }
+function Cell({ children }: { children: React.ReactNode }) { return <td className="min-w-0 border border-slate-200 p-0 align-middle">{children}</td>; }
+function CellStatic({ children }: { children?: React.ReactNode }) { return <td className="min-w-0 break-words border border-slate-200 px-2 py-2.5 align-middle text-[13px] text-slate-700">{children}</td>; }
+function GridInput({ value, onChange, listId }: { value: string; onChange: (value: string) => void; listId?: string }) { return <input className="h-10 w-full min-w-0 border-0 bg-transparent px-2 text-[13px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" list={listId} value={value} onChange={(e) => onChange(e.target.value)} />; }
 
 function GridReadOnly({ value, placeholder }: { value: string; placeholder?: string }) {
-  return <div className="min-h-8 w-full bg-slate-50 px-1 py-1.5 text-[9px] text-slate-700 xl:text-[10px]">{value || <span className="text-slate-400">{placeholder ?? "—"}</span>}</div>;
+  return <div className="min-h-10 w-full bg-slate-50 px-2 py-2.5 text-[13px] text-slate-700">{value || <span className="text-slate-400">{placeholder ?? "—"}</span>}</div>;
 }
 
 function GridGroupSelect({ value, groups, placeholder, onChange }: { value: string; groups: string[]; placeholder: string; onChange: (value: string) => void }) {
   return (
-    <select className="h-8 w-full min-w-0 border-0 bg-transparent px-1 text-[9px] outline-none focus:bg-cyan-50 xl:text-[10px]" value={value} onChange={(e) => onChange(e.target.value)}>
+    <select className="h-10 w-full min-w-0 border-0 bg-transparent px-2 text-[13px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">{placeholder}</option>
       {groups.map((group) => <option key={group} value={group}>{group}</option>)}
     </select>
@@ -815,7 +835,7 @@ function GridCatalogSelect({ value, currentLabel, items, display, placeholder, d
   const hasCurrent = items.some((item) => sameText(item.code, value));
   return (
     <select
-      className="h-8 w-full min-w-0 border-0 bg-transparent px-1 text-[9px] outline-none focus:bg-cyan-50 disabled:bg-slate-100 disabled:text-slate-400 xl:text-[10px]"
+      className="h-10 w-full min-w-0 border-0 bg-transparent px-2 text-[13px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300 disabled:bg-slate-100 disabled:text-slate-400"
       value={value}
       disabled={disabled}
       onChange={(e) => {
@@ -986,9 +1006,9 @@ function GridCatalogInput({ value, onChange, listId, mode, catalogItems, onCatal
     });
     if (matches.length === 1) onCatalogSelect(matches[0]);
   }
-  return <input className="h-8 w-full min-w-0 border-0 bg-transparent px-1 text-[9px] outline-none focus:bg-cyan-50 xl:text-[10px]" list={listId} value={value} onChange={(e) => { onChange(e.target.value); resolve(e.target.value); }} onBlur={(e) => resolve(e.target.value)} />;
+  return <input className="h-10 w-full min-w-0 border-0 bg-transparent px-2 text-[13px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" list={listId} value={value} onChange={(e) => { onChange(e.target.value); resolve(e.target.value); }} onBlur={(e) => resolve(e.target.value)} />;
 }
-function GridNumber({ value, onChange, step = "1" }: { value: string; onChange: (value: string) => void; step?: string }) { return <input className="h-8 w-full min-w-0 border-0 bg-transparent px-1 text-right text-[9px] outline-none focus:bg-cyan-50 xl:text-[10px]" type="number" step={step} value={value} onChange={(e) => onChange(e.target.value)} />; }
+function GridNumber({ value, onChange, step = "1" }: { value: string; onChange: (value: string) => void; step?: string }) { return <input className="h-10 w-full min-w-0 border-0 bg-transparent px-2 text-right text-[13px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" type="number" step={step} value={value} onChange={(e) => onChange(e.target.value)} />; }
 function GridPriceInput({ value, onChange, catalog }: { value: string; onChange: (value: string) => void; catalog?: CatalogItem }) {
   const dealer = catalog?.dealerPrice;
   const retail = catalog?.retailPrice;
@@ -996,11 +1016,11 @@ function GridPriceInput({ value, onChange, catalog }: { value: string; onChange:
   const hasRetail = retail !== null && retail !== undefined && String(retail).trim() !== "";
   return (
     <div className="w-full min-w-0">
-      <input className="h-8 w-full min-w-0 border-0 bg-transparent px-1 text-right text-[9px] outline-none focus:bg-cyan-50 xl:text-[10px]" type="number" step="1" value={value} onChange={(e) => onChange(e.target.value)} />
+      <input className="h-10 w-full min-w-0 border-0 bg-transparent px-2 text-right text-[13px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" type="number" step="1" value={value} onChange={(e) => onChange(e.target.value)} />
       {hasDealer || hasRetail ? (
         <div className="flex flex-wrap gap-0.5 border-t border-slate-100 px-0.5 py-0.5">
-          {hasDealer ? <button className="rounded bg-cyan-50 px-1 py-0.5 text-[8px] font-semibold text-cyan-800 hover:bg-cyan-100" type="button" title={`Giá đại lý: ${formatCatalogPrice(dealer as string | number)} đ`} onClick={() => onChange(String(dealer))}>Đại lý</button> : null}
-          {hasRetail ? <button className="rounded bg-amber-50 px-1 py-0.5 text-[8px] font-semibold text-amber-800 hover:bg-amber-100" type="button" title={`Giá bán lẻ: ${formatCatalogPrice(retail as string | number)} đ`} onClick={() => onChange(String(retail))}>Bán lẻ</button> : null}
+          {hasDealer ? <button className="rounded bg-cyan-50 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-800 hover:bg-cyan-100" type="button" title={`Giá đại lý: ${formatCatalogPrice(dealer as string | number)} đ`} onClick={() => onChange(String(dealer))}>Đại lý</button> : null}
+          {hasRetail ? <button className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 hover:bg-amber-100" type="button" title={`Giá bán lẻ: ${formatCatalogPrice(retail as string | number)} đ`} onClick={() => onChange(String(retail))}>Bán lẻ</button> : null}
         </div>
       ) : null}
     </div>
@@ -1034,7 +1054,7 @@ function ImageCell({ path, onUpload }: { path: string; onUpload: (file: File) =>
 
   return (
     <div
-      className="flex min-h-12 cursor-default flex-col items-center justify-center gap-1 rounded-sm px-0.5 py-1 text-center text-[8px] leading-tight outline-none focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-400"
+      className="flex min-h-[82px] cursor-default flex-col items-center justify-center gap-1.5 rounded-md px-1 py-2 text-center text-[11px] leading-tight outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-400"
       tabIndex={0}
       title="Bấm vào ô rồi nhấn Ctrl+V để dán ảnh"
       aria-label="Hình ảnh sản phẩm. Bấm vào ô rồi nhấn Ctrl+V để dán ảnh, hoặc chọn Tải ảnh."
@@ -1054,7 +1074,7 @@ function ImageCell({ path, onUpload }: { path: string; onUpload: (file: File) =>
     >
       {path ? (
         <a href={path} target="_blank" rel="noreferrer" className="inline-flex">
-          <img src={path} alt="Hình sản phẩm" className="h-10 w-12 rounded border border-slate-200 bg-white object-contain" />
+          <img src={path} alt="Hình sản phẩm" className="h-14 w-16 rounded border border-slate-200 bg-white object-contain" />
         </a>
       ) : null}
       <span className="font-semibold text-cyan-800">{busy ? "Đang tải..." : "Ctrl+V để dán"}</span>
@@ -1073,7 +1093,7 @@ function ImageCell({ path, onUpload }: { path: string; onUpload: (file: File) =>
           }}
         />
       </label>
-      {error ? <span className="max-w-full break-words text-[7px] text-red-600">{error}</span> : null}
+      {error ? <span className="max-w-full break-words text-[10px] text-red-600">{error}</span> : null}
     </div>
   );
 }
