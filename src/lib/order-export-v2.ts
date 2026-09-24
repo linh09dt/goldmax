@@ -352,41 +352,48 @@ function writeSummary(
   // V51: chỉ hiện "Chiết khấu thương mại" + "Tổng tiền sau chiết khấu" khi đơn thật sự có chiết khấu (> 0%).
   // Không có chiết khấu / chiết khấu 0% thì ẩn hẳn dòng "Tổng tiền sau chiết khấu" (số tiền bằng Tổng giá trị đơn hàng).
   const hasDiscount = totals.discountPercent > 0 && totals.discountAmount > 0;
+  // V61: nhãn IN HOA + hộp tiền trải hết chiều ngang bản in (nhãn bên trái, số tiền bên phải,
+  // không có vạch dọc giữa) đúng theo bản vẽ.
   const summary: Array<[string, number, "normal" | "accent" | "total"]> = [
-    ["Tổng giá trị đơn hàng:", totals.orderTotal, "normal"],
+    ["TỔNG GIÁ TRỊ ĐƠN HÀNG:", totals.orderTotal, "normal"],
   ];
   if (hasDiscount) {
-    summary.push([`Chiết khấu thương mại (${totals.discountPercent}%):`, -totals.discountAmount, "accent"]);
-    summary.push(["Tổng tiền sau chiết khấu:", totals.afterDiscount, "normal"]);
+    summary.push([`CHIẾT KHẤU THƯƠNG MẠI (${totals.discountPercent}%):`, -totals.discountAmount, "accent"]);
+    summary.push(["TỔNG TIỀN SAU CHIẾT KHẤU:", totals.afterDiscount, "normal"]);
   }
-  summary.push(["Đã đặt cọc:", totals.depositAmount, "normal"]);
+  summary.push(["ĐÃ ĐẶT CỌC:", totals.depositAmount, "normal"]);
   if (totals.warehouseReceiptDeduction > 0) {
-    summary.push(["Trừ tiền nhận hàng tại kho:", totals.warehouseReceiptDeduction, "normal"]);
+    summary.push(["TRỪ TIỀN NHẬN HÀNG TẠI KHO:", totals.warehouseReceiptDeduction, "normal"]);
   }
   summary.push(["CÒN LẠI CẦN THANH TOÁN:", totals.paymentDue, "total"]);
 
   let r = startRow;
   for (const [label, amount, mode] of summary) {
-    ws.mergeCells(`L${r}:P${r}`);
+    ws.mergeCells(`A${r}:P${r}`);
     ws.mergeCells(`Q${r}:S${r}`);
-    ws.getCell(`L${r}`).value = label;
+    ws.getCell(`A${r}`).value = label;
     ws.getCell(`Q${r}`).value = amount;
     ws.getCell(`Q${r}`).numFmt = "#,##0 \"VNĐ\"";
-    styleRange(ws, `L${r}:S${r}`, mode === "total" ? NAVY : mode === "accent" ? PALE_AMBER : WHITE, true);
-    ws.getCell(`L${r}`).font = { ...BASE_FONT, bold: mode !== "normal", size: 10.5, color: { argb: mode === "total" ? WHITE : TEXT } };
+    styleRange(ws, `A${r}:S${r}`, mode === "total" ? NAVY : mode === "accent" ? PALE_AMBER : WHITE, true);
+    // Bỏ vạch dọc giữa nhãn và số tiền cho giống bản vẽ.
+    const labelCell = ws.getCell(`P${r}`);
+    labelCell.border = { ...labelCell.border, right: undefined };
+    const amountCell = ws.getCell(`Q${r}`);
+    amountCell.border = { ...amountCell.border, left: undefined };
+    ws.getCell(`A${r}`).font = { ...BASE_FONT, bold: mode !== "normal", size: 10.5, color: { argb: mode === "total" ? WHITE : TEXT } };
     ws.getCell(`Q${r}`).font = { ...BASE_FONT, bold: true, size: 10.5, color: { argb: mode === "total" ? WHITE : mode === "accent" ? "FFDC2626" : NAVY } };
-    ws.getCell(`L${r}`).alignment = { horizontal: "left", vertical: "middle" };
+    ws.getCell(`A${r}`).alignment = { horizontal: "left", vertical: "middle" };
     ws.getCell(`Q${r}`).alignment = { horizontal: "right", vertical: "middle" };
     r += 1;
   }
 
   // Dòng "Bằng chữ" chiếm 2 hàng để câu tiếng Việt dài vẫn xuống dòng gọn gàng.
   const wordsEnd = r + 1;
-  ws.mergeCells(`L${r}:S${wordsEnd}`);
-  ws.getCell(`L${r}`).value = `(Bằng chữ: ${numberToVietnameseWords(Math.round(totals.paymentDue))})`;
-  ws.getCell(`L${r}`).font = { ...BASE_FONT, size: 9.5, italic: true, color: { argb: MUTED } };
-  ws.getCell(`L${r}`).alignment = { horizontal: "right", vertical: "top", wrapText: true };
-  styleRange(ws, `L${r}:S${wordsEnd}`, WHITE, true);
+  ws.mergeCells(`A${r}:S${wordsEnd}`);
+  ws.getCell(`A${r}`).value = `(Bằng chữ: ${numberToVietnameseWords(Math.round(totals.paymentDue))})`;
+  ws.getCell(`A${r}`).font = { ...BASE_FONT, size: 9.5, italic: true, color: { argb: MUTED } };
+  ws.getCell(`A${r}`).alignment = { horizontal: "right", vertical: "top", wrapText: true };
+  styleRange(ws, `A${r}:S${wordsEnd}`, WHITE, true);
 
   // V53→V57: hộp ghi chú ở dưới box tiền, trải hết chiều ngang bản in (cột A→S), chữ 8pt xám.
   const noteStart = wordsEnd + 2;

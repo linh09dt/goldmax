@@ -785,7 +785,7 @@ def _bottom_section(calc: dict[str, float]) -> Table:
     # V53: thay bằng ghi chú nhỏ ở góc dưới bên trái, giữ khối tổng hợp thanh toán bên phải như trước.
 
     summary_rows: list[list[Any]] = [
-        [para("Tổng giá trị đơn hàng:", "summary"), para(f"{money(calc['orderTotal'])} VNĐ", "summary_amount")],
+        [para("TỔNG GIÁ TRỊ ĐƠN HÀNG:", "summary"), para(f"{money(calc['orderTotal'])} VNĐ", "summary_amount")],
     ]
     # V51: chỉ hiện "Chiết khấu thương mại" + "Tổng tiền sau chiết khấu" khi đơn thật sự có chiết khấu (> 0%).
     show_discount = calc["discountPercent"] > 0 and calc["discountAmount"] > 0
@@ -794,22 +794,24 @@ def _bottom_section(calc: dict[str, float]) -> Table:
     if show_discount:
         discount_row_index = len(summary_rows)
         summary_rows.append([
-            para(f"Chiết khấu thương mại ({calc['discountPercent']:g}%):", "summary"),
+            para(f"CHIẾT KHẤU THƯƠNG MẠI ({calc['discountPercent']:g}%):", "summary"),
             Paragraph(f'<font color="#DC2626"><b>- {money(calc["discountAmount"])} VNĐ</b></font>', S["summary_amount"]),
         ])
         after_index = len(summary_rows)
-        summary_rows.append([para("Tổng tiền sau chiết khấu:", "summary_bold"), para(f"{money(calc['afterDiscount'])} VNĐ", "summary_amount")])
-    summary_rows.append([para("Đã đặt cọc:", "summary"), para(f"{money(calc['deposit'])} VNĐ", "summary_amount")])
+        summary_rows.append([para("TỔNG TIỀN SAU CHIẾT KHẤU:", "summary_bold"), para(f"{money(calc['afterDiscount'])} VNĐ", "summary_amount")])
+    summary_rows.append([para("ĐÃ ĐẶT CỌC:", "summary"), para(f"{money(calc['deposit'])} VNĐ", "summary_amount")])
     if calc["warehouse"] > 0:
-        summary_rows.append([para("Trừ tiền nhận hàng tại kho:", "summary"), para(f"{money(calc['warehouse'])} VNĐ", "summary_amount")])
+        summary_rows.append([para("TRỪ TIỀN NHẬN HÀNG TẠI KHO:", "summary"), para(f"{money(calc['warehouse'])} VNĐ", "summary_amount")])
     due_index = len(summary_rows)
     summary_rows.append([para("CÒN LẠI CẦN THANH TOÁN:", "summary_total"), para(f"{money(calc['paymentDue'])} VNĐ", "summary_total_amount")])
     summary_rows.append([para(f"(Bằng chữ: {number_to_vietnamese_words(int(round(calc['paymentDue'])))})", "words"), ""])
 
-    summary = Table(summary_rows, colWidths=[CONTENT_W * 0.22, CONTENT_W * 0.12], hAlign="RIGHT")
+    # V61: hộp tiền trải hết chiều ngang trang (nhãn bên trái – số tiền bên phải),
+    # chỉ kẻ vạch NGANG giữa các dòng, không có vạch dọc giữa nhãn và số tiền.
+    summary = Table(summary_rows, colWidths=[CONTENT_W * 0.6, CONTENT_W * 0.4], hAlign="LEFT")
     commands: list[tuple[Any, ...]] = [
         ("BOX", (0, 0), (-1, -2), 0.8, BORDER),
-        ("INNERGRID", (0, 0), (-1, -2), 0.45, BORDER),
+        ("LINEBELOW", (0, 0), (-1, -2), 0.45, BORDER),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("LEFTPADDING", (0, 0), (-1, -1), 5),
         ("RIGHTPADDING", (0, 0), (-1, -1), 5),
@@ -825,16 +827,15 @@ def _bottom_section(calc: dict[str, float]) -> Table:
         commands.append(("BACKGROUND", (0, discount_row_index), (-1, discount_row_index), PALE_AMBER))
     summary.setStyle(TableStyle(commands))
 
-    # V55: hộp ghi chú nằm DƯỚI box tiền (cách 1 dòng). Box tiền giữ nguyên vị trí bên phải.
+    # V55/V61: hộp ghi chú nằm DƯỚI box tiền (cách 1 dòng); cả hai đều trải hết chiều ngang.
     footnote = _footnote_block()
     outer = Table(
-        [["", summary], [footnote, ""]],
-        colWidths=[CONTENT_W * 0.66, CONTENT_W * 0.34],
+        [[summary], [footnote]],
+        colWidths=[CONTENT_W],
         hAlign="LEFT",
     )
     outer.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("SPAN", (0, 1), (1, 1)),
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
         ("RIGHTPADDING", (0, 0), (-1, -1), 0),
         ("TOPPADDING", (0, 0), (-1, -1), 0),
