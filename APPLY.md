@@ -19,10 +19,12 @@ Gồm toàn bộ thay đổi kể từ file zip gốc:
 
 - **V82** — Chỉnh kích thước ô nhập theo **bảng % người dùng gửi** (mốc 1920). Xem `ORDER_FIELD_SIZE_TUNING_V82.md`.
 
+- **V83** — Chỉnh tiếp 8 ô theo % người dùng gửi (Trạng thái, Mã Đại Lý, Bộ số, TT Cao, TT Rộng, SL bộ, ĐVT, Đơn giá). Xem `ORDER_FIELD_SIZE_TUNING_V83.md`.
+
 ## Cách áp
 
 ```
-unzip -o door-production-changes-v82.zip -d <thư-mục-project>
+unzip -o door-production-changes-v83.zip -d <thư-mục-project>
 npm run db:generate
 npm run build
 npm run dev

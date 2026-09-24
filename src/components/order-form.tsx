@@ -468,7 +468,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
         </div>
         {/* V80: đưa toàn bộ 13 ô thông tin đơn hàng lên 1 hàng (như yêu cầu). */}
         <div className="p-2.5">
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-[8fr_13.4fr_6.8fr_7.2fr_minmax(52px,4.6fr)_9.1fr_6.8fr_7.2fr_6.8fr_6.4fr_11.4fr_4.7fr_3.1fr]">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-[8fr_12.4fr_6.8fr_7.2fr_minmax(52px,5.6fr)_9.1fr_6.8fr_7.2fr_6.8fr_6.4fr_11.4fr_4.7fr_3.1fr]">
             <Field label="Mã đơn hàng" required invalid={invalidOrderInfoFields.has("orderCode")}><TextInput value={form.orderCode} onChange={(v) => setField("orderCode", v)} /></Field>
             <Field label="Trạng thái" required invalid={invalidOrderInfoFields.has("status")}>
               <select className="erp-input" value={form.status} onChange={(e) => setField("status", e.target.value)}>
@@ -704,7 +704,7 @@ function DoorSetCard({
         {/* Full-view UI: 17 trường Bộ cửa trên 1 dòng; ẩn riêng Tên sản phẩm; không cuộn ngang. */}
         {/* V79: 17 ô Bộ cửa trên 1 hàng (theo yêu cầu), giữ style nhãn/ô nhập như mockup. */}
         <div>
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-[7.4fr_9.2fr_minmax(168px,15.2fr)_minmax(56px,3.9fr)_minmax(46px,3.9fr)_4.9fr_4.9fr_4.3fr_4.3fr_4.3fr_4.9fr_4.9fr_minmax(30px,2.1fr)_3.6fr_4.9fr_4.9fr_5.6fr]">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-[5.4fr_9.2fr_minmax(168px,15.2fr)_minmax(56px,3.9fr)_minmax(46px,3.9fr)_4.9fr_4.9fr_4.3fr_4.3fr_4.3fr_4.3fr_minmax(46px,4.3fr)_minmax(30px,3.3fr)_minmax(34px,3fr)_4.9fr_7.5fr_5.6fr]">
             <CardField label="Bộ số">
               {/* V75: Bộ số tự tăng dần, không nhập tay. Chỉ hiển thị số đã được tạo. */}
               <CardReadonlyValue
