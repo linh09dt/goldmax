@@ -202,14 +202,14 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
       const item = items[itemIndex];
       const details = [...item.details];
       const currentDetail = details[detailIndex];
-      details[detailIndex] = {
+      details[detailIndex] = applyAccessoryDimensionSuggestion({
         ...currentDetail,
         productCode: catalog.code,
         productName: catalogProductName(catalog),
         model: catalog.code,
         unit: catalog.unit ?? currentDetail.unit,
         unitPrice: catalogDefaultPrice(catalog, currentDetail.unitPrice),
-      };
+      }, item, catalog);
       items[itemIndex] = recalculateAutomaticPricingQuantity({ ...item, details }, catalogItems);
       return { ...current, items };
     });
@@ -625,7 +625,7 @@ function DoorSetCard({
           <CardField label="KT thông thủy - Rộng"><CardNumberInput value={item.clearWidthMm} onChange={change("clearWidthMm")} /></CardField>
           <CardField label="SL bộ"><CardNumberInput value={item.quantity} onChange={change("quantity")} /></CardField>
           <CardField label="ĐVT"><CardInput value={item.unit} onChange={change("unit")} /></CardField>
-          <CardField label="KH/Lượng"><CardNumberInput value={item.pricingQuantity} onChange={change("pricingQuantity")} step="0.0001" readOnly autoCalculated /></CardField>
+          <CardField label="KH/Lượng"><CardNumberInput value={item.pricingQuantity} onChange={change("pricingQuantity")} step="0.01" readOnly autoCalculated /></CardField>
           <CardField label="Đơn giá">
             <CardSelectShell><GridPriceInput value={item.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, item.productCode)} /></CardSelectShell>
           </CardField>
@@ -765,7 +765,7 @@ function DetailMasterRow({
             <CardField label="Rộng" emphasized={orientation === "horizontal"}><CardNumberInput value={row.widthMm} onChange={change("widthMm")} /></CardField>
             <CardField label="Khuôn"><CardNumberInput value={row.frameMm} onChange={change("frameMm")} /></CardField>
             <CardField label="ĐVT"><CardInput value={row.unit} onChange={change("unit")} /></CardField>
-            <CardField label="KH/Lượng"><CardNumberInput value={row.pricingQuantity} onChange={change("pricingQuantity")} step="0.0001" readOnly={automaticPricing} autoCalculated={automaticPricing} /></CardField>
+            <CardField label="KH/Lượng"><CardNumberInput value={row.pricingQuantity} onChange={change("pricingQuantity")} step="0.01" readOnly={automaticPricing} autoCalculated={automaticPricing} /></CardField>
             <CardField label="Đơn giá"><CardSelectShell><GridPriceInput value={row.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, row.productCode)} /></CardSelectShell></CardField>
             <CardField label="Ghi chú"><CardInput value={row.note} onChange={change("note")} placeholder="Nhập ghi chú..." /></CardField>
             </div>
@@ -1092,7 +1092,7 @@ function EditableDetailRow({ row, itemIndex, detailIndex, onChange, onUpload, on
       <Cell><GridNumber value={row.clearWidthMm} onChange={change("clearWidthMm")} /></Cell>
       <Cell><GridNumber value={row.quantity} onChange={change("quantity")} /></Cell>
       <Cell><GridInput value={row.unit} onChange={change("unit")} /></Cell>
-      <Cell><GridNumber value={row.pricingQuantity} onChange={change("pricingQuantity")} step="0.0001" /></Cell>
+      <Cell><GridNumber value={row.pricingQuantity} onChange={change("pricingQuantity")} step="0.01" /></Cell>
       <Cell><GridPriceInput value={row.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, row.productCode)} /></Cell>
       <CellStatic>{formatMoney(lineAmount(row))}</CellStatic>
       <Cell><GridInput value={row.note} onChange={change("note")} /></Cell>
@@ -1151,10 +1151,14 @@ function calculateDetailPricingQuantity(detail: OrderLineForm, parent: OrderItem
   if (type === null) return null; // Các nhóm khác vẫn nhập KH/Lượng bằng tay.
 
   if (type === "trim") {
+    // Phào/Phao dùng công thức (Cao x 2 + Rộng) / 1000.
+    // Cho phép một trong hai kích thước để trống vì một số loại chỉ dùng Cao hoặc chỉ dùng Rộng:
+    // - Phào biệt thự đứng: chỉ Cao => 2 x Cao / 1000.
+    // - Phào biệt thự ngang/đỉnh: chỉ Rộng => Rộng / 1000.
     const height = positiveNumber(detail.heightMm);
     const width = positiveNumber(detail.widthMm);
-    if (height === null || width === null) return "";
-    return formatPricingQuantity((height * 2 + width) / 1000);
+    if (height === null && width === null) return "";
+    return formatPricingQuantity(((height ?? 0) * 2 + (width ?? 0)) / 1000);
   }
 
   if (type === "panel") {
@@ -1192,7 +1196,26 @@ function positiveNumber(value: string) {
 
 function formatPricingQuantity(value: number) {
   if (!Number.isFinite(value)) return "";
-  return Number(value.toFixed(4)).toString();
+  // KH/Lượng tự động: làm tròn tối đa 2 chữ số thập phân.
+  return Number(value.toFixed(2)).toString();
+}
+
+function applyAccessoryDimensionSuggestion(detail: OrderLineForm, parent: OrderItemForm, catalog: CatalogItem): OrderLineForm {
+  const source = normalizeText([catalog.name, catalog.productDescription, catalog.code, detail.productName, detail.model].filter(Boolean).join(" "));
+  const parentHeight = String(parent.heightMm || "").trim();
+  const parentWidth = String(parent.widthMm || "").trim();
+
+  // Chỉ đề xuất kích thước khi chọn đúng loại phụ kiện. Các dòng khác giữ nguyên để người dùng nhập tay.
+  if (source.includes("phao biet thu dung")) {
+    return { ...detail, heightMm: parentHeight, widthMm: "" };
+  }
+  if (source.includes("phao biet thu ngang") || source.includes("phao biet thu dinh")) {
+    return { ...detail, heightMm: "", widthMm: parentWidth };
+  }
+  if (source.includes("phao roi")) {
+    return { ...detail, heightMm: parentHeight, widthMm: parentWidth };
+  }
+  return detail;
 }
 
 function emptyDetail(rowOrder: number): OrderLineForm {
