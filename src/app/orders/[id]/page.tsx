@@ -145,20 +145,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       </section>
 
       <section className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="erp-card">
-          <div className="border-b border-slate-200 bg-slate-50 px-5 py-4"><h2 className="font-bold">Câu hỏi thêm / Xác nhận</h2></div>
-          <div className="divide-y divide-slate-200">
-            {order.requirements.length ? order.requirements.map((row, index) => (
-              <div className="grid gap-2 p-4 md:grid-cols-[1fr_180px_1fr]" key={row.id}>
-                <div className="font-medium">{index + 1}. {row.questionText}</div>
-                <div className="font-semibold text-cyan-700">{row.answer || "Chưa xác nhận"}</div>
-                <div className="text-slate-500">{row.note || "—"}</div>
-              </div>
-            )) : <div className="p-5 text-sm text-slate-500">Chưa có dữ liệu xác nhận.</div>}
-          </div>
-        </div>
-
-        <div className="erp-card">
+        <div className="erp-card xl:col-start-2">
           <div className="border-b border-slate-200 bg-slate-50 px-5 py-4"><h2 className="font-bold">Tổng hợp giá trị</h2></div>
           <div className="space-y-2 p-5 text-sm">
             <MoneyLine label="Cước vận chuyển" value={outputTotals.shippingFee} />
