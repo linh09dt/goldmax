@@ -583,9 +583,9 @@ function DoorSetCard({
       </header>
 
       <div className="p-2.5">
-        {/* Full-view UI: 18 trường Bộ cửa trên 1 dòng; có Thành tiền; không cuộn ngang. */}
+        {/* Full-view UI: 17 trường Bộ cửa trên 1 dòng; ẩn riêng Tên sản phẩm; không cuộn ngang. */}
         <div>
-          <div className="grid grid-cols-[0.58fr_0.9fr_1fr_0.9fr_0.5fr_0.52fr_0.52fr_0.62fr_0.54fr_0.54fr_0.54fr_0.66fr_0.66fr_0.46fr_0.48fr_0.66fr_0.76fr_0.86fr] gap-x-1 gap-y-1.5">
+          <div className="grid grid-cols-[0.58fr_0.9fr_1fr_0.72fr_0.52fr_0.70fr_0.80fr_0.54fr_0.54fr_0.54fr_0.66fr_0.66fr_0.46fr_0.48fr_0.66fr_0.76fr_0.86fr] gap-x-1 gap-y-1.5">
           <CardField label="Bộ số">
             <CardInput value={item.setNo} onChange={change("setNo")} placeholder="VD: 12097" />
           </CardField>
@@ -604,16 +604,6 @@ function DoorSetCard({
                 onCatalogSelect={selectCatalog}
               />
             </CardSelectShell>
-          </CardField>
-          <CardField label="Tên sản phẩm">
-            <div
-              className="flex h-8 min-w-0 items-center rounded-md border border-slate-200 bg-slate-50 px-2 text-[11px] font-medium text-sky-900"
-              title={item.productName || "Tự điền theo danh mục"}
-            >
-              <span className={`block min-w-0 truncate ${item.productName ? "" : "font-normal text-slate-400"}`}>
-                {item.productName || "Tự điền theo danh mục"}
-              </span>
-            </div>
           </CardField>
           <CardField label="Ô thoáng"><CardSuggestionInput value={item.panelInfo} onChange={change("panelInfo")} items={optionValues.panel} /></CardField>
           <CardField label="Hướng mở"><CardSuggestionInput value={item.openingDirection} onChange={change("openingDirection")} items={optionValues.opening} /></CardField>
