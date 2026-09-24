@@ -612,47 +612,63 @@ function DoorSetCard({
           </CardField>
         </div>
 
-        <details className="group mt-3 overflow-hidden rounded-lg border border-slate-200 bg-slate-50/80">
-          <summary className="cursor-pointer list-none px-3 py-2 text-[12px] font-semibold text-slate-700 marker:hidden">
-            <span className="mr-2 inline-block text-slate-500 transition-transform group-open:rotate-90">▸</span>
-            Thông số nâng cao <span className="mx-2 text-slate-300">·</span> KT thông thủy <span className="mx-2 text-slate-300">·</span> Model khóa <span className="mx-2 text-slate-300">·</span> Ghi chú <span className="mx-2 text-slate-300">·</span> Hình ảnh
-          </summary>
-          <div className="grid gap-2 border-t border-slate-200 bg-white p-3 sm:grid-cols-2 lg:grid-cols-4">
-            <CardField label="Bộ số"><CardInput value={item.setNo} onChange={change("setNo")} placeholder="VD: 12097" /></CardField>
-            <CardField label="Nhóm cửa">
-              <CardSelectShell><GridGroupSelect value={selectedGroup} groups={doorGroups} placeholder="Chọn nhóm cửa" onChange={changeGroup} /></CardSelectShell>
-            </CardField>
-            <CardField label="Model" className="sm:col-span-2">
-              <CardSelectShell>
-                <GridCatalogSelect
-                  value={item.productCode}
-                  currentLabel={item.productCode}
-                  items={groupItems}
-                  display="model"
-                  placeholder={selectedGroup ? "Chọn Model" : "Chọn nhóm cửa trước"}
-                  disabled={!selectedGroup}
-                  onCatalogSelect={selectCatalog}
-                />
-              </CardSelectShell>
-            </CardField>
-            <CardField label="Tên sản phẩm" className="sm:col-span-2 lg:col-span-4">
-              <div className="min-h-10 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] font-medium text-slate-700">
-                {item.productName || <span className="font-normal text-slate-400">Tự điền theo danh mục</span>}
-              </div>
-            </CardField>
-            <CardField label="KT thông thủy - Cao"><CardNumberInput value={item.clearHeightMm} onChange={change("clearHeightMm")} /></CardField>
-            <CardField label="KT thông thủy - Rộng"><CardNumberInput value={item.clearWidthMm} onChange={change("clearWidthMm")} /></CardField>
-            <CardField label="Model khóa"><CardInput value={item.lockModel} onChange={change("lockModel")} /></CardField>
-            <CardField label="Loại phào"><CardInput value={item.trimType} onChange={change("trimType")} /></CardField>
-            <CardField label="Số thanh phào / bộ"><CardNumberInput value={item.trimBarsPerSet} onChange={change("trimBarsPerSet")} /></CardField>
-            <CardField label="Số nan ô thoáng"><CardNumberInput value={item.windowBars} onChange={change("windowBars")} /></CardField>
-            <CardField label="Số cánh / bộ"><CardNumberInput value={item.leavesPerSet} onChange={change("leavesPerSet")} /></CardField>
-            <CardField label="Ghi chú"><CardInput value={item.note} onChange={change("note")} placeholder="Nhập ghi chú kỹ thuật" /></CardField>
-            <CardField label="Hình ảnh SP" className="sm:col-span-2 lg:col-span-4">
-              <div className="rounded-lg border border-slate-200 bg-white"><ImageCell path={item.imagePath} onUpload={(file) => onUpload(file, itemIndex)} /></div>
-            </CardField>
-          </div>
-        </details>
+        <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-slate-200 pt-3 md:grid-cols-4 xl:grid-cols-12">
+          <CardField label="Bộ số" className="xl:col-span-2">
+            <CardInput value={item.setNo} onChange={change("setNo")} placeholder="VD: 12097" />
+          </CardField>
+          <CardField label="Nhóm cửa" className="xl:col-span-2">
+            <CardSelectShell><GridGroupSelect value={selectedGroup} groups={doorGroups} placeholder="Chọn nhóm cửa" onChange={changeGroup} /></CardSelectShell>
+          </CardField>
+          <CardField label="Model" className="xl:col-span-3">
+            <CardSelectShell>
+              <GridCatalogSelect
+                value={item.productCode}
+                currentLabel={item.productCode}
+                items={groupItems}
+                display="model"
+                placeholder={selectedGroup ? "Chọn Model" : "Chọn nhóm cửa trước"}
+                disabled={!selectedGroup}
+                onCatalogSelect={selectCatalog}
+              />
+            </CardSelectShell>
+          </CardField>
+          <CardField label="Tên sản phẩm" className="col-span-2 md:col-span-4 xl:col-span-5">
+            <div className="min-h-10 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] font-medium text-slate-700">
+              {item.productName || <span className="font-normal text-slate-400">Tự điền theo danh mục</span>}
+            </div>
+          </CardField>
+
+          <CardField label="KT thông thủy - Cao" className="xl:col-span-2">
+            <CardNumberInput value={item.clearHeightMm} onChange={change("clearHeightMm")} />
+          </CardField>
+          <CardField label="KT thông thủy - Rộng" className="xl:col-span-2">
+            <CardNumberInput value={item.clearWidthMm} onChange={change("clearWidthMm")} />
+          </CardField>
+          <CardField label="Model khóa" className="xl:col-span-3">
+            <CardInput value={item.lockModel} onChange={change("lockModel")} />
+          </CardField>
+          <CardField label="Loại phào" className="xl:col-span-2">
+            <CardInput value={item.trimType} onChange={change("trimType")} />
+          </CardField>
+          <CardField label="Thanh phào / bộ" className="xl:col-span-1">
+            <CardNumberInput value={item.trimBarsPerSet} onChange={change("trimBarsPerSet")} />
+          </CardField>
+          <CardField label="Nan ô thoáng" className="xl:col-span-1">
+            <CardNumberInput value={item.windowBars} onChange={change("windowBars")} />
+          </CardField>
+          <CardField label="Cánh / bộ" className="xl:col-span-1">
+            <CardNumberInput value={item.leavesPerSet} onChange={change("leavesPerSet")} />
+          </CardField>
+
+          <CardField label="Ghi chú" className="col-span-2 md:col-span-3 xl:col-span-8">
+            <CardInput value={item.note} onChange={change("note")} placeholder="Nhập ghi chú kỹ thuật" />
+          </CardField>
+          <CardField label="Hình ảnh SP" className="col-span-2 md:col-span-1 xl:col-span-4">
+            <div className="rounded-lg border border-slate-200 bg-white">
+              <ImageCell path={item.imagePath} onUpload={(file) => onUpload(file, itemIndex)} />
+            </div>
+          </CardField>
+        </div>
       </div>
 
       <section className="border-t border-slate-200 bg-slate-50/60 p-3 md:p-4">
