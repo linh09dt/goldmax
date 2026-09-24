@@ -465,14 +465,16 @@ def _bottom_section(order: dict[str, Any]) -> Table:
     summary_rows: list[list[Any]] = [
         [para("Tổng giá trị đơn hàng:", "summary"), para(f"{money(calc['orderTotal'])} VNĐ", "summary_amount")],
     ]
-    if calc["discountPercent"] > 0 and calc["discountAmount"] > 0:
+    # V51: không có chiết khấu (hoặc 0%) thì ẩn luôn dòng "Tổng tiền sau chiết khấu".
+    show_discount = calc["discountPercent"] > 0 and calc["discountAmount"] > 0
+    after_index: int | None = None
+    if show_discount:
         summary_rows.append([
             para(f"Chiết khấu thương mại ({calc['discountPercent']:g}%):", "summary"),
             para(f"- {money(calc['discountAmount'])} VNĐ", "summary_amount"),
         ])
-
-    after_index = len(summary_rows)
-    summary_rows.append([para("Tổng tiền sau chiết khấu:", "summary_bold"), para(f"{money(calc['afterDiscount'])} VNĐ", "summary_amount")])
+        after_index = len(summary_rows)
+        summary_rows.append([para("Tổng tiền sau chiết khấu:", "summary_bold"), para(f"{money(calc['afterDiscount'])} VNĐ", "summary_amount")])
     summary_rows.append([para("Đã đặt cọc:", "summary"), para(f"{money(calc['deposit'])} VNĐ", "summary_amount")])
     if calc["warehouse"] > 0:
         summary_rows.append([para("Trừ tiền nhận hàng tại kho:", "summary"), para(f"{money(calc['warehouse'])} VNĐ", "summary_amount")])
@@ -490,11 +492,12 @@ def _bottom_section(order: dict[str, Any]) -> Table:
         ("RIGHTPADDING", (0, 0), (-1, -1), 5),
         ("TOPPADDING", (0, 0), (-1, -1), 3.0),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 3.0),
-        ("BACKGROUND", (0, after_index), (-1, after_index), colors.HexColor("#EEF2FF")),
         ("BACKGROUND", (0, due_index), (-1, due_index), NAVY),
         ("TEXTCOLOR", (0, due_index), (-1, due_index), WHITE),
         ("SPAN", (0, words_index), (1, words_index)),
     ]
+    if after_index is not None:
+        commands.append(("BACKGROUND", (0, after_index), (-1, after_index), colors.HexColor("#EEF2FF")))
     summary.setStyle(TableStyle(commands))
 
     outer = Table([[checklist, summary]], colWidths=[CONTENT_W * 0.66, CONTENT_W * 0.34], hAlign="LEFT")

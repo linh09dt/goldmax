@@ -755,15 +755,18 @@ def _bottom_section(order: dict[str, Any], calc: dict[str, float]) -> Table:
     summary_rows: list[list[Any]] = [
         [para("Tổng giá trị đơn hàng:", "summary"), para(f"{money(calc['orderTotal'])} VNĐ", "summary_amount")],
     ]
+    # V51: chỉ hiện "Chiết khấu thương mại" + "Tổng tiền sau chiết khấu" khi đơn thật sự có chiết khấu (> 0%).
+    show_discount = calc["discountPercent"] > 0 and calc["discountAmount"] > 0
     discount_row_index: int | None = None
-    if calc["discountPercent"] > 0 and calc["discountAmount"] > 0:
+    after_index: int | None = None
+    if show_discount:
         discount_row_index = len(summary_rows)
         summary_rows.append([
             para(f"Chiết khấu thương mại ({calc['discountPercent']:g}%):", "summary"),
             Paragraph(f'<font color="#DC2626"><b>- {money(calc["discountAmount"])} VNĐ</b></font>', S["summary_amount"]),
         ])
-    after_index = len(summary_rows)
-    summary_rows.append([para("Tổng tiền sau chiết khấu:", "summary_bold"), para(f"{money(calc['afterDiscount'])} VNĐ", "summary_amount")])
+        after_index = len(summary_rows)
+        summary_rows.append([para("Tổng tiền sau chiết khấu:", "summary_bold"), para(f"{money(calc['afterDiscount'])} VNĐ", "summary_amount")])
     summary_rows.append([para("Đã đặt cọc:", "summary"), para(f"{money(calc['deposit'])} VNĐ", "summary_amount")])
     if calc["warehouse"] > 0:
         summary_rows.append([para("Trừ tiền nhận hàng tại kho:", "summary"), para(f"{money(calc['warehouse'])} VNĐ", "summary_amount")])
@@ -780,11 +783,12 @@ def _bottom_section(order: dict[str, Any], calc: dict[str, float]) -> Table:
         ("RIGHTPADDING", (0, 0), (-1, -1), 5),
         ("TOPPADDING", (0, 0), (-1, -1), 3.5),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 3.5),
-        ("BACKGROUND", (0, after_index), (-1, after_index), colors.HexColor("#EEF2FF")),
         ("BACKGROUND", (0, due_index), (-1, due_index), NAVY),
         ("TEXTCOLOR", (0, due_index), (-1, due_index), WHITE),
         ("SPAN", (0, len(summary_rows) - 1), (1, len(summary_rows) - 1)),
     ]
+    if after_index is not None:
+        commands.append(("BACKGROUND", (0, after_index), (-1, after_index), colors.HexColor("#EEF2FF")))
     if discount_row_index is not None:
         commands.append(("BACKGROUND", (0, discount_row_index), (-1, discount_row_index), PALE_AMBER))
     summary.setStyle(TableStyle(commands))

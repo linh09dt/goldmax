@@ -360,13 +360,16 @@ function writeChecklistAndSummary(
   }
   styleRange(ws, `A${startRow}:K${endRow}`, WHITE, true);
 
+  // V51: chỉ hiện "Chiết khấu thương mại" + "Tổng tiền sau chiết khấu" khi đơn thật sự có chiết khấu (> 0%).
+  // Không có chiết khấu / chiết khấu 0% thì ẩn hẳn dòng "Tổng tiền sau chiết khấu" (số tiền bằng Tổng giá trị đơn hàng).
+  const hasDiscount = totals.discountPercent > 0 && totals.discountAmount > 0;
   const summary: Array<[string, number, "normal" | "accent" | "total"]> = [
     ["Tổng giá trị đơn hàng:", totals.orderTotal, "normal"],
   ];
-  if (totals.discountPercent > 0 && totals.discountAmount > 0) {
+  if (hasDiscount) {
     summary.push([`Chiết khấu thương mại (${totals.discountPercent}%):`, -totals.discountAmount, "accent"]);
+    summary.push(["Tổng tiền sau chiết khấu:", totals.afterDiscount, "normal"]);
   }
-  summary.push(["Tổng tiền sau chiết khấu:", totals.afterDiscount, "normal"]);
   summary.push(["Đã đặt cọc:", totals.depositAmount, "normal"]);
   if (totals.warehouseReceiptDeduction > 0) {
     summary.push(["Trừ tiền nhận hàng tại kho:", totals.warehouseReceiptDeduction, "normal"]);
