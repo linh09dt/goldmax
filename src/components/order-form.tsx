@@ -801,12 +801,13 @@ function DetailMasterRow({
                 {formatMoney(lineAmount(row))}đ
               </div>
             </CardField>
-            <CardField label="Ghi chú"><CardInput value={row.note} onChange={change("note")} placeholder="Nhập ghi chú..." /></CardField>
+            <CardField label="Ghi chú">
+              <div className="flex min-w-0 items-center gap-1">
+                <div className="min-w-0 flex-1"><CardInput value={row.note} onChange={change("note")} placeholder="Nhập ghi chú..." /></div>
+                <button className="h-8 shrink-0 rounded-md border border-red-200 bg-white px-2 text-[10px] font-semibold text-red-600 hover:bg-red-50" type="button" onClick={() => onRemove(detailIndex)}>Xóa</button>
+              </div>
+            </CardField>
             </div>
-          </div>
-
-          <div className="mt-1.5 flex flex-wrap items-center justify-end gap-1.5">
-            <button className="rounded-md px-2 py-1 text-[10px] font-semibold text-red-600 hover:bg-red-50" type="button" onClick={() => onRemove(detailIndex)}>Xóa</button>
           </div>
       </div>
     </div>
