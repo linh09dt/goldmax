@@ -56,14 +56,17 @@ PALE_AMBER = colors.HexColor("#FFF7E6")
 WHITE = colors.white
 
 COMPANY = "CÔNG TY TNHH SXTM GOLDMAX VIỆT NAM"
-COMPANY_LINE = "\n".join([
+COMPANY_LINES = [
     "GPĐKKD Số: 2401031714",
     "VP Miền Bắc: Số 670 Toàn Thắng - Xã Thuận An - TP. Hà Nội",
     "VP Miền Nam: A34 Shophouse Phú Mỹ Hiệp - TP. Hồ Chí Minh",
     "NHÀ MÁY SẢN XUẤT: Cụm CN Non Sáo, Xã Tân Dĩnh, Bắc Ninh",
     "Hotline: 1900 8135",
     "Email: Goldmaxdoor@gmail.com",
-])
+]
+COMPANY_LINE = "\n".join(COMPANY_LINES)
+# V64: tỷ lệ bề rộng cột thông tin công ty trong header (dùng chung cho bảng + auto-fit).
+COMPANY_COL_RATIO = 123 / 273
 TITLE = "THÔNG TIN ĐƠN HÀNG"
 
 # V53/V54: hộp ghi chú nhỏ in ở góc dưới bên trái trang cuối (khung + nền nhạt nhạt, chữ nhỏ, không làm nổi bật).
@@ -673,10 +676,13 @@ def _logo_flowable() -> Any:
 
 
 def _header(order: dict[str, Any], order_code: str) -> list[Any]:
+    company_width = CONTENT_W * COMPANY_COL_RATIO
+    company_line_style = _company_line_style(company_width)
     company_block = [
         para(COMPANY, "company"),
-        Spacer(1, 0.8 * mm),
-        para(COMPANY_LINE, "company_line"),
+        # V64: khoảng cách sau tên công ty thu lại để 6 dòng thông tin đều nhịp như một hàng dọc.
+        Spacer(1, 0.3 * mm),
+        Paragraph("<br/>".join(esc(line) for line in COMPANY_LINES), company_line_style),
     ]
     title_block = [
         para(TITLE, "title"),
@@ -687,7 +693,7 @@ def _header(order: dict[str, Any], order_code: str) -> list[Any]:
     # Logo lớn hơn và tách thành cột riêng để không làm co tên công ty.
     header = Table(
         [[_logo_flowable(), company_block, title_block]],
-        colWidths=[CONTENT_W * (32 / 273), CONTENT_W * (123 / 273), CONTENT_W * (118 / 273)],
+        colWidths=[CONTENT_W * (32 / 273), company_width, CONTENT_W * (118 / 273)],
     )
     header.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -729,6 +735,27 @@ def _meta(label: str, value: str) -> Paragraph:
         f'<font name="{FONTS["regular"]}" color="#374151">{esc(label)}:</font> '
         f'<font name="{FONTS["bold"]}" color="#111111">{esc(value)}</font>',
         S["meta"],
+    )
+
+
+def _company_line_style(column_width: float) -> ParagraphStyle:
+    """V64: thu nhỏ cỡ chữ nếu cần để 6 dòng thông tin công ty luôn nằm gọn trong 1 hàng.
+
+    Giữ nguyên lề trái và khoảng cách dòng đều nhau (mỗi thông tin 1 hàng dọc).
+    """
+    base = S["company_line"]
+    size = float(base.fontSize)
+    widest = max(
+        (pdfmetrics.stringWidth(line, FONTS["regular"], size) for line in COMPANY_LINES),
+        default=0.0,
+    )
+    if widest > column_width > 0:
+        size = max(6.4, size * column_width / widest)
+    return ParagraphStyle(
+        f"company_line_{size:.2f}",
+        parent=base,
+        fontSize=size,
+        leading=size * 1.16,
     )
 
 
