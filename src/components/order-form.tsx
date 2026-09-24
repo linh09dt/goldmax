@@ -459,35 +459,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
       </section>
 
       <section className="grid gap-3 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="erp-card">
-          <SectionTitle title="Câu hỏi thêm / Xác nhận" />
-          <div className="divide-y divide-slate-200">
-            {form.requirements.map((row, index) => (
-              <div className="grid gap-2 px-4 py-2 md:grid-cols-[1fr_190px_1fr] md:items-center" key={row.code}>
-                <div className="text-[12px] font-medium leading-4 text-slate-800">{index + 1}. {row.questionText}</div>
-                <select
-                  className="erp-input !px-2 !py-1 !text-[10px]"
-                  value={row.answer}
-                  onChange={(e) => setField("requirements", form.requirements.map((item, i) => i === index ? { ...item, answer: e.target.value } : item))}
-                >
-                  <option value="">Chưa xác nhận</option>
-                  <option value="Có">Có</option>
-                  <option value="Không">Không</option>
-                  <option value="Đã xác nhận">Đã xác nhận</option>
-                  <option value="Không áp dụng">Không áp dụng</option>
-                </select>
-                <input
-                  className="erp-input !px-2 !py-1 !text-[10px]"
-                  placeholder="Ghi chú xác nhận"
-                  value={row.note}
-                  onChange={(e) => setField("requirements", form.requirements.map((item, i) => i === index ? { ...item, note: e.target.value } : item))}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="erp-card">
+        <div className="erp-card xl:col-start-2">
           <SectionTitle title="Tổng hợp giá trị đơn hàng" />
           <div className="space-y-1.5 p-3">
             <MoneyField label="Cước vận chuyển cả đơn hàng" value={form.shippingFee} onChange={(v) => setField("shippingFee", v)} />

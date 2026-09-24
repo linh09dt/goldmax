@@ -507,7 +507,7 @@ def build_order_pdf(order: dict[str, Any], output: str | os.PathLike[str] | io.B
 
     story.append(Spacer(1, 3 * mm))
     # Không bọc KeepTogether: để ReportLab tự dời/phân trang phần cuối khi cần.
-    story.append(_bottom_section(order, calc))
+    story.append(_bottom_section(calc))
 
     footer = lambda canvas, doc_obj: _draw_footer(canvas, doc_obj, order_code)
     doc.build(story, onFirstPage=footer, onLaterPages=footer)
@@ -726,31 +726,9 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
     return table
 
 
-def _bottom_section(order: dict[str, Any], calc: dict[str, float]) -> Table:
-    reqs = order.get("requirements") or []
-    check_lines = []
-    for idx, item in enumerate(reqs, 1):
-        answer = " - ".join(filter(None, [clean(item.get("answer")), clean(item.get("note"))]))
-        text = f"{idx}. {clean(item.get('questionText'))}"
-        if answer:
-            text += f": {answer}"
-        check_lines.append(para(text, "check"))
-    if not check_lines:
-        check_lines.append(para("Chưa có checklist xác nhận kỹ thuật.", "check"))
-
-    checklist = Table(
-        [[para("BẢNG CHECKLIST XÁC NHẬN KỸ THUẬT VỚI ĐẠI LÝ", "check_title")]] + [[x] for x in check_lines],
-        colWidths=[CONTENT_W * 0.66],
-    )
-    checklist.setStyle(TableStyle([
-        ("BOX", (0, 0), (-1, -1), 0.8, BORDER),
-        ("LINEBELOW", (0, 0), (-1, 0), 0.55, colors.HexColor("#CBD5E1")),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ("TOPPADDING", (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-    ]))
+def _bottom_section(calc: dict[str, float]) -> Table:
+    # V52: bỏ bảng "BẢNG CHECKLIST XÁC NHẬN KỸ THUẬT VỚI ĐẠI LÝ" khỏi PDF (form tạo đơn cũng bỏ ô nhập tương ứng).
+    # Chỉ còn khối tổng hợp thanh toán, giữ nguyên vị trí bên phải như trước.
 
     summary_rows: list[list[Any]] = [
         [para("Tổng giá trị đơn hàng:", "summary"), para(f"{money(calc['orderTotal'])} VNĐ", "summary_amount")],
@@ -774,7 +752,7 @@ def _bottom_section(order: dict[str, Any], calc: dict[str, float]) -> Table:
     summary_rows.append([para("CÒN LẠI CẦN THANH TOÁN:", "summary_total"), para(f"{money(calc['paymentDue'])} VNĐ", "summary_total_amount")])
     summary_rows.append([para(f"(Bằng chữ: {number_to_vietnamese_words(int(round(calc['paymentDue'])))})", "words"), ""])
 
-    summary = Table(summary_rows, colWidths=[CONTENT_W * 0.22, CONTENT_W * 0.12])
+    summary = Table(summary_rows, colWidths=[CONTENT_W * 0.22, CONTENT_W * 0.12], hAlign="RIGHT")
     commands: list[tuple[Any, ...]] = [
         ("BOX", (0, 0), (-1, -2), 0.8, BORDER),
         ("INNERGRID", (0, 0), (-1, -2), 0.45, BORDER),
@@ -792,16 +770,7 @@ def _bottom_section(order: dict[str, Any], calc: dict[str, float]) -> Table:
     if discount_row_index is not None:
         commands.append(("BACKGROUND", (0, discount_row_index), (-1, discount_row_index), PALE_AMBER))
     summary.setStyle(TableStyle(commands))
-
-    outer = Table([[checklist, summary]], colWidths=[CONTENT_W * 0.66, CONTENT_W * 0.34], hAlign="LEFT")
-    outer.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ("TOPPADDING", (0, 0), (-1, -1), 0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-    ]))
-    return outer
+    return summary
 
 
 def _signatures() -> Table:

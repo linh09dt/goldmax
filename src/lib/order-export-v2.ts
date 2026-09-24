@@ -82,7 +82,7 @@ export async function buildOrderExcelV2(order: ExportableOrderV2, exportNote = "
 
   rowNo = writeOptionalNote(ws, rowNo, exportNote);
   rowNo += 1;
-  rowNo = writeChecklistAndSummary(ws, rowNo, order, totals);
+  rowNo = writeSummary(ws, rowNo, totals);
   rowNo += 1;
 
   ws.pageSetup.printTitlesRow = "12:13";
@@ -332,34 +332,12 @@ function writeOptionalNote(ws: Worksheet, row: number, exportNote: string) {
   return row + 1;
 }
 
-function writeChecklistAndSummary(
+function writeSummary(
   ws: Worksheet,
   startRow: number,
-  order: ExportableOrderV2,
   totals: ReturnType<typeof calculateOutputTotals>,
 ) {
-  const checklist = order.requirements.map((item, index) => {
-    const response = [item.answer, item.note].filter(Boolean).join(" - ");
-    return `${index + 1}. ${item.questionText}${response ? `: ${response}` : ""}`;
-  });
-  const lines = checklist.length ? checklist : ["Chưa có checklist xác nhận kỹ thuật."];
-  const height = Math.max(6, Math.min(12, lines.length + 2));
-  const endRow = startRow + height - 1;
-
-  ws.mergeCells(`A${startRow}:K${startRow}`);
-  ws.getCell(`A${startRow}`).value = "BẢNG CHECKLIST XÁC NHẬN KỸ THUẬT VỚI ĐẠI LÝ";
-  ws.getCell(`A${startRow}`).font = { ...BASE_FONT, bold: true, size: 11, color: { argb: NAVY } };
-  ws.getCell(`A${startRow}`).alignment = { horizontal: "left", vertical: "middle" };
-  ws.getCell(`A${startRow}`).fill = solid(WHITE);
-  for (let r = startRow + 1; r <= endRow; r += 1) {
-    ws.mergeCells(`A${r}:K${r}`);
-    const line = lines[r - startRow - 1] || "";
-    ws.getCell(`A${r}`).value = line;
-    ws.getCell(`A${r}`).font = { ...BASE_FONT, size: 10, color: { argb: TEXT } };
-    ws.getCell(`A${r}`).alignment = { horizontal: "left", vertical: "middle", wrapText: true };
-  }
-  styleRange(ws, `A${startRow}:K${endRow}`, WHITE, true);
-
+  // V52: bỏ bảng "BẢNG CHECKLIST XÁC NHẬN KỸ THUẬT VỚI ĐẠI LÝ" khỏi bản xuất (form tạo đơn cũng bỏ ô nhập tương ứng).
   // V51: chỉ hiện "Chiết khấu thương mại" + "Tổng tiền sau chiết khấu" khi đơn thật sự có chiết khấu (> 0%).
   // Không có chiết khấu / chiết khấu 0% thì ẩn hẳn dòng "Tổng tiền sau chiết khấu" (số tiền bằng Tổng giá trị đơn hàng).
   const hasDiscount = totals.discountPercent > 0 && totals.discountAmount > 0;
@@ -390,14 +368,15 @@ function writeChecklistAndSummary(
     ws.getCell(`Q${r}`).alignment = { horizontal: "right", vertical: "middle" };
     r += 1;
   }
-  if (r <= endRow) {
-    ws.mergeCells(`L${r}:S${endRow}`);
-    ws.getCell(`L${r}`).value = `(Bằng chữ: ${numberToVietnameseWords(Math.round(totals.paymentDue))})`;
-    ws.getCell(`L${r}`).font = { ...BASE_FONT, size: 9.5, italic: true, color: { argb: MUTED } };
-    ws.getCell(`L${r}`).alignment = { horizontal: "right", vertical: "top", wrapText: true };
-    styleRange(ws, `L${r}:S${endRow}`, WHITE, true);
-  }
-  return endRow;
+
+  // Dòng "Bằng chữ" chiếm 2 hàng để câu tiếng Việt dài vẫn xuống dòng gọn gàng.
+  const wordsEnd = r + 1;
+  ws.mergeCells(`L${r}:S${wordsEnd}`);
+  ws.getCell(`L${r}`).value = `(Bằng chữ: ${numberToVietnameseWords(Math.round(totals.paymentDue))})`;
+  ws.getCell(`L${r}`).font = { ...BASE_FONT, size: 9.5, italic: true, color: { argb: MUTED } };
+  ws.getCell(`L${r}`).alignment = { horizontal: "right", vertical: "top", wrapText: true };
+  styleRange(ws, `L${r}:S${wordsEnd}`, WHITE, true);
+  return wordsEnd;
 }
 
 function styleRange(ws: Worksheet, range: string, fillArgb: string, border = false) {

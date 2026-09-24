@@ -5,7 +5,7 @@
 - Cột HÌNH ẢNH nằm cuối bảng.
 - Hình ảnh của một bộ cửa được gom từ ảnh bộ cửa chính + ảnh chi tiết/phụ kiện.
 - Không thay đổi pipeline PDF V2 hiện tại.
-- Không có khu vực chữ ký; giữ checklist + tổng hợp thanh toán theo form cũ.
+- Không có khu vực chữ ký; giữ khối tổng hợp thanh toán, đã bỏ checklist xác nhận kỹ thuật (V52).
 - Toàn bộ font tăng thêm 4pt để in dễ đọc hơn.
 """
 
@@ -422,45 +422,8 @@ def _items_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | No
 
 
 def _bottom_section(order: dict[str, Any]) -> Table:
-    """Checklist + tổng hợp thanh toán giống form mẫu hiện tại (hình 3)."""
+    """Tổng hợp thanh toán (V52: đã bỏ bảng checklist xác nhận kỹ thuật)."""
     calc = totals(order, build_groups(order))
-    reqs = order.get("requirements") or []
-
-    check_lines: list[Paragraph] = []
-    for idx, item in enumerate(reqs, 1):
-        if not isinstance(item, dict):
-            continue
-        answer = " - ".join(filter(None, [clean(item.get("answer")), clean(item.get("note"))]))
-        text = f"{idx}. {clean(item.get('questionText'))}"
-        if answer:
-            text += f": {answer}"
-        check_lines.append(para(text, "check"))
-
-    # Giữ form checklist mẫu ngay cả khi đơn chưa có câu trả lời.
-    if not check_lines:
-        default_questions = [
-            "Nền có giật cấp hay không?",
-            "Kích thước đã trừ chưa?",
-            "Mép tường có đắp phào xi măng hay không?",
-            "Lắp phào LUX: hỏi mép tường lên trần?",
-            "Có thuộc tường chữ T hoặc I không?",
-            "Cửa 4 cánh xác nhận chiều rộng và cao",
-        ]
-        check_lines = [para(f"{idx}. {text}", "check") for idx, text in enumerate(default_questions, 1)]
-
-    checklist = Table(
-        [[para("BẢNG CHECKLIST XÁC NHẬN KỸ THUẬT VỚI ĐẠI LÝ", "check_title")]] + [[x] for x in check_lines],
-        colWidths=[CONTENT_W * 0.66],
-    )
-    checklist.setStyle(TableStyle([
-        ("BOX", (0, 0), (-1, -1), 0.8, BORDER),
-        ("LINEBELOW", (0, 0), (-1, 0), 0.55, colors.HexColor("#CBD5E1")),
-        ("LEFTPADDING", (0, 0), (-1, -1), 5),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-        ("TOPPADDING", (0, 0), (-1, -1), 3.0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3.0),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-    ]))
 
     summary_rows: list[list[Any]] = [
         [para("Tổng giá trị đơn hàng:", "summary"), para(f"{money(calc['orderTotal'])} VNĐ", "summary_amount")],
@@ -483,7 +446,7 @@ def _bottom_section(order: dict[str, Any]) -> Table:
     words_index = len(summary_rows)
     summary_rows.append([para(f"(Bằng chữ: {number_to_vietnamese_words(int(round(calc['paymentDue'])))} )", "words"), ""])
 
-    summary = Table(summary_rows, colWidths=[CONTENT_W * 0.22, CONTENT_W * 0.12])
+    summary = Table(summary_rows, colWidths=[CONTENT_W * 0.22, CONTENT_W * 0.12], hAlign="RIGHT")
     commands: list[tuple[Any, ...]] = [
         ("BOX", (0, 0), (-1, due_index), 0.8, BORDER),
         ("INNERGRID", (0, 0), (-1, due_index), 0.45, BORDER),
@@ -499,16 +462,7 @@ def _bottom_section(order: dict[str, Any]) -> Table:
     if after_index is not None:
         commands.append(("BACKGROUND", (0, after_index), (-1, after_index), colors.HexColor("#EEF2FF")))
     summary.setStyle(TableStyle(commands))
-
-    outer = Table([[checklist, summary]], colWidths=[CONTENT_W * 0.66, CONTENT_W * 0.34], hAlign="LEFT")
-    outer.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ("TOPPADDING", (0, 0), (-1, -1), 0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-    ]))
-    return outer
+    return summary
 
 
 def _footer(canvas: pdfcanvas.Canvas, doc: SimpleDocTemplate, order_code: str) -> None:
