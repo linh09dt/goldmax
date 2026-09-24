@@ -833,11 +833,13 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
     # V66: bỏ cột "GHI CHÚ KỸ THUẬT" — ghi chú của dòng nào được in thành 1 hàng riêng
     # ngay dưới dòng đó, trải hết chiều ngang bảng; bề rộng cột còn lại được chia lại.
     header_top = [
-        "STT", "BỘ SỐ", "TÊN SẢN PHẨM / QUY CÁCH", "MODEL", "Ô TH.", "HƯỚNG", "PHÀO", "MÀU SƠN",
+        "STT", "BỘ SỐ", "TÊN SẢN PHẨM", "MODEL", "Ô THOÁNG", "HƯỚNG", "PHÀO", "MÀU SƠN",
         "KT CỬA (MM)", "", "KHUÔN", "KT THÔNG THỦY", "", "SL", "ĐVT", "KHỐI LƯỢNG", "ĐƠN GIÁ (Đ)",
         "THÀNH TIỀN (Đ)", "HÌNH ẢNH SP",
     ]
-    header_sub = ["", "", "", "", "", "", "", "", "CAO", "RỘNG", "", "", "CAO", "RỘNG", "", "", "", "", ""]
+    # V70: sửa lệch 1 ô từ V63 — "CAO/RỘNG" của KT THÔNG THỦY phải nằm ở cột 11/12
+    # (trước đây ở cột 12/13 nên ô CAO trống còn chữ RỘNG bị vùng merge của SL che mất).
+    header_sub = ["", "", "", "", "", "", "", "", "CAO", "RỘNG", "", "CAO", "RỘNG", "", "", "", "", "", ""]
     data: list[list[Any]] = [
         [para(h, "th") for h in header_top],
         [para(h, "th") for h in header_sub],
@@ -905,7 +907,10 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
     # Giữ tỷ lệ cột hiện tại nhưng scale đúng CONTENT_W để tận dụng gần hết A4 landscape.
     # Nhờ vậy tăng font vẫn không làm bảng tràn khỏi lề trái/phải.
     # V66: bỏ cột ghi chú (39mm) → chia lại cho các cột còn lại, tổng giữ 273 để bảng vẫn vừa CONTENT_W.
-    base_widths_mm = [5.5, 11, 31, 23, 9, 9, 9, 10, 10.5, 10.5, 10, 10, 10, 7, 8, 14, 21, 24, 40.5]
+    # V70: đo bề rộng chữ tiêu đề (Roboto Bold 8.5) + padding 4pt để các tiêu đề STT / BỘ SỐ / Ô THOÁNG /
+    # HƯỚNG / PHÀO / MÀU SƠN / KHUÔN / KT CỬA / KT THÔNG THỦY (kể cả ô CAO–RỘNG) luôn nằm gọn 1 dòng;
+    # HÌNH ẢNH SP, ĐƠN GIÁ, THÀNH TIỀN, KHỐI LƯỢNG thu hẹp (cho phép xuống dòng).
+    base_widths_mm = [7.5, 11, 34, 23.5, 17.5, 13, 10.5, 15.5, 10.5, 10.5, 12.5, 12.5, 13.5, 6, 8, 15, 17, 18.5, 15.5]
     base_total = sum(base_widths_mm)
     # LongTable tối ưu cho bảng dài. splitInRow cho phép một dòng rất cao
     # (ví dụ ghi chú kỹ thuật dài) được tách an toàn khi vượt chiều cao trang.

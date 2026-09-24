@@ -126,7 +126,9 @@ export async function buildOrderExcelV2(order: ExportableOrderV2, exportNote = "
 function setupColumns(ws: Worksheet) {
   // 19 cột (V66): bỏ cột "GHI CHÚ KỸ THUẬT" (ghi chú chuyển thành hàng riêng dưới dòng hàng)
   // và chia lại bề rộng cho các cột còn lại; Excel tự fit 1 trang theo chiều ngang.
-  const widths = [4.5, 9, 27, 19, 7.5, 7.5, 7.5, 8.5, 8, 8, 8, 8, 8, 5.5, 6.5, 10.5, 12.5, 14, 14.5];
+  // V70: đủ rộng để STT / BỘ SỐ / Ô THOÁNG / HƯỚNG / PHÀO / MÀU SƠN / KHUÔN nằm 1 dòng;
+  // thu hẹp HÌNH ẢNH SP + ĐƠN GIÁ + THÀNH TIỀN (cho phép xuống dòng).
+  const widths = [5, 9, 29, 19, 10, 7.5, 7.5, 9.5, 8, 8, 8, 8, 8, 5.5, 6.5, 10.5, 11.5, 12.5, 11];
   widths.forEach((width, index) => { ws.getColumn(index + 1).width = width; });
 }
 
@@ -223,9 +225,9 @@ function writeDataHeader(ws: Worksheet) {
   const mergedHeaders: Array<[string, string]> = [
     ["A12:A13", "STT"],
     ["B12:B13", "BỘ SỐ"],
-    ["C12:C13", "TÊN SẢN PHẨM / QUY CÁCH"],
+    ["C12:C13", "TÊN SẢN PHẨM"],
     ["D12:D13", "MODEL"],
-    ["E12:E13", "Ô TH."],
+    ["E12:E13", "Ô THOÁNG"],
     ["F12:F13", "HƯỚNG"],
     ["G12:G13", "PHÀO"],
     ["H12:H13", "MÀU SƠN"],
