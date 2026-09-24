@@ -388,7 +388,7 @@ function writeSummary(
   ws.getCell(`L${r}`).alignment = { horizontal: "right", vertical: "top", wrapText: true };
   styleRange(ws, `L${r}:S${wordsEnd}`, WHITE, true);
 
-  // V53/V54: hộp ghi chú ở góc dưới bên trái bản in (cột A→K): khung + nền nhạt, chữ 8pt xám.
+  // V53→V57: hộp ghi chú ở dưới box tiền, trải hết chiều ngang bản in (cột A→S), chữ 8pt xám.
   const noteStart = wordsEnd + 2;
   let noteRow = noteStart;
   const noteLines: Array<{ text: string; bold: boolean }> = [
@@ -397,16 +397,16 @@ function writeSummary(
     ...FOOTNOTE_LINES.map((text) => ({ text, bold: false })),
   ];
   for (const line of noteLines) {
-    ws.mergeCells(`A${noteRow}:K${noteRow}`);
+    ws.mergeCells(`A${noteRow}:S${noteRow}`);
     const cell = ws.getCell(`A${noteRow}`);
     cell.value = line.text;
     cell.font = { ...BASE_FONT, size: 8, bold: line.bold, color: { argb: MUTED } };
     cell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
-    // Ước lượng số dòng cần cho câu dài để không bị Excel cắt chữ.
-    ws.getRow(noteRow).height = 13 * Math.max(1, Math.ceil(line.text.length / 140));
+    // Ước lượng số dòng cho câu dài (A→S rộng ~202 ký tự ≈ 270 ký tự @8pt) để không bị cắt chữ.
+    ws.getRow(noteRow).height = 13 * Math.max(1, Math.ceil(line.text.length / 200));
     noteRow += 1;
   }
-  styleRange(ws, `A${noteStart}:K${noteRow - 1}`, FOOTNOTE_FILL, true);
+  styleRange(ws, `A${noteStart}:S${noteRow - 1}`, FOOTNOTE_FILL, true);
   return noteRow - 1;
 }
 

@@ -751,7 +751,7 @@ def _footnote_block() -> Table:
         [para(FOOTNOTE_LEAD, "footnote_lead")],
     ]
     rows += [[para(line, "footnote")] for line in FOOTNOTE_LINES]
-    table = Table(rows, colWidths=[CONTENT_W * 0.60], hAlign="LEFT")
+    table = Table(rows, colWidths=[CONTENT_W], hAlign="LEFT")  # V57: hộp ghi chú trải hết chiều ngang
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), FOOTNOTE_FILL),
         ("BOX", (0, 0), (-1, -1), 0.6, FOOTNOTE_BORDER),
