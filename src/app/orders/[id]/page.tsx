@@ -62,11 +62,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             <OrderInfoField label="Tên khách hàng" value={order.customerName || "—"} required />
             <OrderInfoField label="Ngày đặt hàng" value={formatDate(order.orderDate)} required />
             <OrderInfoField label="Ngày cần giao hàng" value={formatDate(order.requiredDeliveryDate)} required />
-            <OrderInfoField label="Người nhận" value={order.receiverName || "—"} required />
+            <OrderInfoField label="Người nhận" value={order.receiverName || "—"} />
             <OrderInfoField label="Số điện thoại" value={order.receiverPhone || "—"} required />
             <OrderInfoField label="Địa chỉ nhận hàng" value={order.receiverAddress || "—"} required />
-            <OrderInfoField label="Vùng miền" value={order.region || "—"} required />
-            <OrderInfoField label="Số Km giao hàng" value={order.deliveryKm?.toString() || "—"} required />
+            <OrderInfoField label="Vùng miền" value={order.region || "—"} />
+            <OrderInfoField label="Số Km giao hàng" value={order.deliveryKm?.toString() || "—"} />
           </div>
         </div>
       </section>

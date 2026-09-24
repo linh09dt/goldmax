@@ -59,10 +59,7 @@ const REQUIRED_ORDER_INFO_FIELDS = [
   { key: "requiredDeliveryDate", label: "Ngày cần giao hàng" },
   { key: "status", label: "Trạng thái" },
   { key: "excelUpdateDate", label: "Ngày cập nhật" },
-  { key: "receiverName", label: "Người nhận" },
   { key: "receiverPhone", label: "Số điện thoại" },
-  { key: "deliveryKm", label: "Số Km giao hàng" },
-  { key: "region", label: "Vùng miền" },
   { key: "receiverAddress", label: "Địa chỉ nhận hàng" },
 ] as const satisfies ReadonlyArray<{ key: keyof OrderFormData; label: string }>;
 
@@ -413,11 +410,11 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
             <Field label="Tên khách hàng" required invalid={invalidOrderInfoFields.has("customerName")}><TextInput value={form.customerName} onChange={(v) => setField("customerName", v)} /></Field>
             <Field label="Ngày đặt hàng" required invalid={invalidOrderInfoFields.has("orderDate")}><DateInput value={form.orderDate} onChange={(v) => setField("orderDate", v)} /></Field>
             <Field label="Ngày cần giao hàng" required invalid={invalidOrderInfoFields.has("requiredDeliveryDate")}><DateInput value={form.requiredDeliveryDate} onChange={(v) => setField("requiredDeliveryDate", v)} /></Field>
-            <Field label="Người nhận" required invalid={invalidOrderInfoFields.has("receiverName")}><TextInput value={form.receiverName} onChange={(v) => setField("receiverName", v)} /></Field>
+            <Field label="Người nhận"><TextInput value={form.receiverName} onChange={(v) => setField("receiverName", v)} /></Field>
             <Field label="Số điện thoại" required invalid={invalidOrderInfoFields.has("receiverPhone")}><TextInput value={form.receiverPhone} onChange={(v) => setField("receiverPhone", v)} /></Field>
             <Field label="Địa chỉ nhận hàng" required invalid={invalidOrderInfoFields.has("receiverAddress")}><TextInput value={form.receiverAddress} onChange={(v) => setField("receiverAddress", v)} /></Field>
-            <Field label="Vùng miền" required invalid={invalidOrderInfoFields.has("region")}><TextInput value={form.region} onChange={(v) => setField("region", v)} /></Field>
-            <Field label="Số Km giao hàng" required invalid={invalidOrderInfoFields.has("deliveryKm")}><NumberInput value={form.deliveryKm} onChange={(v) => setField("deliveryKm", v)} /></Field>
+            <Field label="Vùng miền"><TextInput value={form.region} onChange={(v) => setField("region", v)} /></Field>
+            <Field label="Số Km giao hàng"><NumberInput value={form.deliveryKm} onChange={(v) => setField("deliveryKm", v)} /></Field>
           </div>
         </div>
       </section>

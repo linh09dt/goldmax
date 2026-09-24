@@ -165,9 +165,7 @@ function normalizeRequiredOrderInfo(input: UnknownRecord) {
     ["salesEmployeeCode", "NVKD phụ trách"],
     ["orderCode", "Mã đơn hàng"],
     ["status", "Trạng thái"],
-    ["receiverName", "Người nhận"],
     ["receiverPhone", "Số điện thoại"],
-    ["region", "Vùng miền"],
     ["receiverAddress", "Địa chỉ nhận hàng"],
   ] as const;
   const dateFields = [
@@ -175,14 +173,11 @@ function normalizeRequiredOrderInfo(input: UnknownRecord) {
     ["requiredDeliveryDate", "Ngày cần giao hàng"],
     ["excelUpdateDate", "Ngày cập nhật"],
   ] as const;
-  const numberFields = [
-    ["deliveryKm", "Số Km giao hàng"],
-  ] as const;
 
+  // V58: Người nhận, Vùng miền, Số Km giao hàng không còn bắt buộc.
   const missing = [
     ...textFields.filter(([key]) => !optionalText(input[key])).map(([, label]) => label),
     ...dateFields.filter(([key]) => !optionalText(input[key])).map(([, label]) => label),
-    ...numberFields.filter(([key]) => input[key] === null || input[key] === undefined || String(input[key]).trim() === "").map(([, label]) => label),
   ];
   if (missing.length) {
     throw new Error(`Vui lòng nhập đầy đủ thông tin bắt buộc: ${missing.join(", ")}.`);
@@ -192,7 +187,7 @@ function normalizeRequiredOrderInfo(input: UnknownRecord) {
   const requiredDeliveryDate = requiredDate(input.requiredDeliveryDate, "Ngày cần giao hàng");
   const excelUpdateDate = requiredDate(input.excelUpdateDate, "Ngày cập nhật");
   const formEffectiveDate = parseDate(input.formEffectiveDate);
-  const deliveryKm = requiredNonNegativeNumber(input.deliveryKm, "Số Km giao hàng");
+  const deliveryKm = optionalNonNegativeNumber(input.deliveryKm, "Số Km giao hàng");
   const groupNo = integerOrNull(input.groupNo);
 
   return {
@@ -204,10 +199,10 @@ function normalizeRequiredOrderInfo(input: UnknownRecord) {
     orderDate,
     requiredDeliveryDate,
     excelUpdateDate,
-    receiverName: requiredText(input.receiverName, "Người nhận"),
+    receiverName: optionalText(input.receiverName),
     receiverPhone: requiredText(input.receiverPhone, "Số điện thoại"),
     deliveryKm,
-    region: requiredText(input.region, "Vùng miền"),
+    region: optionalText(input.region),
     groupNo,
     formCode: optionalText(input.formCode),
     formEffectiveDate,
@@ -308,9 +303,10 @@ function requiredDate(value: unknown, label: string) {
   return result;
 }
 
-function requiredNonNegativeNumber(value: unknown, label: string) {
+/** V58: Người nhận / Vùng miền / Số Km giao hàng bỏ trống được; nếu có nhập thì không cho số âm. */function optionalNonNegativeNumber(value: unknown, label: string) {
   const parsed = numberOrNull(value);
-  if (parsed === null || parsed < 0) throw new Error(`${label} không hợp lệ.`);
+  if (parsed === null) return null;
+  if (parsed < 0) throw new Error(`${label} không hợp lệ.`);
   return parsed;
 }
 
