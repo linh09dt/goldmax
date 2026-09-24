@@ -6,6 +6,7 @@ import {
   ORDER_STATUS_OPTIONS,
   createDefaultOrderForm,
   createOrderItem,
+  localTodayInput,
   newClientId,
   reindexItems,
   showsSetNumber,
@@ -99,6 +100,13 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
   const importedFromExcelRef = useRef(false);
   const [excelImportBusy, setExcelImportBusy] = useState(false);
   const [excelImportMessage, setExcelImportMessage] = useState<{ type: "ok" | "error"; text: string } | null>(null);
+  // V77: thu gọn / mở rộng từng bộ cửa để đơn nhiều bộ vẫn theo dõi được.
+  const [collapsedItems, setCollapsedItems] = useState<Set<string>>(() => new Set());
+  // V77: mốc ngày do server trả về — dùng để biết người dùng đã sửa ô ngày hay chưa.
+  const serverDefaultDatesRef = useRef({
+    orderDate: initialData?.orderDate ?? "",
+    excelUpdateDate: initialData?.excelUpdateDate ?? "",
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -150,7 +158,22 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
     setForm((current) => recalculateAutomaticPricingForm(current, catalogItems, calculationConfig, { applyDoorUnitPrice: mode === "create" }));
   }, [catalogItems, calculationConfig, calculationConfigLoaded]);
 
+  // V77: Tạo đơn mới lấy ngày đặt hàng / ngày cập nhật theo giờ máy người dùng,
+  // chỉ thay khi người dùng chưa sửa hai ô này (tránh ghi đè dữ liệu đã nhập).
+  useEffect(() => {
+    if (mode !== "create") return;
+    const today = localTodayInput();
+    const defaults = serverDefaultDatesRef.current;
+    setForm((current) => {
+      const orderDate = current.orderDate === defaults.orderDate ? today : current.orderDate;
+      const excelUpdateDate = current.excelUpdateDate === defaults.excelUpdateDate ? today : current.excelUpdateDate;
+      if (orderDate === current.orderDate && excelUpdateDate === current.excelUpdateDate) return current;
+      return { ...current, orderDate, excelUpdateDate };
+    });
+  }, [mode]);
+
   const totals = useMemo(() => calculateTotals(form), [form]);
+  const detailCount = useMemo(() => form.items.reduce((sum, item) => sum + item.details.length, 0), [form.items]);
   // V75: Bộ số chỉ hiện khi đơn Đã xác nhận / Đã chuyển sản xuất.
   const setNumberVisible = useMemo(() => showsSetNumber(form.status), [form.status]);
 
@@ -185,10 +208,35 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
   }
 
   function removeItem(index: number) {
-    setForm((current) => {
-      if (current.items.length === 1) return current;
-      return { ...current, items: reindexItems(current.items.filter((_, itemIndex) => itemIndex !== index)) };
+    const target = form.items[index];
+    // V77: giữ ít nhất 1 bộ cửa — nút Xóa đã bị vô hiệu hoá nên đây chỉ là chốt an toàn.
+    if (!target || form.items.length <= 1) return;
+    if (target.details.length > 0 || target.imagePath) {
+      const accepted = window.confirm(
+        `Xóa bộ cửa #${index + 1}${target.productName ? ` (${target.productName})` : ""}?\n\n` +
+        `Bộ cửa này có ${target.details.length} dòng phụ kiện / chi tiết` +
+        `${target.imagePath ? " và 1 hình ảnh sản phẩm" : ""} — xóa sẽ mất dữ liệu đã nhập.`,
+      );
+      if (!accepted) return;
+    }
+    setForm((current) => ({ ...current, items: reindexItems(current.items.filter((_, itemIndex) => itemIndex !== index)) }));
+  }
+
+  function toggleItemCollapsed(clientId: string) {
+    setCollapsedItems((current) => {
+      const next = new Set(current);
+      if (next.has(clientId)) next.delete(clientId);
+      else next.add(clientId);
+      return next;
     });
+  }
+
+  function collapseAllItems() {
+    setCollapsedItems(new Set(form.items.map((item) => item.clientId)));
+  }
+
+  function expandAllItems() {
+    setCollapsedItems(new Set());
   }
 
   function updateMain(index: number, key: keyof Omit<OrderItemForm, "clientId" | "lineNo" | "details">, value: string) {
@@ -418,8 +466,9 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
         <div className="border-b border-slate-200 bg-slate-50 px-3 py-1.5">
           <h2 className="text-[12px] font-semibold tracking-normal text-slate-900">Thông tin đơn hàng</h2>
         </div>
-        <div className="p-2.5">
-          <div className="grid grid-cols-[1.18fr_0.88fr_0.96fr_1.05fr_1.12fr_1.28fr_0.96fr_1.02fr_0.98fr_0.88fr_1.42fr_0.78fr_0.82fr] gap-1.5">
+        {/* V77: tách 2 hàng (7 + 6 trường) để ô nhập rộng rãi, đọc được nội dung đã nhập. */}
+        <div className="space-y-1.5 p-2.5">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
             <Field label="Mã đơn hàng" required invalid={invalidOrderInfoFields.has("orderCode")}><TextInput value={form.orderCode} onChange={(v) => setField("orderCode", v)} /></Field>
             <Field label="Trạng thái" required invalid={invalidOrderInfoFields.has("status")}>
               <select className="erp-input" value={form.status} onChange={(e) => setField("status", e.target.value)}>
@@ -431,10 +480,14 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
             <Field label="Mã Đại Lý" required invalid={invalidOrderInfoFields.has("customerCode")}><DealerCodeSelect value={form.customerCode} options={optionValues.dealer} onChange={(v) => setField("customerCode", v)} /></Field>
             <Field label="Tên khách hàng" required invalid={invalidOrderInfoFields.has("customerName")}><TextInput value={form.customerName} onChange={(v) => setField("customerName", v)} /></Field>
             <Field label="Ngày đặt hàng" required invalid={invalidOrderInfoFields.has("orderDate")}><DateInput value={form.orderDate} onChange={(v) => setField("orderDate", v)} /></Field>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
             <Field label="Ngày cần giao hàng" required invalid={invalidOrderInfoFields.has("requiredDeliveryDate")}><DateInput value={form.requiredDeliveryDate} onChange={(v) => setField("requiredDeliveryDate", v)} /></Field>
             <Field label="Người nhận"><TextInput value={form.receiverName} onChange={(v) => setField("receiverName", v)} /></Field>
             <Field label="Số điện thoại" required invalid={invalidOrderInfoFields.has("receiverPhone")}><TextInput value={form.receiverPhone} onChange={(v) => setField("receiverPhone", v)} /></Field>
-            <Field label="Địa chỉ nhận hàng" required invalid={invalidOrderInfoFields.has("receiverAddress")}><TextInput value={form.receiverAddress} onChange={(v) => setField("receiverAddress", v)} /></Field>
+            <div className="col-span-2 min-w-0">
+              <Field label="Địa chỉ nhận hàng" required invalid={invalidOrderInfoFields.has("receiverAddress")}><TextInput value={form.receiverAddress} onChange={(v) => setField("receiverAddress", v)} /></Field>
+            </div>
             <Field label="Vùng miền"><TextInput value={form.region} onChange={(v) => setField("region", v)} /></Field>
             <Field label="Số Km giao hàng"><NumberInput value={form.deliveryKm} onChange={(v) => setField("deliveryKm", v)} /></Field>
           </div>
@@ -445,9 +498,15 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
         <div className="flex flex-col gap-2 border-b border-slate-200 bg-white px-3 py-2 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-[14px] font-semibold text-slate-900">Chi tiết đơn hàng theo từng bộ cửa</h2>
-            <p className="mt-0.5 text-[10px] text-slate-500">Phụ kiện / chi tiết nhập trực tiếp, không qua dòng tóm tắt trung gian.</p>
+            <p className="mt-0.5 text-[10px] text-slate-500">
+              {form.items.length} bộ cửa · {detailCount} dòng phụ kiện · Tổng {formatMoney(totals.subtotal)}đ
+            </p>
           </div>
-          <Button onClick={addItem}>+ Thêm bộ cửa</Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50" type="button" onClick={collapseAllItems}>Thu gọn tất cả</button>
+            <button className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50" type="button" onClick={expandAllItems}>Mở rộng tất cả</button>
+            <Button onClick={addItem}>+ Thêm bộ cửa</Button>
+          </div>
         </div>
 
         <div className="space-y-3 bg-slate-50 p-2.5">
@@ -472,6 +531,10 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
               onDetailCatalogSelect={applyDetailCatalog}
               optionValues={optionValues}
               showSetNumber={setNumberVisible}
+              collapsed={collapsedItems.has(item.clientId)}
+              onToggleCollapse={() => toggleItemCollapsed(item.clientId)}
+              canRemoveItem={form.items.length > 1}
+              quantityDecimalPlaces={calculationConfig.decimalPlaces}
             />
           ))}
         </div>
@@ -499,7 +562,11 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
       <MasterDatalist id="panel-options" items={optionValues.panel} />
 
       <section className="sticky bottom-2 z-20 flex flex-col gap-2 rounded-lg border border-slate-300 bg-white/95 px-3 py-2 shadow-lg backdrop-blur md:flex-row md:items-center md:justify-between">
-        <div className="text-[11px]">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[11px]">
+          <span className="rounded-md bg-slate-900 px-2 py-1 font-semibold tabular-nums text-white">Cả đơn: {formatMoney(totals.subtotal)}đ</span>
+          <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-slate-600">{form.items.length} bộ cửa</span>
+          <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-slate-600">{detailCount} phụ kiện</span>
+          <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 tabular-nums text-slate-600">Còn lại: {formatMoney(totals.deliveryPayment)}đ</span>
           {message ? <span className={message.type === "ok" ? "text-emerald-700" : "text-red-700"}>{message.text}</span> : null}
         </div>
         <button className="rounded-md bg-cyan-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-cyan-500 disabled:opacity-50" type="button" disabled={busy} onClick={() => void save()}>
@@ -530,6 +597,10 @@ function DoorSetCard({
   onDetailCatalogSelect,
   optionValues,
   showSetNumber,
+  collapsed,
+  onToggleCollapse,
+  canRemoveItem,
+  quantityDecimalPlaces,
 }: {
   item: OrderItemForm;
   itemIndex: number;
@@ -549,6 +620,10 @@ function DoorSetCard({
   onDetailCatalogSelect: (itemIndex: number, detailIndex: number, item: CatalogItem) => void;
   optionValues: { panel: MasterOption[]; opening: MasterOption[]; trim: MasterOption[]; color: MasterOption[] };
   showSetNumber: boolean;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+  canRemoveItem: boolean;
+  quantityDecimalPlaces: number;
 }) {
   const inferredGroup = catalogGroupForCode(doorCatalogItems, item.productCode) || catalogGroupFromText(doorGroups, item.productName);
   const [selectedGroup, setSelectedGroup] = useState(inferredGroup);
@@ -589,30 +664,61 @@ function DoorSetCard({
   return (
     <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <header className="flex flex-col gap-1.5 bg-slate-900 px-3 py-2 text-white lg:flex-row lg:items-center lg:justify-between">
-        <div className="min-w-0">
-          <h3 className="text-[14px] font-semibold tracking-normal">Bộ cửa #{itemIndex + 1}{showSetNumber && item.setNo ? ` · Bộ số ${item.setNo}` : ""}</h3>
-          <p className="mt-0.5 truncate text-[10px] font-normal text-slate-300">
-            {item.productName || selectedGroup || "Chưa chọn sản phẩm"}{item.model || item.productCode ? ` · ${item.model || item.productCode}` : ""}
-          </p>
+        <div className="flex min-w-0 items-start gap-2">
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            title={collapsed ? "Mở rộng bộ cửa" : "Thu gọn bộ cửa"}
+            aria-expanded={!collapsed}
+            className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-slate-600 bg-slate-800 text-[11px] font-bold text-slate-200 hover:bg-slate-700"
+          >
+            {collapsed ? "▸" : "▾"}
+          </button>
+          <div className="min-w-0">
+            <h3 className="text-[14px] font-semibold tracking-normal">Bộ cửa #{itemIndex + 1}{showSetNumber && item.setNo ? ` · Bộ số ${item.setNo}` : ""}</h3>
+            <p className="mt-0.5 truncate text-[10px] font-normal text-slate-300">
+              {item.productName || selectedGroup || "Chưa chọn sản phẩm"}{item.model || item.productCode ? ` · ${item.model || item.productCode}` : ""}
+              {item.quantity ? ` · SL bộ ${item.quantity}` : ""}{collapsed && item.details.length ? ` · ${item.details.length} phụ kiện (đang thu gọn)` : ""}
+            </p>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5 lg:justify-end">
           <div className="mr-1 text-[17px] font-semibold tabular-nums text-white">{formatMoney(itemTotal)}đ</div>
           <button className="rounded-md border border-slate-600 bg-slate-800 px-2.5 py-1 text-[11px] font-medium hover:bg-slate-700" type="button" onClick={() => onDuplicate(itemIndex)}>Nhân bản bộ</button>
-          <button className="rounded-md border border-red-500/70 bg-red-900/60 px-2.5 py-1 text-[11px] font-medium text-red-50 hover:bg-red-800" type="button" onClick={() => onRemoveItem(itemIndex)}>Xóa</button>
+          <button
+            className="rounded-md border border-red-500/70 bg-red-900/60 px-2.5 py-1 text-[11px] font-medium text-red-50 hover:bg-red-800 disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800/60 disabled:text-slate-500"
+            type="button"
+            disabled={!canRemoveItem}
+            title={canRemoveItem ? "Xóa bộ cửa này" : "Đơn hàng phải có ít nhất 1 bộ cửa"}
+            onClick={() => onRemoveItem(itemIndex)}
+          >
+            Xóa
+          </button>
         </div>
       </header>
 
+      {collapsed ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 bg-white px-3 py-2 text-[11px] text-slate-600">
+          <span>SL bộ: <b className="text-slate-900">{item.quantity || "—"}</b></span>
+          <span>KH/Lượng: <b className="text-slate-900">{item.pricingQuantity ? formatPricingQuantityDisplay(item.pricingQuantity, quantityDecimalPlaces) : "—"}</b></span>
+          <span>Đơn giá: <b className="text-slate-900">{formatMoney(numeric(item.unitPrice))}đ</b></span>
+          <span>Ghi chú: <b className="text-slate-900">{item.note ? item.note.slice(0, 60) : "—"}</b></span>
+        </div>
+      ) : (
+      <>
       <div className="p-2.5">
         {/* Full-view UI: 17 trường Bộ cửa trên 1 dòng; ẩn riêng Tên sản phẩm; không cuộn ngang. */}
         <div>
-          <div className="grid grid-cols-[0.58fr_0.9fr_1fr_0.72fr_0.52fr_0.70fr_0.80fr_0.54fr_0.54fr_0.54fr_0.66fr_0.66fr_0.46fr_0.48fr_0.66fr_0.76fr_0.86fr] gap-x-1 gap-y-1.5">
+          {/* V77 (C): giữ 17 trường trên 1 hàng; cân lại tỷ lệ cột để ô nhập rộng hơn và không bị cắt chữ. */}
+          <div className="grid grid-cols-[0.68fr_1fr_1.05fr_0.54fr_0.72fr_0.6fr_0.6fr_0.5fr_0.5fr_0.5fr_0.56fr_0.56fr_0.42fr_0.36fr_0.56fr_0.62fr_0.68fr] gap-x-1 gap-y-1.5">
           <CardField label="Bộ số">
             {/* V75: Bộ số tự tăng dần, không nhập tay. Chỉ hiển thị số đã được tạo. */}
             <CardReadonlyValue
               value={showSetNumber ? item.setNo : ""}
+              placeholder="Tự động"
               title={showSetNumber
                 ? (item.setNo ? `Bộ số ${item.setNo} do hệ thống cấp tự động` : "Bộ số sẽ được tạo tự động khi lưu đơn ở trạng thái Đã xác nhận")
-                : "Bộ số chưa được tạo ở trạng thái Nháp / Chờ khách hàng xác nhận"}
+                : "Bộ số chưa được tạo ở trạng thái Nháp / Chờ khách hàng xác nhận — sẽ tự cấp khi đơn chuyển sang Đã xác nhận"}
             />
           </CardField>
           <CardField label="Nhóm cửa">
@@ -639,8 +745,8 @@ function DoorSetCard({
           <CardField label="Rộng"><CardNumberInput value={item.widthMm} onChange={change("widthMm")} /></CardField>
           <CardField label="Khuôn"><CardNumberInput value={item.frameMm} onChange={change("frameMm")} /></CardField>
 
-          <CardField label="KT thông thủy - Cao"><CardNumberInput value={item.clearHeightMm} onChange={change("clearHeightMm")} /></CardField>
-          <CardField label="KT thông thủy - Rộng"><CardNumberInput value={item.clearWidthMm} onChange={change("clearWidthMm")} /></CardField>
+          <CardField label="TT Cao" title="Kích thước thông thủy - Cao"><CardNumberInput value={item.clearHeightMm} onChange={change("clearHeightMm")} /></CardField>
+          <CardField label="TT Rộng" title="Kích thước thông thủy - Rộng"><CardNumberInput value={item.clearWidthMm} onChange={change("clearWidthMm")} /></CardField>
           <CardField label="SL bộ"><CardNumberInput value={item.quantity} onChange={change("quantity")} /></CardField>
           <CardField label="ĐVT"><CardInput value={item.unit} onChange={change("unit")} /></CardField>
           <CardField label="KH/Lượng"><CardNumberInput value={item.pricingQuantity} onChange={change("pricingQuantity")} step="0.01" /></CardField>
@@ -695,6 +801,8 @@ function DoorSetCard({
           <div className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-3 text-center text-[11px] text-slate-500">Chưa có phụ kiện / chi tiết. Bấm “+ Thêm phụ kiện” để thêm dòng.</div>
         )}
       </section>
+      </>
+      )}
     </article>
   );
 }
@@ -753,9 +861,8 @@ function DetailMasterRow({
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
-      <div>
-          <div className="erp-scrollbar overflow-x-auto pb-1">
-            <div className="grid min-w-[1240px] grid-cols-[1.25fr_1.25fr_0.7fr_0.7fr_0.7fr_0.72fr_0.82fr_0.9fr_0.95fr_1.45fr] gap-1.5">
+          {/* V77: bỏ min-width cứng — lưới co theo màn hình nên không còn thanh cuộn ngang. */}
+          <div className="grid grid-cols-2 gap-1.5 md:grid-cols-4 xl:grid-cols-[0.9fr_1.1fr_0.55fr_0.55fr_0.55fr_0.5fr_0.6fr_0.8fr_0.85fr_1.2fr]">
             <CardField label="Nhóm hàng">
               <CardSelectShell><GridGroupSelect value={selectedGroup} groups={accessoryGroups} placeholder="Chọn nhóm hàng" onChange={changeGroup} /></CardSelectShell>
             </CardField>
@@ -789,9 +896,7 @@ function DetailMasterRow({
                 <button className="h-8 shrink-0 rounded-md border border-red-200 bg-white px-2 text-[10px] font-semibold text-red-600 hover:bg-red-50" type="button" onClick={() => onRemove(detailIndex)}>Xóa</button>
               </div>
             </CardField>
-            </div>
           </div>
-      </div>
     </div>
   );
 }
@@ -809,13 +914,13 @@ function DoorSection({ title, children }: { title: string; children: React.React
   );
 }
 
-function CardField({ label, children, className = "", emphasized = false }: { label: string; children: React.ReactNode; className?: string; emphasized?: boolean }) {
+function CardField({ label, title, children, className = "", emphasized = false }: { label: string; title?: string; children: React.ReactNode; className?: string; emphasized?: boolean }) {
   return (
     <label className={`flex min-w-0 flex-col ${className}`}>
       <div className="mb-0.5 flex h-7 shrink-0 min-w-0 items-end">
         <span
-          className={`inline-flex max-h-7 max-w-full items-center rounded border px-1.5 py-0.5 text-[9px] font-semibold leading-[10px] ${emphasized ? "border-cyan-200 bg-cyan-50 text-cyan-700" : "border-slate-200 bg-slate-100 text-slate-600"}`}
-          title={label}
+          className={`inline-flex max-h-7 max-w-full items-center rounded border px-1 py-0.5 text-[9px] font-semibold leading-[10px] ${emphasized ? "border-cyan-200 bg-cyan-50 text-cyan-700" : "border-slate-200 bg-slate-100 text-slate-600"}`}
+          title={title ?? label}
         >
           <span className="whitespace-normal break-words">{label}</span>
         </span>
@@ -834,13 +939,13 @@ function CardInput({ value, onChange, placeholder, listId }: { value: string; on
 }
 
 /** V75: ô chỉ đọc cho Bộ số — hệ thống tự cấp, người dùng không nhập tay. */
-function CardReadonlyValue({ value, title }: { value: string; title?: string }) {
+function CardReadonlyValue({ value, title, placeholder = "—" }: { value: string; title?: string; placeholder?: string }) {
   return (
     <div
       className={`flex h-8 w-full min-w-0 items-center rounded-md border px-2 text-[11px] font-semibold tabular-nums ${value ? "border-sky-200 bg-sky-50 text-sky-900" : "border-dashed border-slate-300 bg-slate-100 text-slate-400"}`}
       title={title}
     >
-      <span className="truncate">{value || "—"}</span>
+      <span className={`truncate ${value ? "" : "text-[10px] font-normal italic"}`}>{value || placeholder}</span>
     </div>
   );
 }

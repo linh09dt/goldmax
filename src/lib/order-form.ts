@@ -209,6 +209,15 @@ function draftOrderCode(date: Date) {
   return `NHAP-${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
 }
 
+/**
+ * V77: ngày hôm nay theo giờ MÁY NGƯỜI DÙNG. `toDateInput` dùng getUTC* nên khi
+ * server ở UTC (Vercel) đơn tạo trước 7h sáng giờ VN sẽ bị mặc định sang ngày hôm trước.
+ */
+export function localTodayInput(date: Date = new Date()) {
+  const pad = (value: number) => value.toString().padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 export function toDateInput(value: Date | string | null | undefined) {
   if (!value) return "";
   const date = value instanceof Date ? value : new Date(value);
