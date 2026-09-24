@@ -13,6 +13,9 @@ type Props = {
 
 type ExportType = "excel" | "pdf" | "excelV2" | "pdfV2" | null;
 
+// V41.26: tạm ẩn các nút export cũ. Giữ nguyên code/route để có thể bật lại khi cần.
+const SHOW_LEGACY_EXPORT_BUTTONS = false;
+
 export function OrderExportButtons({
   orderId,
   compact = false,
@@ -113,13 +116,13 @@ export function OrderExportButtons({
         // người dùng bị kẹt ở trang 500; cột Hình ảnh SP vẫn còn nhưng ảnh để trống.
         try {
           await downloadPdfV2(`/api/order_pdf_v2?orderId=${orderId}&noImages=1${notePart}`);
-          setExportError("PDF đã xuất ở chế độ an toàn vì ảnh sản phẩm tải quá chậm. Vui lòng thử lại PDF V2 để lấy bản có ảnh.");
-          window.alert("PDF V2 đầy đủ gặp lỗi trên server. Hệ thống đã tự xuất bản an toàn không nhúng ảnh sản phẩm.");
+          setExportError("PDF đã xuất ở chế độ an toàn vì ảnh sản phẩm tải quá chậm. Vui lòng thử lại để lấy bản có ảnh.");
+          window.alert("Xuất PDF đầy đủ gặp lỗi trên server. Hệ thống đã tự xuất bản an toàn không nhúng ảnh sản phẩm.");
           setExportType(null);
           setNote("");
         } catch (safeError) {
           const message = safeError instanceof Error ? safeError.message : String(safeError);
-          setExportError(`Không thể xuất PDF V2: ${message}`);
+          setExportError(`Không thể xuất PDF: ${message}`);
         }
       } finally {
         setIsExporting(false);
@@ -134,14 +137,18 @@ export function OrderExportButtons({
   const actionLabel = exportType === "excel" ? "Xuất Excel"
     : exportType === "pdf" ? "Xuất PDF"
       : exportType === "excelV2" ? "Xuất Excel V2"
-        : "Xuất PDF V2";
+        : "Xuất PDF";
 
   return (
     <>
-      <button type="button" className={excelClass} onClick={() => openDialog("excel")}>{excelLabel}</button>
-      <button type="button" className={pdfClass} onClick={() => openDialog("pdf")}>{pdfLabel}</button>
-      <button type="button" className={excelV2Class} onClick={() => openDialog("excelV2")}>Xuất Excel V2</button>
-      <button type="button" className={pdfV2Class} onClick={() => openDialog("pdfV2")}>PDF V2</button>
+      {SHOW_LEGACY_EXPORT_BUTTONS ? (
+        <>
+          <button type="button" className={excelClass} onClick={() => openDialog("excel")}>{excelLabel}</button>
+          <button type="button" className={pdfClass} onClick={() => openDialog("pdf")}>{pdfLabel}</button>
+          <button type="button" className={excelV2Class} onClick={() => openDialog("excelV2")}>Xuất Excel V2</button>
+        </>
+      ) : null}
+      <button type="button" className={pdfV2Class} onClick={() => openDialog("pdfV2")}>Xuất PDF</button>
 
       {exportType ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 p-4" onMouseDown={closeDialog}>

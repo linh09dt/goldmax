@@ -14,7 +14,7 @@ export default function GuidePage() {
             <Step no="1" title="Cấu hình dữ liệu" text="Kiểm tra Danh mục hàng hóa, giá và các danh mục chọn." href="/items" />
             <Step no="2" title="Tạo đơn hàng" text="Nhập thông tin khách hàng, bộ cửa, chi tiết và giá." href="/orders/new" />
             <Step no="3" title="Tính vận chuyển" text="Chọn đơn, vùng miền, quãng đường và áp dụng cước." href="/shipping" />
-            <Step no="4" title="Quản lý đơn" text="Tra cứu, sửa, xuất Excel, PDF hoặc xóa đơn." href="/orders" />
+            <Step no="4" title="Quản lý đơn" text="Tra cứu, sửa, xuất PDF hoặc xóa đơn." href="/orders" />
             <Step no="5" title="Theo dõi doanh thu" text="Lọc doanh thu theo thời gian, đại lý và khách hàng." href="/revenue" />
           </div>
         </section>
@@ -35,8 +35,7 @@ export default function GuidePage() {
             ["Xuất Excel danh sách", "Xuất danh sách đơn theo bộ lọc hiện tại, gồm toàn bộ hàng hóa theo từng đơn."],
             ["Sửa", "Mở đơn để chỉnh sửa thông tin và hàng hóa."],
             ["Xóa đơn", "Xóa đơn hàng sau khi xác nhận."],
-            ["Xuất Excel", "Xuất riêng một đơn hàng ra Excel."],
-            ["PDF", "Mở bản in của đơn để in hoặc lưu PDF."],
+            ["Xuất PDF", "Xuất PDF V2 của đơn hàng. Các nút Excel/PDF cũ và Excel V2 hiện đang tạm ẩn."],
             ["Số đơn hàng", "Bấm vào số đơn để xem chi tiết đơn hàng."],
           ]} />
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
