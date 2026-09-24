@@ -812,12 +812,16 @@ def _soften_row_lines(commands: list[tuple[Any, ...]], row_no: int, cols: int, s
         commands.append(("LINEAFTER", (col, row_no), (col, row_no), 0.45, BORDER_SOFT))
 
 
-def _item_note_flowable(note: str, main: bool) -> Paragraph:
-    """V66/V67: nội dung hàng "GHI CHÚ KỸ THUẬT" của một dòng hàng — chữ đỏ."""
+def _item_note_flowable(note: str, main: bool, set_no: str = "") -> Paragraph:
+    """V66/V67/V69: nội dung hàng "GHI CHÚ KỸ THUẬT" của một bộ cửa — chữ đỏ.
+
+    V69: nhãn kèm bộ số, dạng: GHI CHÚ KỸ THUẬT (Bộ số 12119): <nội dung>
+    """
     style = S["note"] if main else S["detail"]
     red = NOTE_RED.hexval()[2:]
+    label = f'GHI CHÚ KỸ THUẬT (Bộ số {esc(set_no)}):' if set_no else "GHI CHÚ KỸ THUẬT:"
     return Paragraph(
-        f'<font name="{FONTS["bold"]}" color="#{red}">GHI CHÚ KỸ THUẬT:</font> '
+        f'<font name="{FONTS["bold"]}" color="#{red}">{label}</font> '
         f'<font color="#{red}">{esc(note)}</font>',
         style,
     )
@@ -885,8 +889,11 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
         # V68: ghi chú kỹ thuật của bộ cửa được in ở CUỐI bộ (sau dòng phụ kiện cuối cùng),
         # không in ngay dưới dòng hàng nữa; bộ chỉ có dòng cửa thì ghi chú nằm ngay dưới dòng đó.
         group_has_detail = any(not bool(entry["main"]) for entry in group["rows"])
+        group_set_no = clean(group.get("setNo"))
         for note_text, note_main in pending_notes:
-            data.append([_item_note_flowable(note_text, note_main)] + [""] * (len(header_top) - 1))
+            data.append(
+                [_item_note_flowable(note_text, note_main, group_set_no)] + [""] * (len(header_top) - 1)
+            )
             note_rows.append((len(data) - 1, note_main, group_has_detail))
         group_end = len(data) - 1
         if group_end >= group_start:

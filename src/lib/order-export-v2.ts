@@ -92,8 +92,9 @@ export async function buildOrderExcelV2(order: ExportableOrderV2, exportNote = "
       rowNo += 1;
       if (note) pendingNotes.push({ note, main: entry.main });
     }
+    const groupSetNo = cleanText(group.setNo) || "";
     for (const [index, item] of pendingNotes.entries()) {
-      rowNo = writeItemNoteRow(ws, rowNo, item.note, item.main, groupHasDetail, index === pendingNotes.length - 1);
+      rowNo = writeItemNoteRow(ws, rowNo, item.note, item.main, groupHasDetail, index === pendingNotes.length - 1, groupSetNo);
     }
     stripe += 1;
   }
@@ -367,10 +368,13 @@ function writeItemNoteRow(
   main: boolean,
   groupHasDetail: boolean,
   isLastNote: boolean,
+  setNo: string,
 ) {
   ws.mergeCells(`A${rowNo}:S${rowNo}`);
   const cell = ws.getCell(`A${rowNo}`);
-  cell.value = `GHI CHÚ KỸ THUẬT: ${note}`;
+  // V69: nhãn kèm bộ số — GHI CHÚ KỸ THUẬT (Bộ số 12119): <nội dung>
+  const label = setNo ? `GHI CHÚ KỸ THUẬT (Bộ số ${setNo}):` : "GHI CHÚ KỸ THUẬT:";
+  cell.value = `${label} ${note}`;
   // V67: chữ đỏ. Đường kẻ: mép trên theo dòng cha (cửa = viền thường, phụ kiện = viền mờ),
   // mép dưới mờ nếu bên dưới là khối phụ kiện chi tiết.
   cell.font = { ...BASE_FONT, size: 9.5, italic: true, color: { argb: NOTE_RED } };
