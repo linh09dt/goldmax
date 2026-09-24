@@ -509,15 +509,15 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+      <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <div className="erp-card">
           <SectionTitle title="Câu hỏi thêm / Xác nhận" />
           <div className="divide-y divide-slate-200">
             {form.requirements.map((row, index) => (
-              <div className="grid gap-3 p-4 md:grid-cols-[1fr_190px_1fr] md:items-center" key={row.code}>
-                <div className="font-medium text-slate-800">{index + 1}. {row.questionText}</div>
+              <div className="grid gap-2 px-4 py-2 md:grid-cols-[1fr_190px_1fr] md:items-center" key={row.code}>
+                <div className="text-[12px] font-medium leading-4 text-slate-800">{index + 1}. {row.questionText}</div>
                 <select
-                  className="erp-input"
+                  className="erp-input !px-2 !py-1 !text-[10px]"
                   value={row.answer}
                   onChange={(e) => setField("requirements", form.requirements.map((item, i) => i === index ? { ...item, answer: e.target.value } : item))}
                 >
@@ -527,10 +527,11 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
                   <option value="Đã xác nhận">Đã xác nhận</option>
                   <option value="Không áp dụng">Không áp dụng</option>
                 </select>
-                <TextInput
+                <input
+                  className="erp-input !px-2 !py-1 !text-[10px]"
                   placeholder="Ghi chú xác nhận"
                   value={row.note}
-                  onChange={(value) => setField("requirements", form.requirements.map((item, i) => i === index ? { ...item, note: value } : item))}
+                  onChange={(e) => setField("requirements", form.requirements.map((item, i) => i === index ? { ...item, note: e.target.value } : item))}
                 />
               </div>
             ))}
@@ -539,7 +540,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
 
         <div className="erp-card">
           <SectionTitle title="Tổng hợp giá trị đơn hàng" />
-          <div className="space-y-3 p-5">
+          <div className="space-y-1.5 p-3">
             <MoneyField label="Cước vận chuyển cả đơn hàng" value={form.shippingFee} onChange={(v) => setField("shippingFee", v)} />
             <MoneyDisplay label="Tổng tiền đơn hàng" value={totals.subtotal} emphasis />
             <PercentField label="Chiết khấu (%)" value={form.discountPercent} onChange={(v) => setField("discountPercent", v)} />
@@ -782,7 +783,7 @@ function numericOrNull(value: string) { if (!String(value || "").trim()) return 
 function percent(value: string) { return Math.min(100, Math.max(0, numeric(value))); }
 function formatMoney(value: number) { return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(value); }
 
-function SectionTitle({ title }: { title: string }) { return <div className="border-b border-slate-200 bg-slate-50 px-5 py-4"><h2 className="font-bold text-slate-900">{title}</h2></div>; }
+function SectionTitle({ title }: { title: string }) { return <div className="border-b border-slate-200 bg-slate-50 px-4 py-2"><h2 className="text-[12px] font-bold leading-5 text-slate-900">{title}</h2></div>; }
 function Field({ label, children, required, invalid }: { label: string; children: React.ReactNode; required?: boolean; invalid?: boolean }) {
   const invalidClass = invalid
     ? " [&_input]:border-red-500 [&_select]:border-red-500 [&_textarea]:border-red-500 [&_input]:ring-1 [&_select]:ring-1 [&_textarea]:ring-1 [&_input]:ring-red-200 [&_select]:ring-red-200 [&_textarea]:ring-red-200"
@@ -1099,15 +1100,15 @@ function ImageCell({ path, onUpload }: { path: string; onUpload: (file: File) =>
 function MasterDatalist({ id, items }: { id: string; items: MasterOption[] }) {
   return <datalist id={id}>{items.map((item) => <option key={`${item.groupCode}-${item.id}`} value={item.code}>{item.name}</option>)}</datalist>;
 }
-function MoneyField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) { return <div className="flex items-center justify-between gap-4"><label className="text-sm text-slate-600">{label}</label><input className="erp-input w-44 text-right" type="number" value={value} onChange={(e) => onChange(e.target.value)} /></div>; }
+function MoneyField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) { return <div className="flex items-center justify-between gap-3"><label className="text-[10px] leading-4 text-slate-600">{label}</label><input className="erp-input w-44 !px-2 !py-1 !text-[10px] text-right" type="number" value={value} onChange={(e) => onChange(e.target.value)} /></div>; }
 function PercentField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
-    <div className="flex items-center justify-between gap-4">
-      <label className="text-sm text-slate-600">{label}</label>
-      <div className="flex items-center gap-2">
+    <div className="flex items-center justify-between gap-3">
+      <label className="text-[10px] leading-4 text-slate-600">{label}</label>
+      <div className="flex items-center gap-1.5">
         <input
           aria-label={label}
-          className="erp-input w-32 border-cyan-300 bg-white text-right font-semibold text-slate-900"
+          className="erp-input w-32 !px-2 !py-1 !text-[10px] border-cyan-300 bg-white text-right font-semibold text-slate-900"
           type="number"
           inputMode="decimal"
           min="0"
@@ -1117,9 +1118,9 @@ function PercentField({ label, value, onChange }: { label: string; value: string
           onChange={(e) => onChange(e.target.value)}
           onFocus={(e) => e.currentTarget.select()}
         />
-        <span className="font-semibold text-slate-600">%</span>
+        <span className="text-[10px] font-semibold text-slate-600">%</span>
       </div>
     </div>
   );
 }
-function MoneyDisplay({ label, value, emphasis }: { label: string; value: number; emphasis?: boolean }) { return <div className={`flex items-center justify-between gap-4 rounded-lg px-3 py-2 ${emphasis ? "bg-slate-900 text-white" : "bg-slate-100"}`}><span className="text-sm">{label}</span><strong>{formatMoney(value)} đ</strong></div>; }
+function MoneyDisplay({ label, value, emphasis }: { label: string; value: number; emphasis?: boolean }) { return <div className={`flex items-center justify-between gap-3 rounded-lg px-3 py-1.5 text-[10px] leading-4 ${emphasis ? "bg-slate-900 text-white" : "bg-slate-100"}`}><span>{label}</span><strong className="text-[11px]">{formatMoney(value)} đ</strong></div>; }
