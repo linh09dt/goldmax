@@ -45,28 +45,26 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         </>
       }
     >
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6">
-        <Info title="Trạng thái" value={statusLabel(order.status)} />
-        <Info title="Ngày đặt hàng" value={formatDate(order.orderDate)} />
-        <Info title="Ngày cần giao" value={formatDate(order.requiredDeliveryDate)} />
-        <Info title="NVKD" value={order.salesEmployeeCode || "—"} />
-        <Info title="Vùng miền" value={order.region || "—"} />
-        <Info title="Nhóm" value={order.groupNo?.toString() || "—"} />
-        <Info title="Người nhận" value={order.receiverName || "—"} />
-        <Info title="Số điện thoại" value={order.receiverPhone || "—"} />
-        <Info title="Số Km giao hàng" value={order.deliveryKm?.toString() || "—"} />
-        <Info title="Mã biểu mẫu" value={order.formCode || "—"} />
-        <Info title="Ngày hiệu lực" value={formatDate(order.formEffectiveDate)} />
-        <Info title="Nguồn dữ liệu" value={order.sourceFileName ? `Excel: ${order.sourceFileName}` : "Nhập trực tiếp"} />
-      </section>
-
-      <section className="erp-card mt-6">
-        <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
-          <h2 className="font-bold">Thông tin giao hàng</h2>
+      <section className="erp-card overflow-hidden">
+        <div className="border-b border-slate-200 bg-slate-50 px-3 py-1.5">
+          <h2 className="text-[12px] font-semibold tracking-normal text-slate-900">Thông tin đơn hàng</h2>
         </div>
-        <div className="grid gap-4 p-5 md:grid-cols-2">
-          <InfoPlain title="Địa chỉ nhận hàng" value={order.receiverAddress || "—"} />
-          <InfoPlain title="Ngày cập nhật theo mẫu" value={formatDate(order.excelUpdateDate)} />
+        <div className="p-2.5">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-[1.18fr_0.88fr_0.96fr_1.05fr_1.12fr_1.28fr_0.96fr_1.02fr_0.98fr_0.88fr_1.42fr_0.78fr_0.82fr]">
+            <OrderInfoField label="Mã đơn hàng" value={order.orderCode} required />
+            <OrderInfoField label="Trạng thái" value={statusLabel(order.status)} required />
+            <OrderInfoField label="Ngày cập nhật" value={formatDate(order.excelUpdateDate)} required />
+            <OrderInfoField label="NVKD phụ trách" value={order.salesEmployeeCode || "—"} required />
+            <OrderInfoField label="Mã Đại Lý" value={order.customerCode || "—"} required />
+            <OrderInfoField label="Tên khách hàng" value={order.customerName || "—"} required />
+            <OrderInfoField label="Ngày đặt hàng" value={formatDate(order.orderDate)} required />
+            <OrderInfoField label="Ngày cần giao hàng" value={formatDate(order.requiredDeliveryDate)} required />
+            <OrderInfoField label="Người nhận" value={order.receiverName || "—"} required />
+            <OrderInfoField label="Số điện thoại" value={order.receiverPhone || "—"} required />
+            <OrderInfoField label="Địa chỉ nhận hàng" value={order.receiverAddress || "—"} required />
+            <OrderInfoField label="Vùng miền" value={order.region || "—"} required />
+            <OrderInfoField label="Số Km giao hàng" value={order.deliveryKm?.toString() || "—"} required />
+          </div>
         </div>
       </section>
 
@@ -210,8 +208,18 @@ function ProductImage({ path }: { path: string }) {
     </a>
   );
 }
-function Info({ title, value }: { title: string; value: string }) { return <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</p><p className="mt-1 font-semibold text-slate-900">{value}</p></div>; }
-function InfoPlain({ title, value }: { title: string; value: string }) { return <div><div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</div><div className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{value}</div></div>; }
+function OrderInfoField({ label, value, required = false }: { label: string; value: string; required?: boolean }) {
+  return (
+    <div className="min-w-0">
+      <div className="flex min-h-[28px] items-end pb-0.5 text-[10px] font-medium uppercase leading-[1.05] text-slate-500">
+        <span className="break-words">{label}{required ? <span className="ml-0.5 text-cyan-700">*</span> : null}</span>
+      </div>
+      <div className="flex h-8 min-w-0 items-center overflow-hidden rounded-md border border-slate-300 bg-white px-2 text-[12px] font-medium text-blue-800 shadow-sm">
+        <span className="min-w-0 truncate" title={value}>{value}</span>
+      </div>
+    </div>
+  );
+}
 function Th({ children, rowSpan, colSpan, center = false }: { children: React.ReactNode; rowSpan?: number; colSpan?: number; center?: boolean }) { return <th rowSpan={rowSpan} colSpan={colSpan} className={`overflow-hidden break-words border border-slate-300 px-1 py-1.5 align-middle font-semibold ${center ? "text-center" : "text-left"}`}>{children}</th>; }
 function Td({ children }: { children: React.ReactNode; wide?: boolean }) { return <td className="min-w-0 overflow-hidden break-words border border-slate-200 px-1 py-1.5 align-top">{children}</td>; }
 function MoneyLine({ label, value, strong, percent }: { label: string; value: unknown; strong?: boolean; percent?: boolean }) { return <div className={`flex justify-between gap-4 rounded-lg px-3 py-2 ${strong ? "bg-slate-900 text-white" : "bg-slate-50"}`}><span>{label}</span><span className="font-semibold">{percent ? `${formatNumber(value)} %` : formatMoney(value)}</span></div>; }
