@@ -239,7 +239,7 @@ export default async function OrdersPage({
         <div className="w-full">
           <table className="w-full table-fixed border-collapse text-[8px] 2xl:text-[9px]">
             <colgroup>
-              {[3.2, 5.3, 3.2, 7.5, 3.2, 3.2, 4.3, 3.2, 3.2, 4.3, 2.1, 2.1, 2.1, 2.7, 2.7, 2.7, 2.7, 2.7, 2.7, 2.7, 2.7, 3.2, 2.7, 2.1, 2.1, 3.2, 4.3, 4.3].map((width, index) => (
+              {[3.2, 5.3, 3.2, 7.5, 3.2, 3.2, 4.3, 3.2, 3.2, 4.3, 2.1, 2.1, 2.1, 2.7, 2.7, 2.7, 2.7, 2.7, 2.7, 2.1, 3.2, 4.3, 4.3].map((width, index) => (
                 <col key={index} style={{ width: `${width}%` }} />
               ))}
             </colgroup>
@@ -264,11 +264,6 @@ export default async function OrdersPage({
                 <Th>Độ dày khuôn</Th>
                 <Th>Cao thông thủy</Th>
                 <Th>Rộng thông thủy</Th>
-                <Th>Số thanh phào / bộ</Th>
-                <Th>Loại phào</Th>
-                <Th>Model Khóa</Th>
-                <Th>Kiểu song</Th>
-                <Th>Số Cánh/bộ</Th>
                 <Th>Số lượng</Th>
                 <Th>KH/Lượng</Th>
                 <Th>Đơn giá</Th>
@@ -278,7 +273,7 @@ export default async function OrdersPage({
             <tbody className="divide-y divide-slate-200 bg-white">
               {visibleLines.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-12 text-center text-slate-500" colSpan={28}>
+                  <td className="px-4 py-12 text-center text-slate-500" colSpan={23}>
                     Chưa có dòng đơn hàng nào có KH/Lượng lớn hơn 0.
                   </td>
                 </tr>
@@ -307,7 +302,7 @@ export default async function OrdersPage({
                   <Fragment key={`${order.id}-${line.id}`}>
                     {firstLineOfOrder ? (
                       <tr className={`${groupDivider} ${evenGroup ? "bg-cyan-50" : "bg-indigo-50"}`}>
-                        <td colSpan={28} className="border-b border-slate-200 px-2 py-1.5">
+                        <td colSpan={23} className="border-b border-slate-200 px-2 py-1.5">
                           <div className="flex flex-wrap items-center gap-2">
                             <Link
                               className="inline-flex h-8 items-center justify-center rounded-md border border-cyan-700 bg-cyan-600 px-3 text-[11px] font-semibold text-white shadow-sm transition hover:bg-cyan-500"
@@ -348,11 +343,6 @@ export default async function OrdersPage({
                       <Td className="text-right">{formatNumber(line.frameMm)}</Td>
                       <Td className="text-right">{formatNumber(line.clearHeightMm)}</Td>
                       <Td className="text-right">{formatNumber(line.clearWidthMm)}</Td>
-                      <Td className="text-right">{formatNumber(line.trimBarsPerSet)}</Td>
-                      <Td>{line.trimType || "—"}</Td>
-                      <Td>{line.lockModel || "—"}</Td>
-                      <Td>{line.windowBars || "—"}</Td>
-                      <Td className="text-right">{formatNumber(line.leavesPerSet)}</Td>
                       <Td className="text-right">{formatNumber(line.quantity)}</Td>
                       <Td className="bg-blue-50 text-right font-bold text-blue-950">{formatDecimal(line.pricingQuantity)}</Td>
                       <Td className="text-right">{formatMoney(line.unitPrice)}</Td>
