@@ -721,6 +721,7 @@ function DetailCard({ row, itemIndex, detailIndex, onChange, onUpload, onRemove,
   const title = row.productName || selectedGroup || "Chưa chọn chi tiết / phụ kiện";
   const code = row.productCode || row.model;
   const isNew = !row.productName && !row.productCode;
+  const [isOpen, setIsOpen] = useState(detailIndex < 3 || isNew);
 
   function changeGroup(nextGroup: string) {
     setSelectedGroup(nextGroup);
@@ -748,7 +749,11 @@ function DetailCard({ row, itemIndex, detailIndex, onChange, onUpload, onRemove,
       : [["Cao (mm)", "heightMm"], ["Rộng (mm)", "widthMm"], ["Khuôn (mm)", "frameMm"]] as const;
 
   return (
-    <details className="group rounded-xl border border-slate-200 bg-white shadow-sm open:ring-1 open:ring-cyan-100" defaultOpen={detailIndex < 3 || isNew}>
+    <details
+      className="group rounded-xl border border-slate-200 bg-white shadow-sm open:ring-1 open:ring-cyan-100"
+      open={isOpen}
+      onToggle={(event) => setIsOpen(event.currentTarget.open)}
+    >
       <summary className="cursor-pointer list-none px-3 py-3 marker:hidden">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-2">
