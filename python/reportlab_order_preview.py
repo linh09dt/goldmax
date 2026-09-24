@@ -26,6 +26,9 @@ from reportlab.pdfgen import canvas as pdfcanvas
 from reportlab.platypus import Image, LongTable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from python.reportlab_order_v2 import (
+    FOOTNOTE_BORDER,
+    FOOTNOTE_FILL,
+    FOOTNOTE_LEAD,
     FOOTNOTE_LINES,
     FOOTNOTE_TITLE,
     FONTS,
@@ -119,6 +122,7 @@ STYLES = {
     "summary_total": pstyle("preview_summary_total", size=7.8, leading=8.9, bold=True, color=WHITE),
     "summary_total_amount": pstyle("preview_summary_total_amount", size=8.0, leading=9.1, bold=True, color=WHITE, align=TA_RIGHT),
     "footnote_title": pstyle("preview_footnote_title", size=6.6, leading=7.8, bold=True, color=MUTED),
+    "footnote_lead": pstyle("preview_footnote_lead", size=6.6, leading=7.8, bold=True, color=MUTED),
     "footnote": pstyle("preview_footnote", size=6.6, leading=7.8, color=MUTED),
 }
 
@@ -426,15 +430,20 @@ def _items_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | No
 
 
 def _footnote_block() -> Table:
-    """V53: ghi chú nhỏ ở góc dưới bên trái (chữ nhỏ, màu xám, không viền)."""
-    rows: list[list[Any]] = [[para(FOOTNOTE_TITLE, "footnote_title")]]
+    """V53/V54: hộp ghi chú nhỏ ở góc dưới bên trái (chữ nhỏ xám, khung + nền nhạt nhạt)."""
+    rows: list[list[Any]] = [
+        [para(FOOTNOTE_TITLE, "footnote_title")],
+        [para(FOOTNOTE_LEAD, "footnote_lead")],
+    ]
     rows += [[para(line, "footnote")] for line in FOOTNOTE_LINES]
     table = Table(rows, colWidths=[CONTENT_W * 0.60])
     table.setStyle(TableStyle([
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ("TOPPADDING", (0, 0), (-1, -1), 0.6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 0.6),
+        ("BACKGROUND", (0, 0), (-1, -1), FOOTNOTE_FILL),
+        ("BOX", (0, 0), (-1, -1), 0.6, FOOTNOTE_BORDER),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 2.2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2.2),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
     ]))
     return table

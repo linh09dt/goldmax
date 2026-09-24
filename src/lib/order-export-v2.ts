@@ -15,10 +15,11 @@ const BORDER = { style: "thin" as const, color: { argb: "FFD1D5DB" } };
 const ALL_BORDERS = { top: BORDER, left: BORDER, bottom: BORDER, right: BORDER };
 const BASE_FONT = { name: "Arial", size: 11, color: { argb: TEXT } };
 
-// V53: ghi chú nhỏ in ở góc dưới bên trái (chữ nhỏ, màu xám, không viền/nền để không làm nổi bật).
+// V53/V54: hộp ghi chú nhỏ in ở góc dưới bên trái (khung + nền nhạt nhạt, chữ nhỏ màu xám, không làm nổi bật).
+const FOOTNOTE_FILL = "FFF8FAFC";
 const FOOTNOTE_TITLE = "Ghi chú:";
+const FOOTNOTE_LEAD = "Khách hàng xác nhận các thông tin sau:";
 const FOOTNOTE_LINES = [
-  "Khách hàng xác nhận các thông tin sau:",
   "- Kích thước đã trừ khe hở chưa?",
   "- Nền có giật cấp hay không?",
   "- Mép tường có đắp phào xi măng hay không?",
@@ -387,19 +388,25 @@ function writeSummary(
   ws.getCell(`L${r}`).alignment = { horizontal: "right", vertical: "top", wrapText: true };
   styleRange(ws, `L${r}:S${wordsEnd}`, WHITE, true);
 
-  // V53: ghi chú nhỏ ở góc dưới bên trái bản in (cột A→K, chữ 8pt xám, không viền/nền).
-  let noteRow = wordsEnd + 2;
-  const noteLines = [FOOTNOTE_TITLE, ...FOOTNOTE_LINES];
-  for (const [index, line] of noteLines.entries()) {
+  // V53/V54: hộp ghi chú ở góc dưới bên trái bản in (cột A→K): khung + nền nhạt, chữ 8pt xám.
+  const noteStart = wordsEnd + 2;
+  let noteRow = noteStart;
+  const noteLines: Array<{ text: string; bold: boolean }> = [
+    { text: FOOTNOTE_TITLE, bold: true },
+    { text: FOOTNOTE_LEAD, bold: true },
+    ...FOOTNOTE_LINES.map((text) => ({ text, bold: false })),
+  ];
+  for (const line of noteLines) {
     ws.mergeCells(`A${noteRow}:K${noteRow}`);
     const cell = ws.getCell(`A${noteRow}`);
-    cell.value = line;
-    cell.font = { ...BASE_FONT, size: 8, bold: index === 0, color: { argb: MUTED } };
+    cell.value = line.text;
+    cell.font = { ...BASE_FONT, size: 8, bold: line.bold, color: { argb: MUTED } };
     cell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
     // Ước lượng số dòng cần cho câu dài để không bị Excel cắt chữ.
-    ws.getRow(noteRow).height = 13 * Math.max(1, Math.ceil(line.length / 140));
+    ws.getRow(noteRow).height = 13 * Math.max(1, Math.ceil(line.text.length / 140));
     noteRow += 1;
   }
+  styleRange(ws, `A${noteStart}:K${noteRow - 1}`, FOOTNOTE_FILL, true);
   return noteRow - 1;
 }
 

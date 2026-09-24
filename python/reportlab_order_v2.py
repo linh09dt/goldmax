@@ -66,10 +66,12 @@ COMPANY_LINE = "\n".join([
 ])
 TITLE = "THÔNG TIN ĐƠN HÀNG"
 
-# V53: ghi chú nhỏ in ở góc dưới bên trái trang cuối (chữ nhỏ, không viền, không làm nổi bật).
+# V53/V54: hộp ghi chú nhỏ in ở góc dưới bên trái trang cuối (khung + nền nhạt nhạt, chữ nhỏ, không làm nổi bật).
+FOOTNOTE_FILL = colors.HexColor("#F8FAFC")
+FOOTNOTE_BORDER = colors.HexColor("#C9D5E3")
 FOOTNOTE_TITLE = "Ghi chú:"
+FOOTNOTE_LEAD = "Khách hàng xác nhận các thông tin sau:"
 FOOTNOTE_LINES = [
-    "Khách hàng xác nhận các thông tin sau:",
     "- Kích thước đã trừ khe hở chưa?",
     "- Nền có giật cấp hay không?",
     "- Mép tường có đắp phào xi măng hay không?",
@@ -201,6 +203,7 @@ S = {
     "summary_total_amount": pstyle("summary_total_amount", size=9.5, font="bold", color=WHITE, align=TA_RIGHT),
     "words": pstyle("words", size=8.4, leading=9.4, font="italic", color=MUTED, align=TA_RIGHT),
     "footnote_title": pstyle("footnote_title", size=7.2, leading=8.6, font="bold", color=MUTED),
+    "footnote_lead": pstyle("footnote_lead", size=7.2, leading=8.6, font="bold", color=MUTED),
     "footnote": pstyle("footnote", size=7.2, leading=8.6, color=MUTED),
     "sign": pstyle("sign", size=9.3, leading=10.5, font="bold", align=TA_CENTER),
     "sign_sub": pstyle("sign_sub", size=8.3, leading=9.3, color=MUTED, align=TA_CENTER),
@@ -742,15 +745,20 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
 
 
 def _footnote_block() -> Table:
-    """Ghi chú nhỏ ở góc dưới bên trái: chữ nhỏ, màu xám, không viền/nền để không làm nổi bật."""
-    rows: list[list[Any]] = [[para(FOOTNOTE_TITLE, "footnote_title")]]
+    """Hộp ghi chú nhỏ ở góc dưới bên trái: chữ nhỏ màu xám, có khung + nền nhạt nhạt."""
+    rows: list[list[Any]] = [
+        [para(FOOTNOTE_TITLE, "footnote_title")],
+        [para(FOOTNOTE_LEAD, "footnote_lead")],
+    ]
     rows += [[para(line, "footnote")] for line in FOOTNOTE_LINES]
     table = Table(rows, colWidths=[CONTENT_W * 0.60])
     table.setStyle(TableStyle([
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ("TOPPADDING", (0, 0), (-1, -1), 0.6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 0.6),
+        ("BACKGROUND", (0, 0), (-1, -1), FOOTNOTE_FILL),
+        ("BOX", (0, 0), (-1, -1), 0.6, FOOTNOTE_BORDER),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 2.2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2.2),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
     ]))
     return table
