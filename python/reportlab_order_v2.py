@@ -66,6 +66,19 @@ COMPANY_LINE = "\n".join([
 ])
 TITLE = "THÔNG TIN ĐƠN HÀNG"
 
+# V53: ghi chú nhỏ in ở góc dưới bên trái trang cuối (chữ nhỏ, không viền, không làm nổi bật).
+FOOTNOTE_TITLE = "Ghi chú:"
+FOOTNOTE_LINES = [
+    "Khách hàng xác nhận các thông tin sau:",
+    "- Kích thước đã trừ khe hở chưa?",
+    "- Nền có giật cấp hay không?",
+    "- Mép tường có đắp phào xi măng hay không?",
+    (
+        "- Khách hàng lên đơn lưu ý kiểm tra lại thông tin đơn hàng chăm sóc đã lên trước khi chốt cọc sx, "
+        "mọi sai xót bên phía nhà máy không chịu trách nhiệm khi đã chốt cọc sx."
+    ),
+]
+
 # Logo GOLDMAX nhúng trực tiếp để PDF V2 vẫn có logo trên Vercel Python Function.
 # Vercel có thể không bundle thư mục public/ vào Python Function, nên đây là fallback
 # độc lập với filesystem. Khi chạy local vẫn ưu tiên public/goldmax-logo.png.
@@ -187,6 +200,8 @@ S = {
     "summary_total": pstyle("summary_total", size=9.5, font="bold", color=WHITE),
     "summary_total_amount": pstyle("summary_total_amount", size=9.5, font="bold", color=WHITE, align=TA_RIGHT),
     "words": pstyle("words", size=8.4, leading=9.4, font="italic", color=MUTED, align=TA_RIGHT),
+    "footnote_title": pstyle("footnote_title", size=7.2, leading=8.6, font="bold", color=MUTED),
+    "footnote": pstyle("footnote", size=7.2, leading=8.6, color=MUTED),
     "sign": pstyle("sign", size=9.3, leading=10.5, font="bold", align=TA_CENTER),
     "sign_sub": pstyle("sign_sub", size=8.3, leading=9.3, color=MUTED, align=TA_CENTER),
 }
@@ -726,9 +741,24 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
     return table
 
 
+def _footnote_block() -> Table:
+    """Ghi chú nhỏ ở góc dưới bên trái: chữ nhỏ, màu xám, không viền/nền để không làm nổi bật."""
+    rows: list[list[Any]] = [[para(FOOTNOTE_TITLE, "footnote_title")]]
+    rows += [[para(line, "footnote")] for line in FOOTNOTE_LINES]
+    table = Table(rows, colWidths=[CONTENT_W * 0.60])
+    table.setStyle(TableStyle([
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0.6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0.6),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    return table
+
+
 def _bottom_section(calc: dict[str, float]) -> Table:
     # V52: bỏ bảng "BẢNG CHECKLIST XÁC NHẬN KỸ THUẬT VỚI ĐẠI LÝ" khỏi PDF (form tạo đơn cũng bỏ ô nhập tương ứng).
-    # Chỉ còn khối tổng hợp thanh toán, giữ nguyên vị trí bên phải như trước.
+    # V53: thay bằng ghi chú nhỏ ở góc dưới bên trái, giữ khối tổng hợp thanh toán bên phải như trước.
 
     summary_rows: list[list[Any]] = [
         [para("Tổng giá trị đơn hàng:", "summary"), para(f"{money(calc['orderTotal'])} VNĐ", "summary_amount")],
@@ -770,7 +800,20 @@ def _bottom_section(calc: dict[str, float]) -> Table:
     if discount_row_index is not None:
         commands.append(("BACKGROUND", (0, discount_row_index), (-1, discount_row_index), PALE_AMBER))
     summary.setStyle(TableStyle(commands))
-    return summary
+
+    # V53: ghi chú nhỏ (trái) + tổng hợp thanh toán (phải); ghi chú dồn xuống đáy để nằm ở góc dưới bên trái.
+    footnote = _footnote_block()
+    outer = Table([[footnote, summary]], colWidths=[CONTENT_W * 0.66, CONTENT_W * 0.34], hAlign="LEFT")
+    outer.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (0, 0), "BOTTOM"),
+        ("VALIGN", (1, 0), (1, 0), "TOP"),
+        ("LEFTPADDING", (0, 0), (0, 0), 0),
+        ("LEFTPADDING", (1, 0), (1, 0), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    return outer
 
 
 def _signatures() -> Table:

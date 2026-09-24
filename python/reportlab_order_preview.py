@@ -26,6 +26,8 @@ from reportlab.pdfgen import canvas as pdfcanvas
 from reportlab.platypus import Image, LongTable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from python.reportlab_order_v2 import (
+    FOOTNOTE_LINES,
+    FOOTNOTE_TITLE,
     FONTS,
     COMPANY,
     _logo_flowable,
@@ -116,6 +118,8 @@ STYLES = {
     "summary_amount": pstyle("preview_summary_amount", size=7.5, leading=8.6, color=TEXT, align=TA_RIGHT),
     "summary_total": pstyle("preview_summary_total", size=7.8, leading=8.9, bold=True, color=WHITE),
     "summary_total_amount": pstyle("preview_summary_total_amount", size=8.0, leading=9.1, bold=True, color=WHITE, align=TA_RIGHT),
+    "footnote_title": pstyle("preview_footnote_title", size=6.6, leading=7.8, bold=True, color=MUTED),
+    "footnote": pstyle("preview_footnote", size=6.6, leading=7.8, color=MUTED),
 }
 
 
@@ -421,8 +425,23 @@ def _items_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | No
     return table
 
 
+def _footnote_block() -> Table:
+    """V53: ghi chú nhỏ ở góc dưới bên trái (chữ nhỏ, màu xám, không viền)."""
+    rows: list[list[Any]] = [[para(FOOTNOTE_TITLE, "footnote_title")]]
+    rows += [[para(line, "footnote")] for line in FOOTNOTE_LINES]
+    table = Table(rows, colWidths=[CONTENT_W * 0.60])
+    table.setStyle(TableStyle([
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0.6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0.6),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    return table
+
+
 def _bottom_section(order: dict[str, Any]) -> Table:
-    """Tổng hợp thanh toán (V52: đã bỏ bảng checklist xác nhận kỹ thuật)."""
+    """Tổng hợp thanh toán + ghi chú nhỏ (V52 bỏ checklist, V53 thêm ghi chú góc dưới bên trái)."""
     calc = totals(order, build_groups(order))
 
     summary_rows: list[list[Any]] = [
@@ -462,7 +481,19 @@ def _bottom_section(order: dict[str, Any]) -> Table:
     if after_index is not None:
         commands.append(("BACKGROUND", (0, after_index), (-1, after_index), colors.HexColor("#EEF2FF")))
     summary.setStyle(TableStyle(commands))
-    return summary
+
+    footnote = _footnote_block()
+    outer = Table([[footnote, summary]], colWidths=[CONTENT_W * 0.66, CONTENT_W * 0.34], hAlign="LEFT")
+    outer.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (0, 0), "BOTTOM"),
+        ("VALIGN", (1, 0), (1, 0), "TOP"),
+        ("LEFTPADDING", (0, 0), (0, 0), 0),
+        ("LEFTPADDING", (1, 0), (1, 0), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    return outer
 
 
 def _footer(canvas: pdfcanvas.Canvas, doc: SimpleDocTemplate, order_code: str) -> None:

@@ -15,6 +15,16 @@ const BORDER = { style: "thin" as const, color: { argb: "FFD1D5DB" } };
 const ALL_BORDERS = { top: BORDER, left: BORDER, bottom: BORDER, right: BORDER };
 const BASE_FONT = { name: "Arial", size: 11, color: { argb: TEXT } };
 
+// V53: ghi chú nhỏ in ở góc dưới bên trái (chữ nhỏ, màu xám, không viền/nền để không làm nổi bật).
+const FOOTNOTE_TITLE = "Ghi chú:";
+const FOOTNOTE_LINES = [
+  "Khách hàng xác nhận các thông tin sau:",
+  "- Kích thước đã trừ khe hở chưa?",
+  "- Nền có giật cấp hay không?",
+  "- Mép tường có đắp phào xi măng hay không?",
+  "- Khách hàng lên đơn lưu ý kiểm tra lại thông tin đơn hàng chăm sóc đã lên trước khi chốt cọc sx, mọi sai xót bên phía nhà máy không chịu trách nhiệm khi đã chốt cọc sx.",
+];
+
 export type ExportableOrderV2 = {
   id: number;
   orderCode: string;
@@ -376,7 +386,21 @@ function writeSummary(
   ws.getCell(`L${r}`).font = { ...BASE_FONT, size: 9.5, italic: true, color: { argb: MUTED } };
   ws.getCell(`L${r}`).alignment = { horizontal: "right", vertical: "top", wrapText: true };
   styleRange(ws, `L${r}:S${wordsEnd}`, WHITE, true);
-  return wordsEnd;
+
+  // V53: ghi chú nhỏ ở góc dưới bên trái bản in (cột A→K, chữ 8pt xám, không viền/nền).
+  let noteRow = wordsEnd + 2;
+  const noteLines = [FOOTNOTE_TITLE, ...FOOTNOTE_LINES];
+  for (const [index, line] of noteLines.entries()) {
+    ws.mergeCells(`A${noteRow}:K${noteRow}`);
+    const cell = ws.getCell(`A${noteRow}`);
+    cell.value = line;
+    cell.font = { ...BASE_FONT, size: 8, bold: index === 0, color: { argb: MUTED } };
+    cell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
+    // Ước lượng số dòng cần cho câu dài để không bị Excel cắt chữ.
+    ws.getRow(noteRow).height = 13 * Math.max(1, Math.ceil(line.length / 140));
+    noteRow += 1;
+  }
+  return noteRow - 1;
 }
 
 function styleRange(ws: Worksheet, range: string, fillArgb: string, border = false) {
