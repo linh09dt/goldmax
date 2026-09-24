@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ErpShell } from "@/components/erp-shell";
 import { OrderDeleteButton } from "@/components/order-delete-button";
 import { OrderExportButtons } from "@/components/order-export-buttons";
+import { OrderPdfPreviewButton } from "@/components/order-pdf-preview-button";
 import { prisma } from "@/lib/prisma";
 import { resolveOrderItemDetails } from "@/lib/order-detail";
 import { buildOutputGroups, calculateOutputTotals, hasPricingQuantity } from "@/lib/order-output";
@@ -40,6 +41,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         <>
           <Link className="erp-button-secondary" href="/orders">← Danh sách</Link>
           <OrderExportButtons orderId={order.id} pdfLabel="Xuất PDF" />
+          <span className="mx-1 hidden h-7 w-px bg-slate-300 md:inline-block" aria-hidden="true" />
+          <OrderPdfPreviewButton orderId={order.id} />
           <Link className="erp-button" href={`/orders/${order.id}/edit`}>Sửa đơn</Link>
           <OrderDeleteButton orderId={order.id} orderCode={order.orderCode} redirectAfterDelete />
         </>
