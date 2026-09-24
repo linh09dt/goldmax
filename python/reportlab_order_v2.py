@@ -52,6 +52,10 @@ TEXT = colors.HexColor("#111111")
 MUTED = colors.HexColor("#374151")
 LIGHT = colors.HexColor("#F3F4F6")
 BORDER = colors.HexColor("#9CA3AF")
+# V67: đường kẻ của các dòng phụ kiện chi tiết mờ hơn 60% so với đường kẻ dòng cửa.
+BORDER_SOFT = colors.HexColor("#D7DADF")
+# V67: chữ đỏ cho hàng "GHI CHÚ KỸ THUẬT".
+NOTE_RED = colors.HexColor("#DC2626")
 PALE_AMBER = colors.HexColor("#FFF7E6")
 WHITE = colors.white
 
@@ -794,10 +798,29 @@ def _company_lines_flowable(column_width: float) -> Any:
     return table
 
 
+def _soften_row_lines(commands: list[tuple[Any, ...]], row_no: int, cols: int, spanned: bool = False) -> None:
+    """V67: vẽ lại toàn bộ đường kẻ của 1 hàng bằng màu mờ hơn (BORDER_SOFT)."""
+    commands.append(("LINEABOVE", (0, row_no), (-1, row_no), 0.45, BORDER_SOFT))
+    commands.append(("LINEBELOW", (0, row_no), (-1, row_no), 0.45, BORDER_SOFT))
+    if spanned:
+        # Hàng ghi chú đã SPAN toàn bảng: chỉ cần 2 mép trái/phải.
+        commands.append(("LINEBEFORE", (0, row_no), (0, row_no), 0.45, BORDER_SOFT))
+        commands.append(("LINEAFTER", (cols - 1, row_no), (cols - 1, row_no), 0.45, BORDER_SOFT))
+        return
+    for col in range(cols):
+        commands.append(("LINEBEFORE", (col, row_no), (col, row_no), 0.45, BORDER_SOFT))
+        commands.append(("LINEAFTER", (col, row_no), (col, row_no), 0.45, BORDER_SOFT))
+
+
 def _item_note_flowable(note: str, main: bool) -> Paragraph:
-    """V66: nội dung hàng "GHI CHÚ KỸ THUẬT" của một dòng hàng (in ngay dưới dòng đó)."""
+    """V66/V67: nội dung hàng "GHI CHÚ KỸ THUẬT" của một dòng hàng — chữ đỏ."""
     style = S["note"] if main else S["detail"]
-    return Paragraph(f'<font name="{FONTS["bold"]}">GHI CHÚ KỸ THUẬT:</font> {esc(note)}', style)
+    red = NOTE_RED.hexval()[2:]
+    return Paragraph(
+        f'<font name="{FONTS["bold"]}" color="#{red}">GHI CHÚ KỸ THUẬT:</font> '
+        f'<font color="#{red}">{esc(note)}</font>',
+        style,
+    )
 
 
 def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | None]) -> Table:
@@ -817,7 +840,7 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
     ]
     main_row_numbers: list[int] = []
     detail_row_numbers: list[int] = []
-    note_row_numbers: list[int] = []
+    note_rows: list[tuple[int, bool]] = []
     group_ranges: list[tuple[int, int]] = []
 
     for group in groups:
@@ -858,7 +881,7 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
             note_text = clean(row.get("note"))
             if note_text:
                 data.append([_item_note_flowable(note_text, main)] + [""] * (len(header_top) - 1))
-                note_row_numbers.append(len(data) - 1)
+                note_rows.append((len(data) - 1, main))
         group_end = len(data) - 1
         if group_end >= group_start:
             group_ranges.append((group_start, group_end))
@@ -908,9 +931,15 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
     for row_no in detail_row_numbers:
         commands.append(("BACKGROUND", (0, row_no), (-1, row_no), colors.HexColor("#FBFDFF")))
     # V66: hàng ghi chú trải hết chiều ngang bảng, nền nhạt để tách khỏi dòng hàng.
-    for row_no in note_row_numbers:
+    for row_no, main in note_rows:
         commands.append(("SPAN", (0, row_no), (-1, row_no)))
         commands.append(("BACKGROUND", (0, row_no), (-1, row_no), colors.HexColor("#F8FAFC")))
+    # V67: đường kẻ của dòng phụ kiện chi tiết (và hàng ghi chú của dòng chi tiết) mờ hơn 60%.
+    for row_no in detail_row_numbers:
+        _soften_row_lines(commands, row_no, len(header_top))
+    for row_no, main in note_rows:
+        if not main:
+            _soften_row_lines(commands, row_no, len(header_top), spanned=True)
     table.setStyle(TableStyle(commands))
     return table
 

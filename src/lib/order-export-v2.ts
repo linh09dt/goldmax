@@ -13,6 +13,11 @@ const PALE_AMBER = "FFFFF7E6";
 const WHITE = "FFFFFFFF";
 const BORDER = { style: "thin" as const, color: { argb: "FFD1D5DB" } };
 const ALL_BORDERS = { top: BORDER, left: BORDER, bottom: BORDER, right: BORDER };
+// V67: đường kẻ của dòng phụ kiện chi tiết mờ hơn 60% so với đường kẻ dòng cửa
+// (#D1D5DB → #EDEEF1) và chữ đỏ cho hàng "GHI CHÚ KỸ THUẬT".
+const BORDER_SOFT = { style: "thin" as const, color: { argb: "FFEDEEF1" } };
+const ALL_BORDERS_SOFT = { top: BORDER_SOFT, left: BORDER_SOFT, bottom: BORDER_SOFT, right: BORDER_SOFT };
+const NOTE_RED = "FFDC2626";
 const BASE_FONT = { name: "Arial", size: 11, color: { argb: TEXT } };
 
 // V53/V54: hộp ghi chú nhỏ in ở góc dưới bên trái (khung + nền nhạt nhạt, chữ nhỏ màu xám, không làm nổi bật).
@@ -74,13 +79,15 @@ export async function buildOrderExcelV2(order: ExportableOrderV2, exportNote = "
 
   let stripe = 0;
   for (const group of groups) {
-    for (const entry of group.rows) {
-      await writeDataRow(ws, workbook, rowNo, group, entry.row, entry.main, entry.firstInGroup, stripe);
+    for (const [index, entry] of group.rows.entries()) {
+      const nextIsDetail = Boolean(group.rows[index + 1] && !group.rows[index + 1].main);
+      const note = cleanText(entry.row.note);
+      // V67: dòng cửa chỉ mờ vạch dưới khi ngay bên dưới (không có hàng ghi chú xen giữa) là phụ kiện.
+      await writeDataRow(ws, workbook, rowNo, group, entry.row, entry.main, entry.firstInGroup, stripe, nextIsDetail && !note);
       rowNo += 1;
       // V66: hàng nào có ghi chú thì chèn 1 hàng ghi chú trải hết chiều ngang ngay dưới hàng đó.
-      const note = cleanText(entry.row.note);
       if (note) {
-        rowNo = writeItemNoteRow(ws, rowNo, note);
+        rowNo = writeItemNoteRow(ws, rowNo, note, entry.main, nextIsDetail);
       }
     }
     stripe += 1;
@@ -258,6 +265,7 @@ async function writeDataRow(
   main: boolean,
   firstInGroup: boolean,
   stripe: number,
+  nextIsDetail: boolean,
 ) {
   const productName = cleanText(row.productName) || "";
   const values: Array<string | number | null> = [
@@ -284,10 +292,16 @@ async function writeDataRow(
   values.forEach((value, index) => { ws.getCell(rowNo, index + 1).value = value as any; });
 
   const fill = main ? (stripe % 2 === 0 ? WHITE : LIGHT) : "FFFBFDFF";
+  // V67: dòng phụ kiện chi tiết dùng đường kẻ mờ 60%; dòng cửa giữ đường kẻ thường
+  // (trừ vạch dưới cùng khi ngay bên dưới là phụ kiện, để cả khối phụ kiện cùng mờ).
+  const border: Partial<ExcelJS.Borders> = main
+    ? { ...ALL_BORDERS, bottom: nextIsDetail ? BORDER_SOFT : BORDER }
+    : ALL_BORDERS_SOFT;
+
   for (let col = 1; col <= 19; col += 1) {
     const cell = ws.getCell(rowNo, col);
     cell.fill = solid(fill);
-    cell.border = ALL_BORDERS;
+    cell.border = border;
     cell.font = main
       ? { ...BASE_FONT, size: 10.5, bold: col <= 4 || col >= 14 }
       : { ...BASE_FONT, size: 10, italic: true, color: { argb: MUTED } };
@@ -337,14 +351,19 @@ async function writeDataRow(
 }
 
 // V66: hàng ghi chú kỹ thuật của 1 dòng hàng — trải hết chiều ngang bảng (A→S).
-function writeItemNoteRow(ws: Worksheet, rowNo: number, note: string) {
+function writeItemNoteRow(ws: Worksheet, rowNo: number, note: string, main: boolean, nextIsDetail: boolean) {
   ws.mergeCells(`A${rowNo}:S${rowNo}`);
   const cell = ws.getCell(`A${rowNo}`);
   cell.value = `GHI CHÚ KỸ THUẬT: ${note}`;
-  cell.font = { ...BASE_FONT, size: 9.5, italic: true, color: { argb: TEXT } };
+  // V67: chữ đỏ. Đường kẻ: mép trên theo dòng cha (cửa = viền thường, phụ kiện = viền mờ),
+  // mép dưới mờ nếu bên dưới là khối phụ kiện chi tiết.
+  cell.font = { ...BASE_FONT, size: 9.5, italic: true, color: { argb: NOTE_RED } };
   cell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
   styleRange(ws, `A${rowNo}:S${rowNo}`, "FFF8FAFC", true);
-  cell.font = { ...BASE_FONT, size: 9.5, italic: true, color: { argb: TEXT } };
+  cell.font = { ...BASE_FONT, size: 9.5, italic: true, color: { argb: NOTE_RED } };
+  const top = main ? BORDER : BORDER_SOFT;
+  const bottom = !main || nextIsDetail ? BORDER_SOFT : BORDER;
+  styleRange(ws, `A${rowNo}:S${rowNo}`, "FFF8FAFC", true, { top, left: top, bottom, right: top });
   ws.getRow(rowNo).height = Math.max(16, 12.5 * Math.max(1, Math.ceil(cell.value.length / 190)));
   return rowNo + 1;
 }
@@ -444,7 +463,13 @@ function writeSummary(
   return noteRow - 1;
 }
 
-function styleRange(ws: Worksheet, range: string, fillArgb: string, border = false) {
+function styleRange(
+  ws: Worksheet,
+  range: string,
+  fillArgb: string,
+  border: boolean | Partial<ExcelJS.Borders> = false,
+  borderStyle: Partial<ExcelJS.Borders> = ALL_BORDERS,
+) {
   const [from, to] = range.split(":");
   const start = ws.getCell(from);
   const end = ws.getCell(to || from);
@@ -453,7 +478,7 @@ function styleRange(ws: Worksheet, range: string, fillArgb: string, border = fal
       const cell = ws.getCell(row, col);
       cell.fill = solid(fillArgb);
       if (!cell.font?.name) cell.font = BASE_FONT;
-      if (border) cell.border = ALL_BORDERS;
+      if (border || borderStyle !== ALL_BORDERS) cell.border = borderStyle;
     }
   }
 }
