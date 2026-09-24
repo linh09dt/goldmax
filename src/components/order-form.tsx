@@ -595,31 +595,14 @@ function DoorSetCard({
       </header>
 
       <div className="p-3 md:p-4">
-        <div className="grid grid-cols-2 gap-x-3 gap-y-2 md:grid-cols-3 xl:grid-cols-6">
-          <CardField label="Cao"><CardNumberInput value={item.heightMm} onChange={change("heightMm")} /></CardField>
-          <CardField label="Rộng"><CardNumberInput value={item.widthMm} onChange={change("widthMm")} /></CardField>
-          <CardField label="Khuôn"><CardNumberInput value={item.frameMm} onChange={change("frameMm")} /></CardField>
-          <CardField label="SL bộ"><CardNumberInput value={item.quantity} onChange={change("quantity")} /></CardField>
-          <CardField label="Ô thoáng"><CardInput value={item.panelInfo} onChange={change("panelInfo")} listId="panel-options" /></CardField>
-          <CardField label="Hướng mở"><CardInput value={item.openingDirection} onChange={change("openingDirection")} listId="opening-direction-options" /></CardField>
-
-          <CardField label="Phào"><CardInput value={item.trimDirection} onChange={change("trimDirection")} listId="trim-direction-options" /></CardField>
-          <CardField label="Màu sơn"><CardInput value={item.paintColor} onChange={change("paintColor")} listId="paint-color-options" /></CardField>
-          <CardField label="ĐVT"><CardInput value={item.unit} onChange={change("unit")} /></CardField>
-          <CardField label="KH/Lượng"><CardNumberInput value={item.pricingQuantity} onChange={change("pricingQuantity")} step="0.0001" /></CardField>
-          <CardField label="Đơn giá" className="xl:col-span-2">
-            <CardSelectShell><GridPriceInput value={item.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, item.productCode)} /></CardSelectShell>
-          </CardField>
-        </div>
-
-        <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-slate-200 pt-3 md:grid-cols-4 xl:grid-cols-12">
-          <CardField label="Bộ số" className="xl:col-span-2">
+        <div className="grid grid-cols-2 gap-x-2 gap-y-2 md:grid-cols-4 xl:grid-cols-[0.82fr_1.08fr_1.12fr_1.28fr_0.78fr_0.82fr_0.9fr_0.9fr_0.74fr_0.74fr_0.74fr]">
+          <CardField label="Bộ số">
             <CardInput value={item.setNo} onChange={change("setNo")} placeholder="VD: 12097" />
           </CardField>
-          <CardField label="Nhóm cửa" className="xl:col-span-2">
+          <CardField label="Nhóm cửa">
             <CardSelectShell><GridGroupSelect value={selectedGroup} groups={doorGroups} placeholder="Chọn nhóm cửa" onChange={changeGroup} /></CardSelectShell>
           </CardField>
-          <CardField label="Model" className="xl:col-span-3">
+          <CardField label="Model">
             <CardSelectShell>
               <GridCatalogSelect
                 value={item.productCode}
@@ -632,38 +615,39 @@ function DoorSetCard({
               />
             </CardSelectShell>
           </CardField>
-          <CardField label="Tên sản phẩm" className="col-span-2 md:col-span-4 xl:col-span-5">
-            <div className="min-h-10 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] font-medium text-slate-700">
-              {item.productName || <span className="font-normal text-slate-400">Tự điền theo danh mục</span>}
+          <CardField label="Tên sản phẩm">
+            <div className="flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-2 text-[12px] font-medium text-slate-700" title={item.productName || "Tự điền theo danh mục"}>
+              <span className="truncate">{item.productName || <span className="font-normal text-slate-400">Tự điền theo danh mục</span>}</span>
             </div>
           </CardField>
+          <CardField label="Ô thoáng"><CardInput value={item.panelInfo} onChange={change("panelInfo")} listId="panel-options" /></CardField>
+          <CardField label="Hướng mở"><CardInput value={item.openingDirection} onChange={change("openingDirection")} listId="opening-direction-options" /></CardField>
+          <CardField label="Phào"><CardInput value={item.trimDirection} onChange={change("trimDirection")} listId="trim-direction-options" /></CardField>
+          <CardField label="Màu sơn"><CardInput value={item.paintColor} onChange={change("paintColor")} listId="paint-color-options" /></CardField>
+          <CardField label="Cao"><CardNumberInput value={item.heightMm} onChange={change("heightMm")} /></CardField>
+          <CardField label="Rộng"><CardNumberInput value={item.widthMm} onChange={change("widthMm")} /></CardField>
+          <CardField label="Khuôn"><CardNumberInput value={item.frameMm} onChange={change("frameMm")} /></CardField>
 
-          <CardField label="KT thông thủy - Cao" className="xl:col-span-2">
-            <CardNumberInput value={item.clearHeightMm} onChange={change("clearHeightMm")} />
+          <CardField label="KT thông thủy - Cao"><CardNumberInput value={item.clearHeightMm} onChange={change("clearHeightMm")} /></CardField>
+          <CardField label="KT thông thủy - Rộng"><CardNumberInput value={item.clearWidthMm} onChange={change("clearWidthMm")} /></CardField>
+          <CardField label="SL bộ"><CardNumberInput value={item.quantity} onChange={change("quantity")} /></CardField>
+          <CardField label="ĐVT"><CardInput value={item.unit} onChange={change("unit")} /></CardField>
+          <CardField label="KH/Lượng"><CardNumberInput value={item.pricingQuantity} onChange={change("pricingQuantity")} step="0.0001" /></CardField>
+          <CardField label="Đơn giá">
+            <CardSelectShell><GridPriceInput value={item.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, item.productCode)} /></CardSelectShell>
           </CardField>
-          <CardField label="KT thông thủy - Rộng" className="xl:col-span-2">
-            <CardNumberInput value={item.clearWidthMm} onChange={change("clearWidthMm")} />
-          </CardField>
-          <CardField label="Model khóa" className="xl:col-span-3">
-            <CardInput value={item.lockModel} onChange={change("lockModel")} />
-          </CardField>
-          <CardField label="Loại phào" className="xl:col-span-2">
-            <CardInput value={item.trimType} onChange={change("trimType")} />
-          </CardField>
-          <CardField label="Thanh phào / bộ" className="xl:col-span-1">
-            <CardNumberInput value={item.trimBarsPerSet} onChange={change("trimBarsPerSet")} />
-          </CardField>
-          <CardField label="Nan ô thoáng" className="xl:col-span-1">
-            <CardNumberInput value={item.windowBars} onChange={change("windowBars")} />
-          </CardField>
-          <CardField label="Cánh / bộ" className="xl:col-span-1">
-            <CardNumberInput value={item.leavesPerSet} onChange={change("leavesPerSet")} />
-          </CardField>
+          <CardField label="Model khóa"><CardInput value={item.lockModel} onChange={change("lockModel")} /></CardField>
+          <CardField label="Loại phào"><CardInput value={item.trimType} onChange={change("trimType")} /></CardField>
+          <CardField label="Thanh phào / bộ"><CardNumberInput value={item.trimBarsPerSet} onChange={change("trimBarsPerSet")} /></CardField>
+          <CardField label="Nan ô thoáng"><CardNumberInput value={item.windowBars} onChange={change("windowBars")} /></CardField>
+          <CardField label="Cánh / bộ"><CardNumberInput value={item.leavesPerSet} onChange={change("leavesPerSet")} /></CardField>
+        </div>
 
-          <CardField label="Ghi chú" className="col-span-2 md:col-span-3 xl:col-span-8">
+        <div className="mt-3 grid grid-cols-1 gap-3 border-t border-slate-200 pt-3 lg:grid-cols-[minmax(0,1fr)_260px]">
+          <CardField label="Ghi chú">
             <CardInput value={item.note} onChange={change("note")} placeholder="Nhập ghi chú kỹ thuật" />
           </CardField>
-          <CardField label="Hình ảnh SP" className="col-span-2 md:col-span-1 xl:col-span-4">
+          <CardField label="Hình ảnh SP">
             <div className="rounded-lg border border-slate-200 bg-white">
               <ImageCell path={item.imagePath} onUpload={(file) => onUpload(file, itemIndex)} />
             </div>
