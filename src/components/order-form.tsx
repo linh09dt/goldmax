@@ -468,7 +468,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
         </div>
         {/* V80: đưa toàn bộ 13 ô thông tin đơn hàng lên 1 hàng (như yêu cầu). */}
         <div className="p-2.5">
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-[1.05fr_0.85fr_0.9fr_0.95fr_1fr_1.2fr_0.9fr_0.95fr_0.9fr_0.85fr_1.5fr_0.75fr_0.8fr]">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-[126fr_102fr_108fr_114fr_120fr_144fr_108fr_114fr_108fr_102fr_180fr_90fr_96fr]">
             <Field label="Mã đơn hàng" required invalid={invalidOrderInfoFields.has("orderCode")}><TextInput value={form.orderCode} onChange={(v) => setField("orderCode", v)} /></Field>
             <Field label="Trạng thái" required invalid={invalidOrderInfoFields.has("status")}>
               <select className="erp-input" value={form.status} onChange={(e) => setField("status", e.target.value)}>
@@ -704,7 +704,7 @@ function DoorSetCard({
         {/* Full-view UI: 17 trường Bộ cửa trên 1 dòng; ẩn riêng Tên sản phẩm; không cuộn ngang. */}
         {/* V79: 17 ô Bộ cửa trên 1 hàng (theo yêu cầu), giữ style nhãn/ô nhập như mockup. */}
         <div>
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-[0.66fr_0.9fr_minmax(168px,2.6fr)_minmax(46px,0.3fr)_minmax(46px,0.34fr)_0.6fr_0.6fr_0.52fr_0.52fr_0.52fr_0.6fr_0.6fr_minmax(30px,0.25fr)_0.44fr_0.6fr_0.62fr_0.68fr]">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-[85fr_112fr_minmax(168px,330fr)_minmax(46px,46fr)_minmax(46px,46fr)_77fr_77fr_67fr_67fr_67fr_77fr_77fr_minmax(30px,32fr)_56fr_77fr_76fr_87fr]">
             <CardField label="Bộ số">
               {/* V75: Bộ số tự tăng dần, không nhập tay. Chỉ hiển thị số đã được tạo. */}
               <CardReadonlyValue
@@ -855,7 +855,7 @@ function DetailMasterRow({
   return (
     <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
           {/* V77: bỏ min-width cứng — lưới co theo màn hình nên không còn thanh cuộn ngang. */}
-          <div className="grid grid-cols-2 gap-1.5 md:grid-cols-4 xl:grid-cols-[0.9fr_1.1fr_0.55fr_0.55fr_0.55fr_0.5fr_0.6fr_0.8fr_0.85fr_1.2fr]">
+          <div className="grid grid-cols-2 gap-1.5 md:grid-cols-4 xl:grid-cols-[179fr_220fr_111fr_111fr_111fr_101fr_121fr_158fr_172fr_198fr]">
             <CardField label="Nhóm hàng">
               <CardSelectShell><GridGroupSelect value={selectedGroup} groups={accessoryGroups} placeholder="Chọn nhóm hàng" onChange={changeGroup} /></CardSelectShell>
             </CardField>

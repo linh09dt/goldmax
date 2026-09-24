@@ -14,10 +14,13 @@ Gồm toàn bộ thay đổi kể từ file zip gốc:
 - **V80** — Hàng Bộ cửa: **Model rộng 175px hiện đủ "MODEL · tên diễn giải"**, thu nhỏ Ô thoáng/Hướng mở/SL bộ;
   **Thông tin đơn hàng gộp 13 ô lên 1 hàng**; nhãn 2 dòng (line-clamp) không bị cắt chữ.
 
+- **V81** — Quy hoạch kích thước ô nhập theo **1 mốc chuẩn 1920px: 1fr = 1px** (đổi số fr = số px mong muốn ở màn 1920), các khổ màn khác co giãn theo %.
+  Xem `ORDER_FIELD_SIZE_BASELINE_V81.md`.
+
 ## Cách áp
 
 ```
-unzip -o door-production-changes-v80.zip -d <thư-mục-project>
+unzip -o door-production-changes-v81.zip -d <thư-mục-project>
 npm run db:generate
 npm run build
 npm run dev
