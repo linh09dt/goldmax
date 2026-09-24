@@ -426,8 +426,6 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
               onMainCatalogSelect={applyMainCatalog}
               onDetailCatalogSelect={applyDetailCatalog}
               optionValues={optionValues}
-              onSave={() => void save(true)}
-              saveBusy={busy}
             />
           ))}
         </div>
@@ -513,8 +511,6 @@ function DoorSetCard({
   onMainCatalogSelect,
   onDetailCatalogSelect,
   optionValues,
-  onSave,
-  saveBusy,
 }: {
   item: OrderItemForm;
   itemIndex: number;
@@ -533,8 +529,6 @@ function DoorSetCard({
   onMainCatalogSelect: (index: number, item: CatalogItem) => void;
   onDetailCatalogSelect: (itemIndex: number, detailIndex: number, item: CatalogItem) => void;
   optionValues: { panel: MasterOption[]; opening: MasterOption[]; trim: MasterOption[]; color: MasterOption[] };
-  onSave: () => void;
-  saveBusy: boolean;
 }) {
   const inferredGroup = catalogGroupForCode(doorCatalogItems, item.productCode) || catalogGroupFromText(doorGroups, item.productName);
   const [selectedGroup, setSelectedGroup] = useState(inferredGroup);
@@ -589,9 +583,9 @@ function DoorSetCard({
       </header>
 
       <div className="p-2.5">
-        {/* Full-view UI: 17 trường Bộ cửa trên 1 dòng; không cuộn ngang. */}
+        {/* Full-view UI: 18 trường Bộ cửa trên 1 dòng; có Thành tiền; không cuộn ngang. */}
         <div>
-          <div className="grid grid-cols-[0.72fr_1fr_1.05fr_1.05fr_0.78fr_0.78fr_0.72fr_0.8fr_0.66fr_0.66fr_0.66fr_0.92fr_0.92fr_0.62fr_0.62fr_0.82fr_0.9fr] gap-x-1 gap-y-1.5">
+          <div className="grid grid-cols-[0.58fr_0.9fr_1fr_0.9fr_0.5fr_0.52fr_0.52fr_0.62fr_0.54fr_0.54fr_0.54fr_0.66fr_0.66fr_0.46fr_0.48fr_0.66fr_0.76fr_0.86fr] gap-x-1 gap-y-1.5">
           <CardField label="Bộ số">
             <CardInput value={item.setNo} onChange={change("setNo")} placeholder="VD: 12097" />
           </CardField>
@@ -637,6 +631,11 @@ function DoorSetCard({
           <CardField label="Đơn giá">
             <CardSelectShell><GridPriceInput value={item.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, item.productCode)} /></CardSelectShell>
           </CardField>
+          <CardField label="Thành tiền">
+            <div className="flex h-8 min-w-0 items-center justify-end rounded-md border border-slate-200 bg-slate-50 px-1.5 text-[10px] font-semibold tabular-nums text-slate-800" title={`${formatMoney(lineAmount(item))}đ`}>
+              {formatMoney(lineAmount(item))}đ
+            </div>
+          </CardField>
           </div>
         </div>
 
@@ -675,8 +674,6 @@ function DoorSetCard({
                 accessoryGroups={accessoryGroups}
                 onCatalogSelect={onDetailCatalogSelect}
                 optionValues={optionValues}
-                onSave={onSave}
-                saveBusy={saveBusy}
               />
             ))}
           </div>
@@ -700,8 +697,6 @@ function DetailMasterRow({
   accessoryGroups,
   onCatalogSelect,
   optionValues,
-  onSave,
-  saveBusy,
 }: {
   row: OrderLineForm;
   itemIndex: number;
@@ -714,8 +709,6 @@ function DetailMasterRow({
   accessoryGroups: string[];
   onCatalogSelect: (itemIndex: number, detailIndex: number, item: CatalogItem) => void;
   optionValues: { panel: MasterOption[]; opening: MasterOption[]; trim: MasterOption[]; color: MasterOption[] };
-  onSave: () => void;
-  saveBusy: boolean;
 }) {
   const inferredGroup = catalogGroupForCode(accessoryCatalogItems, row.productCode) || catalogGroupFromText(accessoryGroups, row.productName);
   const [selectedGroup, setSelectedGroup] = useState(inferredGroup);
@@ -807,14 +800,6 @@ function DetailMasterRow({
               </div>
             </details>
             <div className="flex items-center gap-1.5">
-              <button
-                className="rounded-md bg-cyan-600 px-3 py-1.5 text-[10px] font-semibold text-white hover:bg-cyan-500 disabled:opacity-50"
-                type="button"
-                disabled={saveBusy}
-                onClick={onSave}
-              >
-                {saveBusy ? "Đang lưu..." : "Lưu ngay"}
-              </button>
               <button className="rounded-md px-2 py-1 text-[10px] font-semibold text-red-600 hover:bg-red-50" type="button" onClick={() => onRemove(detailIndex)}>Xóa</button>
             </div>
           </div>
@@ -840,10 +825,10 @@ function CardField({ label, children, className = "", emphasized = false }: { la
   return (
     <label className={`block min-w-0 ${className}`}>
       <span
-        className={`mb-0.5 inline-flex max-w-full items-center rounded border px-1.5 py-0 text-[9px] font-semibold leading-4 ${emphasized ? "border-cyan-200 bg-cyan-50 text-cyan-700" : "border-slate-200 bg-slate-100 text-slate-600"}`}
+        className={`mb-0.5 inline-flex min-h-6 max-w-full items-end rounded border px-1.5 py-0.5 text-[9px] font-semibold leading-[11px] ${emphasized ? "border-cyan-200 bg-cyan-50 text-cyan-700" : "border-slate-200 bg-slate-100 text-slate-600"}`}
         title={label}
       >
-        <span className="truncate">{label}</span>
+        <span className="whitespace-normal break-words">{label}</span>
       </span>
       <div className={emphasized ? "rounded-md ring-1 ring-cyan-300" : ""}>{children}</div>
     </label>
@@ -1089,7 +1074,7 @@ function Field({ label, children, required, invalid }: { label: string; children
     : "";
   return (
     <label className={`flex min-w-0 flex-col${invalidClass} [&_.erp-input]:h-8 [&_.erp-input]:w-full [&_.erp-input]:rounded-md [&_.erp-input]:px-2 [&_.erp-input]:py-1 [&_.erp-input]:text-[12px]`}>
-      <span className={`mb-0.5 block min-h-3.5 truncate text-[9px] font-semibold uppercase leading-3.5 tracking-[0.025em] xl:text-[10px] ${invalid ? "text-red-600" : "text-slate-500"}`} title={label}>
+      <span className={`mb-0.5 flex min-h-7 items-end whitespace-normal break-words text-[9px] font-semibold uppercase leading-[11px] tracking-[0.015em] xl:text-[10px] ${invalid ? "text-red-600" : "text-slate-500"}`} title={label}>
         {label}{required ? " *" : ""}
       </span>
       {children}
