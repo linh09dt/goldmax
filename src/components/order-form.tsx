@@ -8,6 +8,7 @@ import {
   createOrderItem,
   newClientId,
   reindexItems,
+  showsSetNumber,
   type OrderFormData,
   type OrderItemForm,
   type OrderLineForm,
@@ -48,7 +49,7 @@ type Props = {
   initialData?: OrderFormData;
 };
 
-type SaveOrderResponse = { ok: boolean; id?: number; error?: string };
+type SaveOrderResponse = { ok: boolean; id?: number; error?: string; setNumbers?: Array<string | null> };
 
 const REQUIRED_ORDER_INFO_FIELDS = [
   { key: "customerCode", label: "Mã Đại Lý" },
@@ -150,6 +151,8 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
   }, [catalogItems, calculationConfig, calculationConfigLoaded]);
 
   const totals = useMemo(() => calculateTotals(form), [form]);
+  // V75: Bộ số chỉ hiện khi đơn Đã xác nhận / Đã chuyển sản xuất.
+  const setNumberVisible = useMemo(() => showsSetNumber(form.status), [form.status]);
 
   function setField<K extends keyof OrderFormData>(key: K, value: OrderFormData[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -171,7 +174,9 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
       const copy: OrderItemForm = {
         ...source,
         clientId: newClientId(),
-        details: source.details.map((detail) => ({ ...detail })),
+        // V75: bộ cửa nhân bản phải nhận Bộ số mới, không dùng lại số của bộ gốc.
+        setNo: "",
+        details: source.details.map((detail) => ({ ...detail, setNo: "" })),
       };
       const next = [...current.items];
       next.splice(index + 1, 0, copy);
@@ -361,6 +366,15 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
       const result = await readJsonResponse(response);
       if (!response.ok || !result.ok || !result.id) throw new Error(result.error || "Không thể lưu đơn hàng.");
       setPersistedOrderId(result.id);
+      // V75: hiển thị Bộ số vừa được hệ thống cấp mà không cần tải lại trang.
+      if (result.setNumbers?.length) {
+        const assigned = result.setNumbers;
+        setForm((current) => ({
+          ...current,
+          items: current.items.map((item, index) =>
+            assigned[index] ? { ...item, setNo: assigned[index] as string } : item),
+        }));
+      }
       setMessage({ type: "ok", text: targetOrderId ? "Đã cập nhật đơn hàng." : "Đã tạo đơn hàng." });
       if (stayOnPage) {
         if (!targetOrderId) router.replace(`/orders/${result.id}/edit`);
@@ -457,6 +471,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
               onMainCatalogSelect={applyMainCatalog}
               onDetailCatalogSelect={applyDetailCatalog}
               optionValues={optionValues}
+              showSetNumber={setNumberVisible}
             />
           ))}
         </div>
@@ -514,6 +529,7 @@ function DoorSetCard({
   onMainCatalogSelect,
   onDetailCatalogSelect,
   optionValues,
+  showSetNumber,
 }: {
   item: OrderItemForm;
   itemIndex: number;
@@ -532,6 +548,7 @@ function DoorSetCard({
   onMainCatalogSelect: (index: number, item: CatalogItem) => void;
   onDetailCatalogSelect: (itemIndex: number, detailIndex: number, item: CatalogItem) => void;
   optionValues: { panel: MasterOption[]; opening: MasterOption[]; trim: MasterOption[]; color: MasterOption[] };
+  showSetNumber: boolean;
 }) {
   const inferredGroup = catalogGroupForCode(doorCatalogItems, item.productCode) || catalogGroupFromText(doorGroups, item.productName);
   const [selectedGroup, setSelectedGroup] = useState(inferredGroup);
@@ -573,7 +590,7 @@ function DoorSetCard({
     <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <header className="flex flex-col gap-1.5 bg-slate-900 px-3 py-2 text-white lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
-          <h3 className="text-[14px] font-semibold tracking-normal">Bộ cửa #{itemIndex + 1}{item.setNo ? ` · Bộ số ${item.setNo}` : ""}</h3>
+          <h3 className="text-[14px] font-semibold tracking-normal">Bộ cửa #{itemIndex + 1}{showSetNumber && item.setNo ? ` · Bộ số ${item.setNo}` : ""}</h3>
           <p className="mt-0.5 truncate text-[10px] font-normal text-slate-300">
             {item.productName || selectedGroup || "Chưa chọn sản phẩm"}{item.model || item.productCode ? ` · ${item.model || item.productCode}` : ""}
           </p>
@@ -590,7 +607,13 @@ function DoorSetCard({
         <div>
           <div className="grid grid-cols-[0.58fr_0.9fr_1fr_0.72fr_0.52fr_0.70fr_0.80fr_0.54fr_0.54fr_0.54fr_0.66fr_0.66fr_0.46fr_0.48fr_0.66fr_0.76fr_0.86fr] gap-x-1 gap-y-1.5">
           <CardField label="Bộ số">
-            <CardInput value={item.setNo} onChange={change("setNo")} placeholder="VD: 12097" />
+            {/* V75: Bộ số tự tăng dần, không nhập tay. Chỉ hiển thị số đã được tạo. */}
+            <CardReadonlyValue
+              value={showSetNumber ? item.setNo : ""}
+              title={showSetNumber
+                ? (item.setNo ? `Bộ số ${item.setNo} do hệ thống cấp tự động` : "Bộ số sẽ được tạo tự động khi lưu đơn ở trạng thái Đã xác nhận")
+                : "Bộ số chưa được tạo ở trạng thái Nháp / Chờ khách hàng xác nhận"}
+            />
           </CardField>
           <CardField label="Nhóm cửa">
             <CardSelectShell><GridGroupSelect value={selectedGroup} groups={doorGroups} placeholder="Chọn nhóm cửa" onChange={changeGroup} /></CardSelectShell>
@@ -810,6 +833,18 @@ function CardInput({ value, onChange, placeholder, listId }: { value: string; on
   return <input className="h-8 w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 text-[11px] font-medium text-sky-900 placeholder:text-slate-400 outline-none transition focus:border-cyan-400 focus:ring-1 focus:ring-cyan-100" value={value} placeholder={placeholder} list={listId} onChange={(event) => onChange(event.target.value)} />;
 }
 
+/** V75: ô chỉ đọc cho Bộ số — hệ thống tự cấp, người dùng không nhập tay. */
+function CardReadonlyValue({ value, title }: { value: string; title?: string }) {
+  return (
+    <div
+      className={`flex h-8 w-full min-w-0 items-center rounded-md border px-2 text-[11px] font-semibold tabular-nums ${value ? "border-sky-200 bg-sky-50 text-sky-900" : "border-dashed border-slate-300 bg-slate-100 text-slate-400"}`}
+      title={title}
+    >
+      <span className="truncate">{value || "—"}</span>
+    </div>
+  );
+}
+
 function CardSuggestionInput({ value, onChange, items, placeholder }: { value: string; onChange: (value: string) => void; items: MasterOption[]; placeholder?: string }) {
   const [open, setOpen] = useState(false);
 
@@ -929,7 +964,8 @@ function EditableMainRow({ item, itemIndex, onChange, onUpload, catalogItems, do
   return (
     <tr className="bg-cyan-50/80 font-medium">
       <CellStatic>{item.lineNo}</CellStatic>
-      <Cell><GridInput value={value("setNo")} onChange={change("setNo")} /></Cell>
+      {/* V75: Bộ số do hệ thống tự cấp, chỉ hiển thị. */}
+      <CellStatic>{item.setNo || ""}</CellStatic>
       <Cell>
         <div className="min-w-0 divide-y divide-slate-200 bg-white/40">
           <GridGroupSelect value={selectedGroup} groups={doorGroups} placeholder="Chọn loại cửa" onChange={changeGroup} />
@@ -1022,7 +1058,8 @@ function EditableDetailRow({ row, itemIndex, detailIndex, onChange, onUpload, on
   return (
     <tr className="hover:bg-slate-50">
       <CellStatic></CellStatic>
-      <Cell><GridInput value={row.setNo} onChange={change("setNo")} /></Cell>
+      {/* V75: Bộ số do hệ thống tự cấp, chỉ hiển thị. */}
+      <CellStatic>{row.setNo || ""}</CellStatic>
       <Cell>
         <div className="min-w-0 divide-y divide-slate-100">
           <GridGroupSelect value={selectedGroup} groups={accessoryGroups} placeholder="Chọn nhóm hàng kèm" onChange={changeGroup} />

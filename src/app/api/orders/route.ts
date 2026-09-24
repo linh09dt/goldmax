@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { normalizeOrderPayload } from "@/lib/order-persistence";
+import { resolveSetNumbers } from "@/lib/set-number";
 
 export const runtime = "nodejs";
 
@@ -19,14 +20,20 @@ export async function POST(request: Request) {
       );
     }
 
-    const order = await prisma.$transaction(async (tx) => {
+    const { order, setNumbers } = await prisma.$transaction(async (tx) => {
       const created = await tx.salesOrder.create({
         data: { orderCode: normalized.orderCode, ...normalized.orderData },
       });
 
-      for (const item of normalized.items) {
+      // V75: Bộ số tự tăng dần — Nháp/Chờ khách hàng xác nhận thì chưa tạo số.
+      const assignedSetNumbers = await resolveSetNumbers(tx, {
+        status: normalized.orderData.status,
+        incoming: normalized.items.map((item) => item.data.setNo),
+      });
+
+      for (const [index, item] of normalized.items.entries()) {
         const createdItem = await tx.salesOrderItem.create({
-          data: { orderId: created.id, lineNo: item.lineNo, ...item.data },
+          data: { orderId: created.id, lineNo: item.lineNo, ...item.data, setNo: assignedSetNumbers[index] },
         });
         if (item.details.length) {
           await tx.salesOrderItemDetail.createMany({
@@ -46,10 +53,10 @@ export async function POST(request: Request) {
         });
       }
 
-      return created;
+      return { order: created, setNumbers: assignedSetNumbers };
     });
 
-    return NextResponse.json({ ok: true, id: order.id, orderCode: order.orderCode });
+    return NextResponse.json({ ok: true, id: order.id, orderCode: order.orderCode, setNumbers });
   } catch (error) {
     console.error("Create order failed:", error);
     return NextResponse.json(

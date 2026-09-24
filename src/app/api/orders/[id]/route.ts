@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { normalizeOrderPayload } from "@/lib/order-persistence";
+import { resolveSetNumbers } from "@/lib/set-number";
 
 export const runtime = "nodejs";
 
@@ -24,7 +25,7 @@ async function updateOrder(request: Request, context: { params: Promise<{ id: st
     const exists = await prisma.salesOrder.findUnique({ where: { id: orderId }, select: { id: true } });
     if (!exists) return NextResponse.json({ ok: false, error: "Không tìm thấy đơn hàng." }, { status: 404 });
 
-    await prisma.$transaction(async (tx) => {
+    const assignedSetNumbers = await prisma.$transaction(async (tx) => {
       await tx.salesOrder.update({
         where: { id: orderId },
         data: { orderCode: normalized.orderCode, ...normalized.orderData },
@@ -32,9 +33,16 @@ async function updateOrder(request: Request, context: { params: Promise<{ id: st
       await tx.salesOrderRequirement.deleteMany({ where: { orderId } });
       await tx.salesOrderItem.deleteMany({ where: { orderId } });
 
-      for (const item of normalized.items) {
+      // V75: giữ nguyên Bộ số đã cấp; chỉ sinh số mới cho bộ cửa chưa có số khi
+      // đơn ở trạng thái cho phép (Đã xác nhận / Đã chuyển sản xuất).
+      const setNumbers = await resolveSetNumbers(tx, {
+        status: normalized.orderData.status,
+        incoming: normalized.items.map((item) => item.data.setNo),
+      });
+
+      for (const [index, item] of normalized.items.entries()) {
         const createdItem = await tx.salesOrderItem.create({
-          data: { orderId, lineNo: item.lineNo, ...item.data },
+          data: { orderId, lineNo: item.lineNo, ...item.data, setNo: setNumbers[index] },
         });
         if (item.details.length) {
           await tx.salesOrderItemDetail.createMany({
@@ -53,9 +61,16 @@ async function updateOrder(request: Request, context: { params: Promise<{ id: st
           data: normalized.requirements.map((row) => ({ orderId, ...row })),
         });
       }
+
+      return setNumbers;
     });
 
-    return NextResponse.json({ ok: true, id: orderId, orderCode: normalized.orderCode });
+    return NextResponse.json({
+      ok: true,
+      id: orderId,
+      orderCode: normalized.orderCode,
+      setNumbers: assignedSetNumbers,
+    });
   } catch (error) {
     console.error("Update order failed:", error);
     return NextResponse.json(

@@ -136,6 +136,7 @@ export function CalculationConfigEditor() {
         Cấu hình <b>Model / hàng hóa</b> ưu tiên cao nhất, sau đó đến <b>Nhóm hàng</b>. Nếu không có rule thì KH/Lượng nhập tay.
         Đề xuất Cao/Rộng chỉ điền khi chọn hàng hóa; người dùng vẫn có thể sửa lại bằng tay. KH/Lượng tự động được làm tròn theo số chữ số bên dưới.
         Đơn giá Bộ cửa lấy <b>Giá đại lý</b> từ Master Data và có thể tự cộng phụ thu theo độ dày Khuôn.
+        Bộ số cũng được cấu hình ở đây: số bắt đầu áp dụng và cơ chế tự tăng dần.
       </div>
     </section>
 
@@ -153,13 +154,29 @@ export function CalculationConfigEditor() {
           <button className="erp-button" type="button" disabled={busy} onClick={() => void save()}>{busy ? "Đang xử lý..." : "Lưu cấu hình"}</button>
         </div>
       </div>
-      <div className="flex items-end gap-3 p-4">
+      <div className="flex flex-wrap items-end gap-3 p-4">
         <label className="block">
           <span className="mb-1 block text-xs font-semibold text-slate-600">Làm tròn KH/Lượng</span>
           <select className="erp-input w-48" value={config.decimalPlaces} onChange={(event) => setConfig((current) => ({ ...current, decimalPlaces: Number(event.target.value) }))}>
             {[0, 1, 2, 3, 4].map((value) => <option key={value} value={value}>{value} chữ số thập phân</option>)}
           </select>
         </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold text-slate-600">Số bắt đầu áp dụng Bộ số</span>
+          <input
+            className="erp-input w-48 text-right font-semibold text-sky-900"
+            type="number"
+            min="1"
+            step="1"
+            value={config.setNumberStart}
+            onChange={(event) => setConfig((current) => ({ ...current, setNumberStart: Math.max(1, Math.round(Number(event.target.value) || 1)) }))}
+          />
+        </label>
+        <p className="max-w-xl pb-2 text-xs leading-5 text-slate-500">
+          Bộ số do hệ thống tự tăng dần, người dùng không nhập tay. Đơn ở trạng thái <b>Nháp</b> hoặc <b>Chờ khách hàng xác nhận</b> chưa có Bộ số;
+          Bộ số được tạo khi đơn chuyển sang <b>Đã xác nhận</b> và giữ nguyên khi đơn chuyển tiếp sang <b>Đã chuyển sản xuất</b> hoặc <b>Đã hủy</b>.
+          Số cấp cho đơn mới luôn là số lớn nhất trong hai giá trị: số bắt đầu ở trên và số lớn nhất đã dùng + 1.
+        </p>
       </div>
     </section>
 
@@ -264,6 +281,7 @@ export function CalculationConfigEditor() {
       <Example title="Ô thoáng" value="4TK → 4; 3TK → 3; 2TK → 2; 1TK → 1" />
       <Example title="Khóa" value="Theo SL bộ cửa cha" />
       <Example title="Đơn giá cửa" value="Giá đại lý + phụ thu Khuôn" />
+      <Example title="Bộ số" value="Tự tăng dần, tạo khi đơn Đã xác nhận" />
     </section>
   </div>;
 }

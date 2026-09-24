@@ -9,6 +9,16 @@ export const ORDER_STATUS_OPTIONS = [
   { value: "HUY", label: "Đã hủy" },
 ] as const;
 
+/**
+ * V75: Bộ số do hệ thống tự tăng dần khi đơn chuyển sang các trạng thái này.
+ * Đơn Nháp / Chờ khách hàng xác nhận chưa có Bộ số nên không hiển thị.
+ */
+export const SET_NUMBER_STATUSES: readonly string[] = ["DA_XAC_NHAN", "CHUYEN_SAN_XUAT"];
+
+export function showsSetNumber(status: string | null | undefined) {
+  return SET_NUMBER_STATUSES.includes(String(status ?? "").trim());
+}
+
 export const DEFAULT_REQUIREMENTS = [
   { code: "NEN_GIAT_CAP", questionText: "Nền có giật cấp hay không?" },
   { code: "KICH_THUOC_DA_TRU", questionText: "Kích thước đã trừ chưa?" },

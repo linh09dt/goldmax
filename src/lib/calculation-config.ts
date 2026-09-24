@@ -42,6 +42,11 @@ export type CalculationRule = {
 export type CalculationConfig = {
   version: 2;
   decimalPlaces: number;
+  /**
+   * V75: Số bắt đầu áp dụng cho Bộ số. Bộ số do hệ thống tự tăng dần khi đơn
+   * chuyển sang trạng thái Đã xác nhận; đây là số nhỏ nhất được dùng.
+   */
+  setNumberStart: number;
   framePrice: FramePriceConfig;
   rules: CalculationRule[];
 };
@@ -71,9 +76,12 @@ export const DEFAULT_FRAME_PRICE_CONFIG: FramePriceConfig = {
   overDoubleStepSurcharge: 10_000,
 };
 
+export const DEFAULT_SET_NUMBER_START = 1;
+
 export const DEFAULT_CALCULATION_CONFIG: CalculationConfig = {
   version: 2,
   decimalPlaces: 2,
+  setNumberStart: DEFAULT_SET_NUMBER_START,
   framePrice: { ...DEFAULT_FRAME_PRICE_CONFIG },
   rules: [
     {
@@ -149,13 +157,15 @@ export function normalizeCalculationConfig(value: unknown, fallback: Calculation
     .map((raw, index) => normalizeRule(raw, index))
     .filter((rule): rule is CalculationRule => Boolean(rule));
   const framePrice = normalizeFramePriceConfig(source.framePrice, fallback.framePrice);
-  return { version: 2, decimalPlaces, framePrice, rules };
+  const setNumberStart = positiveInteger(source.setNumberStart, fallback.setNumberStart);
+  return { version: 2, decimalPlaces, setNumberStart, framePrice, rules };
 }
 
 export function cloneCalculationConfig(config: CalculationConfig): CalculationConfig {
   return {
     version: 2,
     decimalPlaces: config.decimalPlaces,
+    setNumberStart: config.setNumberStart,
     framePrice: { ...config.framePrice },
     rules: config.rules.map((rule) => ({ ...rule })),
   };
@@ -232,6 +242,7 @@ export function buildSuggestedCalculationConfig(items: CalculationCatalogItem[])
   return {
     version: 2,
     decimalPlaces: 2,
+    setNumberStart: DEFAULT_SET_NUMBER_START,
     framePrice: { ...DEFAULT_FRAME_PRICE_CONFIG },
     rules: dedupeRules(rules),
   };

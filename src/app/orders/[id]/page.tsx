@@ -5,6 +5,7 @@ import { OrderDeleteButton } from "@/components/order-delete-button";
 import { OrderExportButtons } from "@/components/order-export-buttons";
 import { prisma } from "@/lib/prisma";
 import { resolveOrderItemDetails } from "@/lib/order-detail";
+import { showsSetNumber } from "@/lib/order-form";
 import { buildOutputGroups, calculateOutputTotals, hasPricingQuantity } from "@/lib/order-output";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
   const outputGroups = buildOutputGroups(order.items as any, resolveOrderItemDetails as any);
   const outputTotals = calculateOutputTotals(outputGroups, order);
+  // V75: Bộ số chỉ hiển thị khi đơn đã sang trạng thái Đã xác nhận / Đã chuyển sản xuất.
+  const showSetNumber = showsSetNumber(order.status);
   const visibleItems = order.items.flatMap((item) => {
     const detailRows = resolveOrderItemDetails(item).filter((row) => hasPricingQuantity(row.pricingQuantity));
     const showMainRow = hasPricingQuantity(item.pricingQuantity);
@@ -79,7 +82,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               <div className="overflow-hidden rounded-xl border border-slate-300 bg-white" key={item.id}>
                 <div className="flex flex-col gap-1 bg-slate-900 px-4 py-3 text-white md:flex-row md:items-center md:justify-between">
                   <div className="font-semibold">
-                    Bộ cửa #{item.lineNo} {item.setNo ? `· Bộ số ${item.setNo}` : ""} {item.productName ? `· ${item.productName}` : ""}
+                    Bộ cửa #{item.lineNo} {showSetNumber && item.setNo ? `· Bộ số ${item.setNo}` : ""} {item.productName ? `· ${item.productName}` : ""}
                   </div>
                   <div className="text-xs text-slate-300">{detailRows.length} dòng chi tiết có KH/Lượng</div>
                 </div>
@@ -120,7 +123,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                       </tr>
                     </thead>
                     <tbody>
-                      {showMainRow ? <ReadRow lineNo={item.lineNo} row={item} main /> : null}
+                      {showMainRow ? <ReadRow lineNo={item.lineNo} row={item} main showSetNo={showSetNumber} /> : null}
                       {detailRows.length > 0 ? (
                         <>
                           <tr>
@@ -129,7 +132,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                             </td>
                           </tr>
                           {detailRows.map((row, index) => (
-                            <ReadRow key={row.id ?? `raw-${item.id}-${row.sourceRow ?? index}`} lineNo={null} row={row} />
+                            <ReadRow key={row.id ?? `raw-${item.id}-${row.sourceRow ?? index}`} lineNo={null} row={row} showSetNo={showSetNumber} />
                           ))}
                         </>
                       ) : null}
@@ -173,10 +176,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   );
 }
 
-function ReadRow({ lineNo, row, main = false }: { lineNo: number | null; main?: boolean; row: any }) {
+function ReadRow({ lineNo, row, main = false, showSetNo = false }: { lineNo: number | null; main?: boolean; showSetNo?: boolean; row: any }) {
   return (
     <tr className={main ? "bg-cyan-50 font-medium" : "hover:bg-slate-50"}>
-      <Td>{lineNo ?? ""}</Td><Td>{row.setNo || ""}</Td><Td wide>{row.productName || ""}</Td><Td>{row.productCode || row.model || ""}</Td><Td wide>{row.panelInfo || ""}</Td>
+      <Td>{lineNo ?? ""}</Td><Td>{showSetNo ? (row.setNo || "") : ""}</Td><Td wide>{row.productName || ""}</Td><Td>{row.productCode || row.model || ""}</Td><Td wide>{row.panelInfo || ""}</Td>
       <Td>{row.openingDirection || ""}</Td><Td>{row.trimDirection || ""}</Td><Td>{row.paintColor || ""}</Td><Td>{row.heightMm ?? ""}</Td><Td>{row.widthMm ?? ""}</Td><Td>{row.frameMm ?? ""}</Td>
       <Td>{row.clearHeightMm ?? ""}</Td><Td>{row.clearWidthMm ?? ""}</Td><Td>{row.quantity ?? ""}</Td><Td>{row.unit || ""}</Td>{/* V74: dòng cửa hiển thị KHỐI LƯỢNG đến 2 số thập phân; dòng phụ kiện giữ tối đa 4. */}<Td>{main ? formatQuantity2(row.pricingQuantity) : formatNumber(row.pricingQuantity)}</Td><Td>{formatMoney(row.unitPrice)}</Td><Td>{formatMoney(row.amount)}</Td>
       <Td wide>{row.note || ""}</Td><Td>{row.imagePath ? <ProductImage path={row.imagePath} /> : ""}</Td>
