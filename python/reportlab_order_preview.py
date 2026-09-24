@@ -123,7 +123,8 @@ STYLES = {
     "summary_total_amount": pstyle("preview_summary_total_amount", size=8.0, leading=9.1, bold=True, color=WHITE, align=TA_RIGHT),
     # V60: “Ghi chú:” đậm + nghiêng + gạch chân + đỏ.
     "footnote_title": pstyle("preview_footnote_title", size=6.6, leading=7.8, font="bold_italic", color=colors.HexColor("#DC2626")),
-    "footnote_lead": pstyle("preview_footnote_lead", size=6.6, leading=7.8, bold=True, color=MUTED),
+    # V62: dòng xác nhận của khách hàng — chữ đen đậm.
+    "footnote_lead": pstyle("preview_footnote_lead", size=6.6, leading=7.8, bold=True, color=TEXT),
     "footnote": pstyle("preview_footnote", size=6.6, leading=7.8, color=MUTED),
 }
 

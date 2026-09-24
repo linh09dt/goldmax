@@ -401,7 +401,7 @@ function writeSummary(
   const noteLines: Array<{ text: string; font: Partial<ExcelJS.Font> }> = [
     // V60: “Ghi chú:” đậm + nghiêng + gạch chân + chữ đỏ.
     { text: FOOTNOTE_TITLE, font: { bold: true, italic: true, underline: true, color: { argb: "FFDC2626" } } },
-    { text: FOOTNOTE_LEAD, font: { bold: true } },
+    { text: FOOTNOTE_LEAD, font: { bold: true, color: { argb: TEXT } } },
     ...FOOTNOTE_LINES.map((text) => ({ text, font: {} })),
   ];
   for (const line of noteLines) {
