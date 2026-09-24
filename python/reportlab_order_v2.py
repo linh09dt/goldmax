@@ -751,7 +751,7 @@ def _footnote_block() -> Table:
         [para(FOOTNOTE_LEAD, "footnote_lead")],
     ]
     rows += [[para(line, "footnote")] for line in FOOTNOTE_LINES]
-    table = Table(rows, colWidths=[CONTENT_W * 0.60])
+    table = Table(rows, colWidths=[CONTENT_W * 0.60], hAlign="LEFT")
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), FOOTNOTE_FILL),
         ("BOX", (0, 0), (-1, -1), 0.6, FOOTNOTE_BORDER),
@@ -809,17 +809,22 @@ def _bottom_section(calc: dict[str, float]) -> Table:
         commands.append(("BACKGROUND", (0, discount_row_index), (-1, discount_row_index), PALE_AMBER))
     summary.setStyle(TableStyle(commands))
 
-    # V53: ghi chú nhỏ (trái) + tổng hợp thanh toán (phải); ghi chú dồn xuống đáy để nằm ở góc dưới bên trái.
+    # V55: hộp ghi chú nằm DƯỚI box tiền (cách 1 dòng). Box tiền giữ nguyên vị trí bên phải.
     footnote = _footnote_block()
-    outer = Table([[footnote, summary]], colWidths=[CONTENT_W * 0.66, CONTENT_W * 0.34], hAlign="LEFT")
+    outer = Table(
+        [["", summary], [footnote, ""]],
+        colWidths=[CONTENT_W * 0.66, CONTENT_W * 0.34],
+        hAlign="LEFT",
+    )
     outer.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (0, 0), "BOTTOM"),
-        ("VALIGN", (1, 0), (1, 0), "TOP"),
-        ("LEFTPADDING", (0, 0), (0, 0), 0),
-        ("LEFTPADDING", (1, 0), (1, 0), 8),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("SPAN", (0, 1), (1, 1)),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
         ("RIGHTPADDING", (0, 0), (-1, -1), 0),
         ("TOPPADDING", (0, 0), (-1, -1), 0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        # Khoảng cách 1 dòng giữa box tiền và hộp ghi chú.
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 4),
+        ("BOTTOMPADDING", (0, 1), (-1, 1), 0),
     ]))
     return outer
 
