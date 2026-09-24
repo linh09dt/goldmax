@@ -122,29 +122,39 @@ async function writeTopBanner(ws: Worksheet, workbook: ExcelJS.Workbook, order: 
   ws.getCell("D1").font = { ...BASE_FONT, bold: true, size: 14, color: { argb: NAVY } };
   ws.getCell("D1").alignment = { horizontal: "left", vertical: "middle", shrinkToFit: true };
 
-  const companyLines = [
-    "GPĐKKD Số: 2401031714",
-    "VP Miền Bắc: Số 670 Toàn Thắng - Xã Thuận An - TP. Hà Nội",
-    "VP Miền Nam: A34 Shophouse Phú Mỹ Hiệp - TP. Hồ Chí Minh",
-    "NHÀ MÁY SẢN XUẤT: Cụm CN Non Sáo, Xã Tân Dĩnh, Bắc Ninh",
-    "Hotline: 1900 8135",
-    "Email: Goldmaxdoor@gmail.com",
+  // V65: tách nhãn / giá trị ra 2 cột riêng để giá trị sau dấu ":" thẳng hàng dọc.
+  const companyLines: Array<[string, string]> = [
+    ["GPĐKKD Số:", "2401031714"],
+    ["VP Miền Bắc:", "Số 670 Toàn Thắng - Xã Thuận An - TP. Hà Nội"],
+    ["VP Miền Nam:", "A34 Shophouse Phú Mỹ Hiệp - TP. Hồ Chí Minh"],
+    ["NHÀ MÁY SẢN XUẤT:", "Cụm CN Non Sáo, Xã Tân Dĩnh, Bắc Ninh"],
+    ["Hotline:", "1900 8135"],
+    ["Email:", "Goldmaxdoor@gmail.com"],
   ];
-  companyLines.forEach((line, index) => {
+  companyLines.forEach(([label, value], index) => {
     const row = index + 2;
-    ws.mergeCells(`D${row}:L${row}`);
-    const cell = ws.getCell(`D${row}`);
-    cell.value = line;
-    cell.font = { ...BASE_FONT, size: 9.8, color: { argb: MUTED } };
-    cell.alignment = { horizontal: "left", vertical: "middle", wrapText: false, shrinkToFit: true };
+    // Nhãn ở cột D:E (rộng cố định) — giá trị ở cột F:L để mọi giá trị bắt đầu cùng một mốc.
+    ws.mergeCells(`D${row}:E${row}`);
+    const labelCell = ws.getCell(`D${row}`);
+    labelCell.value = label;
+    labelCell.font = { ...BASE_FONT, size: 9.8, color: { argb: MUTED } };
+    labelCell.alignment = { horizontal: "left", vertical: "middle", wrapText: false, shrinkToFit: true };
+
+    ws.mergeCells(`F${row}:L${row}`);
+    const valueCell = ws.getCell(`F${row}`);
+    valueCell.value = value;
+    valueCell.font = { ...BASE_FONT, size: 9.8, color: { argb: MUTED } };
+    valueCell.alignment = { horizontal: "left", vertical: "middle", wrapText: false, shrinkToFit: true };
   });
 
-  ws.getCell("L1").value = "THÔNG TIN ĐƠN HÀNG";
-  ws.getCell("L1").font = { ...BASE_FONT, bold: true, size: 16, color: { argb: NAVY } };
-  ws.getCell("L1").alignment = { horizontal: "right", vertical: "middle", shrinkToFit: true };
-  ws.getCell("L3").value = `Mã ĐH: ${order.orderCode}`;
-  ws.getCell("L3").font = { ...BASE_FONT, bold: true, italic: true, size: 11, color: { argb: AMBER } };
-  ws.getCell("L3").alignment = { horizontal: "right", vertical: "middle", shrinkToFit: true };
+  // V65: ghi vào ô gốc của vùng merge M1:T2 / M3:T3 (trước đây ghi L1/L3 — là ô con của
+  // vùng D1:L1 / D3:L3 nên ghi đè mất tên công ty và dòng "VP Miền Bắc").
+  ws.getCell("M1").value = "THÔNG TIN ĐƠN HÀNG";
+  ws.getCell("M1").font = { ...BASE_FONT, bold: true, size: 16, color: { argb: NAVY } };
+  ws.getCell("M1").alignment = { horizontal: "right", vertical: "middle", shrinkToFit: true };
+  ws.getCell("M3").value = `Mã ĐH: ${order.orderCode}`;
+  ws.getCell("M3").font = { ...BASE_FONT, bold: true, italic: true, size: 11, color: { argb: AMBER } };
+  ws.getCell("M3").alignment = { horizontal: "right", vertical: "middle", shrinkToFit: true };
 
   const croppedLogoPath = path.join(process.cwd(), "public", "goldmax-logo-cropped.png");
   const originalLogoPath = path.join(process.cwd(), "public", "goldmax-logo.png");

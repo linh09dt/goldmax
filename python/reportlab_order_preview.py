@@ -22,6 +22,7 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
+from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfgen import canvas as pdfcanvas
 from reportlab.platypus import Image, LongTable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
@@ -289,11 +290,57 @@ def _size_text(row: dict[str, Any], main: bool) -> Paragraph:
     return para("\n".join(lines), "center")
 
 
+COMPANY_LABEL_GAP = 4.0  # khoảng hở giữa dấu ":" và giá trị (pt)
+
+
+def _company_lines_flowable(column_width: float) -> Any:
+    """V65: nhãn thông tin công ty thẳng lề trái, giá trị sau dấu ":" thẳng thành 1 cột."""
+    pairs = []
+    for line in COMPANY_LINES:
+        label, _, value = line.partition(":")
+        pairs.append((f"{label}:", value.strip()))
+
+    base = STYLES["company_line"]
+    size = float(base.fontSize)
+    font_name = base.fontName
+
+    def widest(sz: float) -> tuple[float, float]:
+        return (
+            max(pdfmetrics.stringWidth(lbl, font_name, sz) for lbl, _ in pairs),
+            max(pdfmetrics.stringWidth(val, font_name, sz) for _, val in pairs),
+        )
+
+    label_max, value_max = widest(size)
+    if label_max + COMPANY_LABEL_GAP + value_max > column_width > 0:
+        size = max(5.5, size * (column_width - COMPANY_LABEL_GAP) / (label_max + value_max))
+        label_max, value_max = widest(size)
+
+    label_width = min(label_max + COMPANY_LABEL_GAP, column_width * 0.5)
+    value_width = max(column_width - label_width, 1.0)
+    style = ParagraphStyle(
+        f"preview_company_line_{size:.2f}",
+        parent=base,
+        fontSize=size,
+        leading=size * 1.16,
+    )
+    rows = [[Paragraph(esc(label), style), Paragraph(esc(value), style)] for label, value in pairs]
+    table = Table(rows, colWidths=[label_width, value_width], hAlign="LEFT")
+    table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    return table
+
+
 def _header(order: dict[str, Any], order_code: str) -> list[Any]:
+    company_width = CONTENT_W - 31 * mm - 102 * mm
     company = [
         para(COMPANY, "company"),
         Spacer(1, 0.6 * mm),
-        para("\n".join(COMPANY_LINES), "company_line"),
+        _company_lines_flowable(company_width),
     ]
     # Giữ form mẫu, nhưng phần đầu theo form hiện tại: THÔNG TIN ĐƠN HÀNG + Mã ĐH.
     quote_box = Table([

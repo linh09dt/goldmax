@@ -677,12 +677,12 @@ def _logo_flowable() -> Any:
 
 def _header(order: dict[str, Any], order_code: str) -> list[Any]:
     company_width = CONTENT_W * COMPANY_COL_RATIO
-    company_line_style = _company_line_style(company_width)
     company_block = [
         para(COMPANY, "company"),
         # V64: khoảng cách sau tên công ty thu lại để 6 dòng thông tin đều nhịp như một hàng dọc.
         Spacer(1, 0.3 * mm),
-        Paragraph("<br/>".join(esc(line) for line in COMPANY_LINES), company_line_style),
+        # V65: nhãn + giá trị căn cột (giá trị sau dấu ":" thẳng hàng).
+        _company_lines_flowable(company_width),
     ]
     title_block = [
         para(TITLE, "title"),
@@ -738,25 +738,60 @@ def _meta(label: str, value: str) -> Paragraph:
     )
 
 
-def _company_line_style(column_width: float) -> ParagraphStyle:
-    """V64: thu nhỏ cỡ chữ nếu cần để 6 dòng thông tin công ty luôn nằm gọn trong 1 hàng.
+COMPANY_LABEL_GAP = 4.0  # khoảng hở giữa dấu ":" và giá trị (pt)
 
-    Giữ nguyên lề trái và khoảng cách dòng đều nhau (mỗi thông tin 1 hàng dọc).
+
+def company_line_pairs() -> list[tuple[str, str]]:
+    """V65: tách mỗi dòng thông tin công ty thành (nhãn, giá trị) theo dấu ":" đầu tiên."""
+    pairs = []
+    for line in COMPANY_LINES:
+        label, _, value = line.partition(":")
+        pairs.append((f"{label}:", value.strip()))
+    return pairs
+
+
+def _company_lines_flowable(column_width: float) -> Any:
+    """V65: 6 dòng thông tin công ty — nhãn thẳng lề trái, giá trị sau dấu ":" thẳng thành 1 cột.
+
+    Tự thu nhỏ cỡ chữ (sàn 6.4pt) nếu tổng bề rộng nhãn + hở + giá trị vượt bề rộng cột,
+    nhờ đó mỗi thông tin luôn nằm gọn trong 1 hàng và nhịp dòng đều nhau.
     """
+    pairs = company_line_pairs()
     base = S["company_line"]
     size = float(base.fontSize)
-    widest = max(
-        (pdfmetrics.stringWidth(line, FONTS["regular"], size) for line in COMPANY_LINES),
-        default=0.0,
-    )
-    if widest > column_width > 0:
-        size = max(6.4, size * column_width / widest)
-    return ParagraphStyle(
+
+    def widest(sz: float) -> tuple[float, float]:
+        return (
+            max(pdfmetrics.stringWidth(lbl, FONTS["regular"], sz) for lbl, _ in pairs),
+            max(pdfmetrics.stringWidth(val, FONTS["regular"], sz) for _, val in pairs),
+        )
+
+    label_max, value_max = widest(size)
+    if label_max + COMPANY_LABEL_GAP + value_max > column_width > 0:
+        size = max(6.4, size * (column_width - COMPANY_LABEL_GAP) / (label_max + value_max))
+        label_max, value_max = widest(size)
+
+    label_width = min(label_max + COMPANY_LABEL_GAP, column_width * 0.5)
+    value_width = max(column_width - label_width, 1.0)
+    style = ParagraphStyle(
         f"company_line_{size:.2f}",
         parent=base,
         fontSize=size,
         leading=size * 1.16,
     )
+    rows = [
+        [Paragraph(esc(label), style), Paragraph(esc(value), style)]
+        for label, value in pairs
+    ]
+    table = Table(rows, colWidths=[label_width, value_width], hAlign="LEFT")
+    table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    return table
 
 
 def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | None]) -> Table:
