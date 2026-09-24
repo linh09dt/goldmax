@@ -794,21 +794,30 @@ def _company_lines_flowable(column_width: float) -> Any:
     return table
 
 
+def _item_note_flowable(note: str, main: bool) -> Paragraph:
+    """V66: nội dung hàng "GHI CHÚ KỸ THUẬT" của một dòng hàng (in ngay dưới dòng đó)."""
+    style = S["note"] if main else S["detail"]
+    return Paragraph(f'<font name="{FONTS["bold"]}">GHI CHÚ KỸ THUẬT:</font> {esc(note)}', style)
+
+
 def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | None]) -> Table:
     # Hai dòng header để thể hiện đúng nhóm KT THÔNG THỦY: Cao / Rộng.
     # V63: "KT CỬA (MM)" tách thành 2 cột CAO / RỘNG (giống nhóm KT THÔNG THỦY).
+    # V66: bỏ cột "GHI CHÚ KỸ THUẬT" — ghi chú của dòng nào được in thành 1 hàng riêng
+    # ngay dưới dòng đó, trải hết chiều ngang bảng; bề rộng cột còn lại được chia lại.
     header_top = [
         "STT", "BỘ SỐ", "TÊN SẢN PHẨM / QUY CÁCH", "MODEL", "Ô TH.", "HƯỚNG", "PHÀO", "MÀU SƠN",
         "KT CỬA (MM)", "", "KHUÔN", "KT THÔNG THỦY", "", "SL", "ĐVT", "KHỐI LƯỢNG", "ĐƠN GIÁ (Đ)",
-        "THÀNH TIỀN (Đ)", "GHI CHÚ KỸ THUẬT", "HÌNH ẢNH SP",
+        "THÀNH TIỀN (Đ)", "HÌNH ẢNH SP",
     ]
-    header_sub = ["", "", "", "", "", "", "", "", "CAO", "RỘNG", "", "", "CAO", "RỘNG", "", "", "", "", "", ""]
+    header_sub = ["", "", "", "", "", "", "", "", "CAO", "RỘNG", "", "", "CAO", "RỘNG", "", "", "", "", ""]
     data: list[list[Any]] = [
         [para(h, "th") for h in header_top],
         [para(h, "th") for h in header_sub],
     ]
     main_row_numbers: list[int] = []
     detail_row_numbers: list[int] = []
+    note_row_numbers: list[int] = []
     group_ranges: list[tuple[int, int]] = []
 
     for group in groups:
@@ -839,7 +848,6 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
                 para(decimal4(row.get("pricingQuantity")), "num_bold" if main else "detail_right"),
                 para(money(row.get("unitPrice")), "num_bold" if main else "detail_right"),
                 para(money(line_amount(row)), "num_bold" if main else "detail_right"),
-                para(clean(row.get("note")), "note" if main else "detail"),
                 _image_flowable(image_url, image_cache) if image_url else para("", "center"),
             ]
             data.append(row_values)
@@ -847,16 +855,21 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
                 main_row_numbers.append(len(data) - 1)
             else:
                 detail_row_numbers.append(len(data) - 1)
+            note_text = clean(row.get("note"))
+            if note_text:
+                data.append([_item_note_flowable(note_text, main)] + [""] * (len(header_top) - 1))
+                note_row_numbers.append(len(data) - 1)
         group_end = len(data) - 1
         if group_end >= group_start:
             group_ranges.append((group_start, group_end))
 
     if len(data) == 2:
-        data.append([para("Không có dòng hàng hóa có KH/Lượng để xuất.", "body")] + [""] * 19)
+        data.append([para("Không có dòng hàng hóa có KH/Lượng để xuất.", "body")] + [""] * (len(header_top) - 1))
 
     # Giữ tỷ lệ cột hiện tại nhưng scale đúng CONTENT_W để tận dụng gần hết A4 landscape.
     # Nhờ vậy tăng font vẫn không làm bảng tràn khỏi lề trái/phải.
-    base_widths_mm = [5.5, 10.5, 27, 21, 9, 9, 9, 9, 9.5, 9.5, 9, 9, 9, 7, 8, 13, 20, 22, 39, 18]
+    # V66: bỏ cột ghi chú (39mm) → chia lại cho các cột còn lại, tổng giữ 273 để bảng vẫn vừa CONTENT_W.
+    base_widths_mm = [5.5, 11, 31, 23, 9, 9, 9, 10, 10.5, 10.5, 10, 10, 10, 7, 8, 14, 21, 24, 40.5]
     base_total = sum(base_widths_mm)
     # LongTable tối ưu cho bảng dài. splitInRow cho phép một dòng rất cao
     # (ví dụ ghi chú kỹ thuật dài) được tách an toàn khi vượt chiều cao trang.
@@ -881,19 +894,23 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
         ("BOTTOMPADDING", (0, 0), (-1, 1), 3.2),
         ("TOPPADDING", (0, 2), (-1, -1), 2.4),
         ("BOTTOMPADDING", (0, 2), (-1, -1), 2.4),
-        ("LEFTPADDING", (18, 2), (18, -1), 3.0),
-        ("RIGHTPADDING", (18, 2), (18, -1), 3.0),
-        ("TOPPADDING", (18, 2), (19, -1), 3.0),
-        ("BOTTOMPADDING", (18, 2), (19, -1), 3.0),
+        ("LEFTPADDING", (17, 2), (17, -1), 3.0),
+        ("RIGHTPADDING", (17, 2), (17, -1), 3.0),
+        ("TOPPADDING", (17, 2), (18, -1), 3.0),
+        ("BOTTOMPADDING", (17, 2), (18, -1), 3.0),
         ("SPAN", (8, 0), (9, 0)),
         ("SPAN", (11, 0), (12, 0)),
     ]
-    for col in list(range(0, 8)) + [10] + list(range(13, 20)):
+    for col in list(range(0, 8)) + [10] + list(range(13, 19)):
         commands.append(("SPAN", (col, 0), (col, 1)))
     for idx, row_no in enumerate(main_row_numbers):
         commands.append(("BACKGROUND", (0, row_no), (-1, row_no), LIGHT if idx % 2 else WHITE))
     for row_no in detail_row_numbers:
         commands.append(("BACKGROUND", (0, row_no), (-1, row_no), colors.HexColor("#FBFDFF")))
+    # V66: hàng ghi chú trải hết chiều ngang bảng, nền nhạt để tách khỏi dòng hàng.
+    for row_no in note_row_numbers:
+        commands.append(("SPAN", (0, row_no), (-1, row_no)))
+        commands.append(("BACKGROUND", (0, row_no), (-1, row_no), colors.HexColor("#F8FAFC")))
     table.setStyle(TableStyle(commands))
     return table
 
