@@ -17,10 +17,12 @@ Gồm toàn bộ thay đổi kể từ file zip gốc:
 - **V81** — Quy hoạch kích thước ô nhập theo **1 mốc chuẩn 1920px: 1fr = 1px** (đổi số fr = số px mong muốn ở màn 1920), các khổ màn khác co giãn theo %.
   Xem `ORDER_FIELD_SIZE_BASELINE_V81.md`.
 
+- **V82** — Chỉnh kích thước ô nhập theo **bảng % người dùng gửi** (mốc 1920). Xem `ORDER_FIELD_SIZE_TUNING_V82.md`.
+
 ## Cách áp
 
 ```
-unzip -o door-production-changes-v81.zip -d <thư-mục-project>
+unzip -o door-production-changes-v82.zip -d <thư-mục-project>
 npm run db:generate
 npm run build
 npm run dev
