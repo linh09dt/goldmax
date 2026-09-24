@@ -42,16 +42,16 @@ from reportlab.platypus import (
 )
 
 PAGE_W, PAGE_H = landscape(A4)
-LEFT = RIGHT = 4 * mm
+LEFT = RIGHT = 2 * mm
 TOP = BOTTOM = 10 * mm
-CONTENT_W = PAGE_W - LEFT - RIGHT  # 289 mm - tận dụng gần hết chiều ngang A4 landscape
+CONTENT_W = PAGE_W - LEFT - RIGHT  # 293 mm - gần sát lề A4 landscape nhưng vẫn an toàn khi in
 
 NAVY = colors.HexColor("#1E3A8A")
 AMBER = colors.HexColor("#D97706")
-TEXT = colors.HexColor("#1F2937")
-MUTED = colors.HexColor("#6B7280")
+TEXT = colors.HexColor("#111111")
+MUTED = colors.HexColor("#374151")
 LIGHT = colors.HexColor("#F3F4F6")
-BORDER = colors.HexColor("#D1D5DB")
+BORDER = colors.HexColor("#9CA3AF")
 PALE_AMBER = colors.HexColor("#FFF7E6")
 WHITE = colors.white
 
@@ -172,8 +172,8 @@ S = {
     "th": pstyle("th", size=8.5, leading=9.4, font="bold", color=WHITE, align=TA_CENTER),
     "main": pstyle("main", size=8.8, leading=9.8, font="bold"),
     "body": pstyle("body", size=8.7, leading=9.7),
-    "detail": pstyle("detail", size=8.5, leading=9.4, font="italic", color=MUTED),
-    "detail_right": pstyle("detail_right", size=8.5, leading=9.4, font="italic", color=MUTED, align=TA_RIGHT),
+    "detail": pstyle("detail", size=8.5, leading=9.4, font="regular", color=TEXT),
+    "detail_right": pstyle("detail_right", size=8.5, leading=9.4, font="regular", color=TEXT, align=TA_RIGHT),
     "num": pstyle("num", size=8.7, leading=9.7, align=TA_RIGHT),
     "num_bold": pstyle("num_bold", size=8.7, leading=9.7, font="bold", align=TA_RIGHT),
     "center": pstyle("center", size=8.7, leading=9.7, align=TA_CENTER),
@@ -451,8 +451,8 @@ def _draw_footer(canvas: pdfcanvas.Canvas, doc: SimpleDocTemplate, order_code: s
     """
     canvas.saveState()
     y = 5.5 * mm
-    canvas.setStrokeColor(colors.HexColor("#E5E7EB"))
-    canvas.setLineWidth(0.5)
+    canvas.setStrokeColor(colors.HexColor("#CBD5E1"))
+    canvas.setLineWidth(0.7)
     canvas.line(LEFT, y + 4 * mm, PAGE_W - RIGHT, y + 4 * mm)
     canvas.setFillColor(MUTED)
     canvas.setFont(FONTS["regular"], 8.5)
@@ -602,8 +602,8 @@ def _header(order: dict[str, Any], order_code: str) -> list[Any]:
     ]
     meta_table = Table(meta, colWidths=[CONTENT_W * 0.40, CONTENT_W * 0.34, CONTENT_W * 0.26])
     meta_table.setStyle(TableStyle([
-        ("BOX", (0, 0), (-1, -1), 0.65, BORDER),
-        ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#E5E7EB")),
+        ("BOX", (0, 0), (-1, -1), 0.8, BORDER),
+        ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
         ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F8FAFC")),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("LEFTPADDING", (0, 0), (-1, -1), 6),
@@ -616,8 +616,8 @@ def _header(order: dict[str, Any], order_code: str) -> list[Any]:
 
 def _meta(label: str, value: str) -> Paragraph:
     return Paragraph(
-        f'<font name="{FONTS["regular"]}" color="#6B7280">{esc(label)}:</font> '
-        f'<font name="{FONTS["bold"]}" color="#1F2937">{esc(value)}</font>',
+        f'<font name="{FONTS["regular"]}" color="#374151">{esc(label)}:</font> '
+        f'<font name="{FONTS["bold"]}" color="#111111">{esc(value)}</font>',
         S["meta"],
     )
 
@@ -700,8 +700,8 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
     commands: list[tuple[Any, ...]] = [
         ("BACKGROUND", (0, 0), (-1, 1), NAVY),
         ("TEXTCOLOR", (0, 0), (-1, 1), WHITE),
-        ("BOX", (0, 0), (-1, -1), 0.55, BORDER),
-        ("INNERGRID", (0, 0), (-1, -1), 0.35, BORDER),
+        ("BOX", (0, 0), (-1, -1), 0.8, BORDER),
+        ("INNERGRID", (0, 0), (-1, -1), 0.45, BORDER),
         ("VALIGN", (0, 0), (-1, 1), "MIDDLE"),
         ("VALIGN", (0, 2), (-1, -1), "TOP"),
         ("LEFTPADDING", (0, 0), (-1, -1), 2.0),
@@ -743,8 +743,8 @@ def _bottom_section(order: dict[str, Any], calc: dict[str, float]) -> Table:
         colWidths=[CONTENT_W * 0.66],
     )
     checklist.setStyle(TableStyle([
-        ("BOX", (0, 0), (-1, -1), 0.65, BORDER),
-        ("LINEBELOW", (0, 0), (-1, 0), 0.45, colors.HexColor("#E5E7EB")),
+        ("BOX", (0, 0), (-1, -1), 0.8, BORDER),
+        ("LINEBELOW", (0, 0), (-1, 0), 0.55, colors.HexColor("#CBD5E1")),
         ("LEFTPADDING", (0, 0), (-1, -1), 6),
         ("RIGHTPADDING", (0, 0), (-1, -1), 6),
         ("TOPPADDING", (0, 0), (-1, -1), 3),
@@ -773,8 +773,8 @@ def _bottom_section(order: dict[str, Any], calc: dict[str, float]) -> Table:
 
     summary = Table(summary_rows, colWidths=[CONTENT_W * 0.22, CONTENT_W * 0.12])
     commands: list[tuple[Any, ...]] = [
-        ("BOX", (0, 0), (-1, -2), 0.65, BORDER),
-        ("INNERGRID", (0, 0), (-1, -2), 0.35, BORDER),
+        ("BOX", (0, 0), (-1, -2), 0.8, BORDER),
+        ("INNERGRID", (0, 0), (-1, -2), 0.45, BORDER),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("LEFTPADDING", (0, 0), (-1, -1), 5),
         ("RIGHTPADDING", (0, 0), (-1, -1), 5),
