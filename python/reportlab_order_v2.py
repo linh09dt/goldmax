@@ -607,7 +607,16 @@ def build_order_pdf(order: dict[str, Any], output: str | os.PathLike[str] | io.B
     # quan trọng với đơn nhiều trang trên Vercel vì tránh network I/O lặp trong
     # quá trình Table.split()/layout.
     image_cache = _prefetch_product_images(groups) if include_images else {}
-    story.append(_data_table(groups, image_cache))
+    # V72: tự chia bảng theo trang sao cho mỗi bộ cửa nằm trọn trong 1 trang.
+    frame_height = PAGE_H - TOP - BOTTOM
+    used_height = 0.0
+    for flowable in story:
+        try:
+            _, flowable_height = flowable.wrap(CONTENT_W, frame_height)
+            used_height += float(flowable_height or 0)
+        except Exception:
+            used_height += float(getattr(flowable, "height", 0) or 0)
+    story.extend(_data_tables(groups, image_cache, frame_height, used_height))
 
     if export_note.strip():
         story.append(Spacer(1, 2.5 * mm))
@@ -827,7 +836,15 @@ def _item_note_flowable(note: str, main: bool, set_no: str = "") -> Paragraph:
     )
 
 
-def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | None]) -> Table:
+def _order_table_body(
+    groups: list[dict[str, Any]],
+    image_cache: dict[str, bytes | None],
+) -> tuple[list[str], list[list[Any]], list[list[Any]], dict[str, Any]]:
+    """V72: dựng dữ liệu bảng (2 hàng header + hàng hàng hóa/ghi chú) kèm chỉ số để style.
+
+    Trả về (header_top, header_rows, body_rows, meta) trong đó mọi chỉ số trong `meta`
+    là chỉ số hàng theo `body_rows` (0-based), để có thể cắt bảng thành nhiều trang.
+    """
     # Hai dòng header để thể hiện đúng nhóm KT THÔNG THỦY: Cao / Rộng.
     # V63: "KT CỬA (MM)" tách thành 2 cột CAO / RỘNG (giống nhóm KT THÔNG THỦY).
     # V66: bỏ cột "GHI CHÚ KỸ THUẬT" — ghi chú của dòng nào được in thành 1 hàng riêng
@@ -840,17 +857,19 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
     # V70: sửa lệch 1 ô từ V63 — "CAO/RỘNG" của KT THÔNG THỦY phải nằm ở cột 11/12
     # (trước đây ở cột 12/13 nên ô CAO trống còn chữ RỘNG bị vùng merge của SL che mất).
     header_sub = ["", "", "", "", "", "", "", "", "CAO", "RỘNG", "", "CAO", "RỘNG", "", "", "", "", "", ""]
-    data: list[list[Any]] = [
+    header_rows: list[list[Any]] = [
         [para(h, "th") for h in header_top],
         [para(h, "th") for h in header_sub],
     ]
+
+    body_rows: list[list[Any]] = []
     main_row_numbers: list[int] = []
     detail_row_numbers: list[int] = []
     note_rows: list[tuple[int, bool, bool]] = []
     group_ranges: list[tuple[int, int]] = []
 
     for group in groups:
-        group_start = len(data)
+        group_start = len(body_rows)
         pending_notes: list[tuple[str, bool]] = []
         for entry in group["rows"]:
             row = entry["row"]
@@ -880,11 +899,11 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
                 para(money(line_amount(row)), "num_bold" if main else "detail_right"),
                 _image_flowable(image_url, image_cache) if image_url else para("", "center"),
             ]
-            data.append(row_values)
+            body_rows.append(row_values)
             if main:
-                main_row_numbers.append(len(data) - 1)
+                main_row_numbers.append(len(body_rows) - 1)
             else:
-                detail_row_numbers.append(len(data) - 1)
+                detail_row_numbers.append(len(body_rows) - 1)
             note_text = clean(row.get("note"))
             if note_text:
                 pending_notes.append((note_text, main))
@@ -893,17 +912,27 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
         group_has_detail = any(not bool(entry["main"]) for entry in group["rows"])
         group_set_no = clean(group.get("setNo"))
         for note_text, note_main in pending_notes:
-            data.append(
+            body_rows.append(
                 [_item_note_flowable(note_text, note_main, group_set_no)] + [""] * (len(header_top) - 1)
             )
-            note_rows.append((len(data) - 1, note_main, group_has_detail))
-        group_end = len(data) - 1
+            note_rows.append((len(body_rows) - 1, note_main, group_has_detail))
+        group_end = len(body_rows) - 1
         if group_end >= group_start:
             group_ranges.append((group_start, group_end))
 
-    if len(data) == 2:
-        data.append([para("Không có dòng hàng hóa có KH/Lượng để xuất.", "body")] + [""] * (len(header_top) - 1))
+    if not body_rows:
+        body_rows.append([para("Không có dòng hàng hóa có KH/Lượng để xuất.", "body")] + [""] * (len(header_top) - 1))
 
+    meta = {
+        "main": main_row_numbers,
+        "detail": detail_row_numbers,
+        "notes": note_rows,
+        "groups": group_ranges,
+    }
+    return header_top, header_rows, body_rows, meta
+
+
+def _order_col_widths() -> list[float]:
     # Giữ tỷ lệ cột hiện tại nhưng scale đúng CONTENT_W để tận dụng gần hết A4 landscape.
     # Nhờ vậy tăng font vẫn không làm bảng tràn khỏi lề trái/phải.
     # V66: bỏ cột ghi chú (39mm) → chia lại cho các cột còn lại, tổng giữ 273 để bảng vẫn vừa CONTENT_W.
@@ -912,14 +941,38 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
     # HÌNH ẢNH SP, ĐƠN GIÁ, THÀNH TIỀN, KHỐI LƯỢNG thu hẹp (cho phép xuống dòng).
     base_widths_mm = [7.5, 11, 34, 23.5, 17.5, 13, 10.5, 15.5, 10.5, 10.5, 12.5, 12.5, 13.5, 6, 8, 15, 17, 18.5, 15.5]
     base_total = sum(base_widths_mm)
+    return [CONTENT_W * (w / base_total) for w in base_widths_mm]
+
+
+def _order_table(
+    header_top: list[str],
+    header_rows: list[list[Any]],
+    body_rows: list[list[Any]],
+    meta: dict[str, Any],
+    indices: list[int],
+    col_widths: list[float],
+    atomic: bool = True,
+) -> Table:
+    """V72: dựng 1 bảng cho 1 trang, `indices` là các chỉ số hàng (theo body_rows) của trang đó."""
+    data: list[list[Any]] = [list(r) for r in header_rows] + [body_rows[i] for i in indices]
+    local = {global_index: position + 2 for position, global_index in enumerate(indices)}
+    cols = len(header_top)
+    main_rows = [local[i] for i in meta["main"] if i in local]
+    detail_rows = [local[i] for i in meta["detail"] if i in local]
+    note_row_list = [(local[i], is_main, soft) for i, is_main, soft in meta["notes"] if i in local]
+    group_ranges = [(local[a], local[b]) for a, b in meta["groups"] if a in local and b in local]
+
     # LongTable tối ưu cho bảng dài. splitInRow cho phép một dòng rất cao
     # (ví dụ ghi chú kỹ thuật dài) được tách an toàn khi vượt chiều cao trang.
+    # V72: mỗi bảng con đã được thiết kế vừa đúng 1 trang nên KHÔNG cho tách (atomic) —
+    # nhờ vậy khi không đủ chỗ ở cuối trang, cả bảng con (tức cả nhóm bộ cửa) bị đẩy sang trang sau.
+    # Chỉ những bảng chứa 1 bộ cao hơn cả trang mới cho tách để không tràn trang.
     table = LongTable(
         data,
-        colWidths=[CONTENT_W * (w / base_total) for w in base_widths_mm],
+        colWidths=col_widths,
         repeatRows=2,
-        splitByRow=1,
-        splitInRow=1,
+        splitByRow=0 if atomic else 1,
+        splitInRow=0 if atomic else 1,
         hAlign="LEFT",
     )
     commands: list[tuple[Any, ...]] = [
@@ -942,27 +995,86 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
         ("SPAN", (8, 0), (9, 0)),
         ("SPAN", (11, 0), (12, 0)),
     ]
-    for col in list(range(0, 8)) + [10] + list(range(13, 19)):
+    for col in list(range(0, 8)) + [10] + list(range(13, cols)):
         commands.append(("SPAN", (col, 0), (col, 1)))
-    for idx, row_no in enumerate(main_row_numbers):
+    for idx, row_no in enumerate(main_rows):
         commands.append(("BACKGROUND", (0, row_no), (-1, row_no), LIGHT if idx % 2 else WHITE))
-    for row_no in detail_row_numbers:
+    for row_no in detail_rows:
         commands.append(("BACKGROUND", (0, row_no), (-1, row_no), colors.HexColor("#FBFDFF")))
     # V66: hàng ghi chú trải hết chiều ngang bảng, nền nhạt để tách khỏi dòng hàng.
-    for row_no, _main, _soft in note_rows:
+    for row_no, _main, _soft in note_row_list:
         commands.append(("SPAN", (0, row_no), (-1, row_no)))
         commands.append(("BACKGROUND", (0, row_no), (-1, row_no), colors.HexColor("#F8FAFC")))
     # V67: đường kẻ của dòng phụ kiện chi tiết (và hàng ghi chú nằm trong khối phụ kiện) mờ hơn 60%.
-    for row_no in detail_row_numbers:
-        _soften_row_lines(commands, row_no, len(header_top))
-    for row_no, _main, soft in note_rows:
+    for row_no in detail_rows:
+        _soften_row_lines(commands, row_no, cols)
+    for row_no, _main, soft in note_row_list:
         if soft:
-            _soften_row_lines(commands, row_no, len(header_top), spanned=True)
+            _soften_row_lines(commands, row_no, cols, spanned=True)
     # V68: vạch cuối mỗi bộ cửa luôn là vạch thường để ranh giới giữa các bộ rõ ràng.
     for _start, end in group_ranges:
         commands.append(("LINEBELOW", (0, end), (-1, end), 0.45, BORDER))
+    # V72: giữ TRỌN một bộ cửa trong cùng 1 trang (nếu bộ vượt chiều cao trang thì đành tách).
+    for start, end in group_ranges:
+        if end > start:
+            commands.append(("NOSPLIT", (0, start), (-1, end)))
     table.setStyle(TableStyle(commands))
     return table
+
+
+def _data_tables(
+    groups: list[dict[str, Any]],
+    image_cache: dict[str, bytes | None],
+    frame_height: float = 0.0,
+    used_height: float = 0.0,
+) -> list[Table]:
+    """V72: chia bảng thành nhiều bảng nhỏ — ranh giới trang luôn rơi vào giữa 2 bộ cửa.
+
+    Đo chiều cao hàng thật (cùng colWidths + style) rồi xếp từng bộ vào trang:
+    bộ nào không đủ chỗ ở cuối trang sẽ được đẩy trọn sang trang sau.
+    """
+    header_top, header_rows, body_rows, meta = _order_table_body(groups, image_cache)
+    col_widths = _order_col_widths()
+    probe = _order_table(header_top, header_rows, body_rows, meta, list(range(len(body_rows))), col_widths)
+    probe.wrap(CONTENT_W, 10 ** 9)
+    heights = [float(h or 0) for h in probe._rowHeights]
+    header_h = heights[0] + heights[1]
+    row_heights = heights[2:]
+
+    if frame_height <= header_h:
+        return [_order_table(header_top, header_rows, body_rows, meta, list(range(len(body_rows))), col_widths)]
+
+    # Trang đầu phải trừ phần header/meta đã in phía trên bảng; các trang sau chỉ trừ 2 hàng header.
+    avail_first = max(frame_height - used_height, header_h + 1.0)
+    avail_next = max(frame_height - header_h, header_h + 1.0)
+
+    chunks: list[list[int]] = []
+    current: list[int] = []
+    current_height = header_h
+    avail = avail_first
+    for start, end in meta["groups"]:
+        group_height = sum(row_heights[start:end + 1])
+        if current and current_height + group_height > avail:
+            chunks.append(current)
+            current = []
+            current_height = header_h
+            avail = avail_next
+        current.extend(range(start, end + 1))
+        current_height += group_height
+    if current:
+        chunks.append(current)
+    if not chunks:
+        chunks.append(list(range(len(body_rows))))
+
+    tables: list[Table] = []
+    for position, chunk in enumerate(chunks):
+        chunk_height = header_h + sum(row_heights[i] for i in chunk)
+        capacity = avail_first if position == 0 else avail_next
+        # Bộ đơn lẻ cao hơn trang: vẫn cho tách để tránh tràn trang.
+        tables.append(
+            _order_table(header_top, header_rows, body_rows, meta, chunk, col_widths, atomic=chunk_height <= capacity)
+        )
+    return tables
 
 
 def _footnote_block() -> Table:
