@@ -292,7 +292,7 @@ async function writeDataRow(
     toNumber(row.clearHeightMm),
     toNumber(row.clearWidthMm),
     toNumber(row.quantity),
-    cleanText(row.unit) || "",
+    formatUnit(row.unit),
     toNumber(row.pricingQuantity),
     toNumber(row.unitPrice),
     outputLineAmount(row),
@@ -390,6 +390,12 @@ function writeItemNoteRow(
   styleRange(ws, `A${rowNo}:S${rowNo}`, "FFF8FAFC", true, { top, left: top, bottom, right: top });
   ws.getRow(rowNo).height = Math.max(16, 12.5 * Math.max(1, Math.ceil(cell.value.length / 190)));
   return rowNo + 1;
+}
+
+// V73: đơn vị "m2" hiển thị thành m² (mét vuông) — ký tự ² thật (U+00B2) thay cho "m2".
+function formatUnit(value: unknown): string {
+  const text = cleanText(value) || "";
+  return /^m2$/i.test(text.trim()) ? "m\u00B2" : text;
 }
 
 function estimateWrappedLines(value: string, charsPerLine: number) {

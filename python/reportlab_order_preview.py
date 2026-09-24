@@ -47,6 +47,7 @@ from python.reportlab_order_v2 import (
     number_to_vietnamese_words,
     raw_block_details,
     totals,
+    format_unit,
 )
 
 PAGE_W, PAGE_H = landscape(A4)
@@ -445,7 +446,7 @@ def _items_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | No
                 _technical_description(row, main, group.get("setNo")),
                 _size_text(row, main),
                 para(integer(row.get("quantity")), "center"),
-                para(clean(row.get("unit")), "center"),
+                para(format_unit(row.get("unit")), "center"),
                 para(decimal4(row.get("pricingQuantity")), "right"),
                 para(money(row.get("unitPrice")), "right"),
                 para(money(line_amount(row)), "right_bold" if main else "right"),

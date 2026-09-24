@@ -318,6 +318,16 @@ def para(value: Any, style: str = "body") -> Paragraph:
     return Paragraph(esc(value).replace("\n", "<br/>"), S[style])
 
 
+# V73: đơn vị "m2" in thành m² (mét vuông) — dùng ký tự ² thật (U+00B2) để số 2 nhỏ nằm phía trên.
+UNIT_LABELS = {"m2": "m²"}
+
+
+def format_unit(value: Any) -> str:
+    """V73: chuẩn hoá đơn vị hiển thị — "m2"/"M2" → m²; các đơn vị khác giữ nguyên."""
+    text = clean(value)
+    return UNIT_LABELS.get(text.strip().lower(), text)
+
+
 def money(value: Any) -> str:
     n = number(value)
     if n is None:
@@ -893,7 +903,7 @@ def _order_table_body(
                 para(integer(row.get("clearWidthMm")), "center" if main else "detail"),
                 para(integer(row.get("quantity")), "center" if main else "detail"),
                 # ĐVT, Khối lượng, Đơn giá, Thành tiền căn phải.
-                para(clean(row.get("unit")), "num" if main else "detail_right"),
+                para(format_unit(row.get("unit")), "num" if main else "detail_right"),
                 para(decimal4(row.get("pricingQuantity")), "num_bold" if main else "detail_right"),
                 para(money(row.get("unitPrice")), "num_bold" if main else "detail_right"),
                 para(money(line_amount(row)), "num_bold" if main else "detail_right"),
