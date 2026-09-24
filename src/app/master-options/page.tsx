@@ -1,14 +1,6 @@
-import { ErpShell } from "@/components/erp-shell";
-import { MasterOptions } from "@/components/master-options";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
+// V76: tab Danh mục cấu hình đã gộp vào tab CẤU HÌNH (/settings?tab=options).
 export default function MasterOptionsPage() {
-  return (
-    <ErpShell
-      title="Danh mục cấu hình đơn hàng"
-    >
-      <MasterOptions />
-    </ErpShell>
-  );
+  redirect("/settings?tab=options");
 }

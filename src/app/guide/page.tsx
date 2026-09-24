@@ -11,7 +11,7 @@ export default function GuidePage() {
         <section className="erp-card p-5">
           <h2 className="text-lg font-bold text-slate-950">Quy trình sử dụng nhanh</h2>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <Step no="1" title="Cấu hình dữ liệu" text="Kiểm tra Danh mục hàng hóa, danh mục chọn và rule tính KH/Lượng." href="/items" />
+            <Step no="1" title="Cấu hình dữ liệu" text="Vào tab Cấu hình: kiểm tra Danh mục hàng hóa, danh mục chọn và rule tính KH/Lượng." href="/settings" />
             <Step no="2" title="Tạo đơn hàng" text="Nhập thông tin khách hàng, bộ cửa, chi tiết và giá." href="/orders/new" />
             <Step no="3" title="Tính vận chuyển" text="Chọn đơn, vùng miền, quãng đường và áp dụng cước." href="/shipping" />
             <Step no="4" title="Quản lý đơn" text="Tra cứu, sửa, xuất PDF hoặc xóa đơn." href="/orders" />
@@ -85,8 +85,13 @@ export default function GuidePage() {
           </div>
         </GuideSection>
 
-        <GuideSection title="5. Danh mục hàng hóa" href="/items" linkLabel="Mở Danh mục hàng hóa">
-          <p className="text-sm text-slate-600">Đây là Master Data dùng để chọn TENHANG, MODEL, ĐVT và giá khi lập đơn.</p>
+        <GuideSection title="5. Cấu hình" href="/settings" linkLabel="Mở Cấu hình">
+          <p className="text-sm text-slate-600">
+            Tab <b>Cấu hình</b> gộp ba khu vực làm việc theo thứ tự nghiệp vụ: khai báo dữ liệu nền trước, rồi mới gán quy tắc tính toán.
+            Dùng menu phụ bên trái (mã <b>A1</b>, <b>A2</b>, <b>B1</b>) để chuyển khu vực; trên màn hình nhỏ thì dùng dải nút phía trên.
+          </p>
+
+          <GuideSubTitle code="A1" title="Danh mục hàng hóa" text="Master Data dùng khi lập đơn: TENHANG, MODEL, ĐVT, giá đại lý và giá bán lẻ." />
           <ActionTable rows={[
             ["Tạo lại Master Data từ Excel", "Tạo lại danh mục từ file Excel nguồn. Đơn hàng đã có không bị xóa."],
             ["Xuất Master Data", "Xuất Danh mục hàng hóa hiện tại ra Excel."],
@@ -98,23 +103,21 @@ export default function GuidePage() {
             ["Lưu / Hủy", "Lưu chỉnh sửa hoặc bỏ chỉnh sửa đang thực hiện."],
             ["Xóa", "Xóa hàng hóa khỏi Master Data sau khi xác nhận."],
           ]} />
-        </GuideSection>
 
-        <GuideSection title="6. Danh mục cấu hình" href="/master-options" linkLabel="Mở Danh mục cấu hình">
-          <p className="text-sm text-slate-600">Quản lý các giá trị chọn dùng trong đơn hàng: Mã Đại Lý, Màu sơn, Hướng mở, Hướng phào, Ô thoáng / Pano / Nan chớp.</p>
+          <GuideSubTitle code="A2" title="Danh mục cấu hình" text="Các giá trị chọn nhanh trong đơn: Mã Đại Lý, Màu sơn, Hướng mở, Hướng phào, Ô thoáng / Pano / Nan chớp." />
           <ActionTable rows={[
-            ["+ Thêm", "Thêm một giá trị mới vào nhóm cấu hình đang chọn."],
+            ["Chọn nhóm cấu hình", "Bấm một thẻ nhóm ở trên để xem và sửa danh mục của nhóm đó."],
+            ["+ Thêm giá trị", "Thêm một giá trị mới vào nhóm đang chọn."],
             ["Lưu", "Lưu Mã, Tên hiển thị hoặc Thứ tự sau khi chỉnh."],
             ["Ngưng dùng", "Ẩn giá trị khỏi danh sách chọn mới nhưng vẫn giữ dữ liệu cũ."],
             ["Kích hoạt", "Cho phép sử dụng lại giá trị đã ngưng."],
             ["Xóa Mã Đại Lý", "Xóa mã khỏi danh mục chọn mới; Mã Đại Lý đã lưu trong đơn hàng cũ vẫn được giữ nguyên."],
           ]} />
-        </GuideSection>
 
-        <GuideSection title="7. Cấu hình tính toán" href="/calculation-config" linkLabel="Mở Cấu hình tính toán">
-          <p className="text-sm text-slate-600">Gán cách tính KH/Lượng, nguồn đề xuất Cao/Rộng và cấu hình tự động tính Đơn giá Bộ cửa theo Khuôn. Rule Model ưu tiên hơn rule Nhóm hàng.</p>
+          <GuideSubTitle code="B1" title="Cấu hình tính toán" text="Gán cách tính KH/Lượng, nguồn đề xuất Cao/Rộng, đơn giá theo Khuôn và số bắt đầu Bộ số. Rule Model ưu tiên hơn rule Nhóm hàng." />
           <ActionTable rows={[
             ["Làm tròn KH/Lượng", "Chọn số chữ số thập phân dùng cho các giá trị KH/Lượng tự tính; mặc định 2."],
+            ["Số bắt đầu áp dụng Bộ số", "Số nhỏ nhất dùng cho Bộ số. Bộ số chỉ được cấp khi đơn chuyển sang Đã xác nhận và không đổi khi sang Đã chuyển sản xuất / Đã hủy."],
             ["Đơn giá cửa theo Khuôn", "Giá gốc lấy từ Giá đại lý của Model. Khuôn được làm tròn theo nấc cấu hình (mặc định 10 mm) rồi cộng phụ thu."],
             ["Mốc Khuôn", "Mặc định ≤140 mm không phụ thu; 150–170 mm cộng 10.000đ/m² mỗi 10 mm; 180–250 mm cộng cố định 110.000đ/m²; trên 250 mm tiếp tục cộng 10.000đ/m² mỗi 10 mm."],
             ["Bộ cửa chính", "Dùng công thức Cao × Rộng / 1.000.000 hoặc chọn Nhập tay nếu cần."],
@@ -126,7 +129,7 @@ export default function GuidePage() {
           ]} />
         </GuideSection>
 
-        <GuideSection title="8. Tính cước vận chuyển" href="/shipping" linkLabel="Mở Tính cước vận chuyển">
+        <GuideSection title="6. Tính cước vận chuyển" href="/shipping" linkLabel="Mở Tính cước vận chuyển">
           <div className="grid gap-4 xl:grid-cols-3">
             <MiniCard title="Tính cước theo đơn hàng" items={[
               "Chọn đơn hàng.",
@@ -225,6 +228,18 @@ function ActionTable({ rows }: { rows: Array<[string, string]> }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function GuideSubTitle({ code, title, text }: { code: string; title: string; text: string }) {
+  return (
+    <div className="flex items-start gap-2 border-l-2 border-cyan-500 pl-3">
+      <span className="mt-0.5 inline-flex h-5 min-w-8 items-center justify-center rounded bg-slate-900 px-1.5 text-[10px] font-bold text-cyan-300">{code}</span>
+      <div>
+        <div className="text-[13.5px] font-semibold text-slate-900">{title}</div>
+        <div className="mt-0.5 text-[12px] text-slate-500">{text}</div>
+      </div>
     </div>
   );
 }

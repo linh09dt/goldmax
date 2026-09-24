@@ -1,12 +1,6 @@
-import { ErpShell } from "@/components/erp-shell";
-import { CalculationConfigEditor } from "@/components/calculation-config";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
+// V76: tab Cấu hình tính toán đã gộp vào tab CẤU HÌNH (/settings?tab=pricing).
 export default function CalculationConfigPage() {
-  return (
-    <ErpShell title="Cấu hình tính toán đơn hàng">
-      <CalculationConfigEditor />
-    </ErpShell>
-  );
+  redirect("/settings?tab=pricing");
 }

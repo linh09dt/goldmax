@@ -1,11 +1,13 @@
-import Link from "next/link";
+import { ErpNav } from "@/components/erp-nav";
 
 export function ErpShell({
   title,
+  subtitle,
   actions,
   children,
 }: {
   title: string;
+  subtitle?: string;
   actions?: React.ReactNode;
   children: React.ReactNode;
 }) {
@@ -15,29 +17,25 @@ export function ErpShell({
         <aside className="border-r border-slate-800 bg-slate-950 text-slate-100">
           <div className="sticky top-0 flex min-h-screen flex-col px-4 py-5">
             <div className="border-b border-slate-800 pb-5">
-              <div className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">ERP sản xuất</div>
-              <div className="mt-2 text-xl font-bold">Quản lý sản xuất cửa</div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-400">ERP sản xuất</div>
+              <div className="mt-1.5 text-lg font-bold leading-tight">Quản lý sản xuất cửa</div>
             </div>
 
-            <nav className="mt-5 space-y-1 text-sm">
-              <Nav href="/" label="Tổng quan" />
-              <Nav href="/orders" label="Quản lý đơn hàng" />
-              <Nav href="/revenue" label="Theo dõi doanh thu" />
-              <Nav href="/items" label="Danh mục hàng hóa" />
-              <Nav href="/master-options" label="Danh mục cấu hình" />
-              <Nav href="/calculation-config" label="Cấu hình tính toán" />
-              <Nav href="/shipping" label="Tính cước vận chuyển" />
-              <Nav href="/guide" label="Hướng dẫn sử dụng" />
-            </nav>
+            <ErpNav />
+
+            <div className="mt-auto pt-6 text-[10px] leading-4 text-slate-600">
+              Dữ liệu nền và quy tắc tính toán nằm chung trong mục “Cấu hình”.
+            </div>
 
           </div>
         </aside>
 
         <main className="min-w-0">
-          <header className="border-b border-slate-200 bg-white px-4 py-5 shadow-sm md:px-6 xl:px-8">
+          <header className="border-b border-slate-200 bg-white px-4 py-4 shadow-sm md:px-6 xl:px-8">
             <div className="mx-auto flex max-w-[1800px] flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight text-slate-950 md:text-3xl">{title}</h1>
+              <div className="min-w-0">
+                <h1 className="erp-page-title truncate">{title}</h1>
+                {subtitle ? <p className="erp-hint mt-0.5">{subtitle}</p> : null}
               </div>
               {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
             </div>
@@ -46,13 +44,5 @@ export function ErpShell({
         </main>
       </div>
     </div>
-  );
-}
-
-function Nav({ href, label }: { href: string; label: string }) {
-  return (
-    <Link className="block rounded-lg px-3 py-2.5 text-slate-300 transition hover:bg-slate-800 hover:text-white" href={href}>
-      {label}
-    </Link>
   );
 }

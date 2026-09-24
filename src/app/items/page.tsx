@@ -1,14 +1,6 @@
-import { ErpShell } from "@/components/erp-shell";
-import { ItemMaster } from "@/components/item-master";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
+// V76: tab Danh mục hàng hóa đã gộp vào tab CẤU HÌNH (/settings?tab=items).
 export default function ItemsPage() {
-  return (
-    <ErpShell
-      title="Danh mục hàng hóa"
-    >
-      <ItemMaster />
-    </ErpShell>
-  );
+  redirect("/settings?tab=items");
 }

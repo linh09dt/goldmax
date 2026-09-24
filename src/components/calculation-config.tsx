@@ -11,6 +11,13 @@ import {
   type InputSuggestionRule,
   type PricingQuantityRule,
 } from "@/lib/calculation-config";
+import {
+  SettingsBadge,
+  SettingsCard,
+  SettingsNote,
+  SettingsSectionHeader,
+  SettingsTable,
+} from "@/components/settings/settings-ui";
 
 type CatalogItem = {
   code: string;
@@ -49,6 +56,7 @@ const SCOPE_OPTIONS: Array<{ value: CalculationScope; label: string }> = [
   { value: "ITEM", label: "Theo Model / hàng hóa" },
 ];
 
+/** V76: khối B1 của tab CẤU HÌNH — quy tắc tính KH/Lượng, đơn giá và Bộ số. */
 export function CalculationConfigEditor() {
   const [config, setConfig] = useState<CalculationConfig>(() => cloneCalculationConfig(DEFAULT_CALCULATION_CONFIG));
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
@@ -85,6 +93,8 @@ export function CalculationConfigEditor() {
     () => Array.from(new Set(catalogItems.map((item) => item.name.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "vi")),
     [catalogItems],
   );
+
+  const activeRuleCount = useMemo(() => config.rules.filter((rule) => rule.active).length, [config.rules]);
 
   async function save() {
     setBusy(true);
@@ -129,176 +139,219 @@ export function CalculationConfigEditor() {
     setConfig((current) => ({ ...current, framePrice: { ...current.framePrice, ...patch } }));
   }
 
-  return <div className="space-y-4">
-    <section className="rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-slate-700">
-      <div className="font-semibold text-cyan-900">Logic áp dụng</div>
-      <div className="mt-1 leading-6">
+  function patchSetNumberStart(value: number) {
+    setConfig((current) => ({ ...current, setNumberStart: Math.max(1, Math.round(Number.isFinite(value) ? value : 1)) }));
+  }
+
+  return (
+    <div className="space-y-4">
+      <SettingsSectionHeader
+        code="B1"
+        title="Cấu hình tính toán"
+        description="Quy tắc tính KH/Lượng, phụ thu theo Khuôn, đơn giá cửa và số bắt đầu Bộ số. Thay đổi chỉ áp dụng cho đơn lưu sau khi bấm Lưu cấu hình."
+        actions={
+          <>
+            <span className={`erp-hint mr-1 ${source === "saved" ? "text-emerald-700" : "text-amber-700"}`}>
+              {source === "saved" ? "● Cấu hình đã lưu" : "○ Đang dùng gợi ý từ Danh mục hàng hóa"}
+            </span>
+            <button className="erp-button-secondary" type="button" disabled={busy} onClick={() => void load(true)}>Tạo lại cấu hình gợi ý</button>
+            <button className="erp-button-secondary" type="button" onClick={addRule}>+ Thêm rule</button>
+            <button className="erp-button" type="button" disabled={busy} onClick={() => void save()}>{busy ? "Đang xử lý..." : "Lưu cấu hình"}</button>
+          </>
+        }
+      />
+
+      {message ? <SettingsNote tone={message.type === "ok" ? "success" : "danger"}>{message.text}</SettingsNote> : null}
+
+      <SettingsNote tone="info" title="Thứ tự áp dụng">
         Cấu hình <b>Model / hàng hóa</b> ưu tiên cao nhất, sau đó đến <b>Nhóm hàng</b>. Nếu không có rule thì KH/Lượng nhập tay.
-        Đề xuất Cao/Rộng chỉ điền khi chọn hàng hóa; người dùng vẫn có thể sửa lại bằng tay. KH/Lượng tự động được làm tròn theo số chữ số bên dưới.
-        Đơn giá Bộ cửa lấy <b>Giá đại lý</b> từ Master Data và có thể tự cộng phụ thu theo độ dày Khuôn.
-        Bộ số cũng được cấu hình ở đây: số bắt đầu áp dụng và cơ chế tự tăng dần.
-      </div>
-    </section>
+        Đề xuất Cao/Rộng chỉ điền khi chọn hàng hóa; người dùng vẫn sửa lại bằng tay được. KH/Lượng tự động được làm tròn theo số chữ số bên dưới.
+        Đơn giá Bộ cửa lấy <b>Giá đại lý</b> từ Danh mục hàng hóa và có thể tự cộng phụ thu theo độ dày Khuôn.
+      </SettingsNote>
 
-    {message ? <div className={`rounded-lg border px-4 py-3 text-sm ${message.type === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-700"}`}>{message.text}</div> : null}
-
-    <section className="erp-card overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3">
-        <div>
-          <h2 className="font-semibold">Thiết lập chung</h2>
-          <p className="mt-0.5 text-xs text-slate-500">Nguồn hiện tại: {source === "saved" ? "Cấu hình đã lưu" : "Cấu hình gợi ý từ Danh mục hàng hóa"}</p>
+      <SettingsCard
+        title="Thông số chung"
+        description="Áp dụng cho mọi đơn hàng tạo mới hoặc chỉnh sửa sau khi lưu."
+      >
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <label className="block">
+            <span className="erp-field-label">Làm tròn KH/Lượng</span>
+            <select className="erp-input" value={config.decimalPlaces} onChange={(event) => setConfig((current) => ({ ...current, decimalPlaces: Number(event.target.value) }))}>
+              {[0, 1, 2, 3, 4].map((value) => <option key={value} value={value}>{value} chữ số thập phân</option>)}
+            </select>
+            <span className="erp-hint mt-1 block">Chỉ ảnh hưởng cách hiển thị; tiền vẫn tính trên giá trị chính xác.</span>
+          </label>
+          <label className="block">
+            <span className="erp-field-label">Số bắt đầu áp dụng Bộ số</span>
+            <input
+              className="erp-input text-right font-semibold tabular-nums text-sky-900"
+              type="number"
+              min="1"
+              step="1"
+              value={config.setNumberStart}
+              onChange={(event) => patchSetNumberStart(Number(event.target.value))}
+            />
+            <span className="erp-hint mt-1 block">Số nhỏ nhất được dùng. Hệ thống vẫn cấp tiếp nếu dữ liệu cũ đã có số lớn hơn.</span>
+          </label>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <div className="erp-field-label">Cơ chế Bộ số</div>
+            <ul className="space-y-1 text-[12px] leading-5 text-slate-600">
+              <li>• Đơn <b>Nháp</b> / <b>Chờ khách hàng xác nhận</b>: chưa có Bộ số.</li>
+              <li>• Chuyển sang <b>Đã xác nhận</b>: hệ thống cấp Bộ số tự động, tăng dần.</li>
+              <li>• Sang <b>Đã chuyển sản xuất</b> hoặc <b>Đã hủy</b>: giữ nguyên Bộ số.</li>
+            </ul>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button className="erp-button-secondary" type="button" disabled={busy} onClick={() => void load(true)}>Tạo lại cấu hình gợi ý</button>
+      </SettingsCard>
+
+      <SettingsCard
+        title="Tự động tính Đơn giá cửa theo Khuôn"
+        description="Giá gốc = Giá đại lý của Model cửa trong Danh mục hàng hóa. Hệ thống làm tròn Khuôn trước rồi cộng phụ thu."
+        actions={
+          <label className="inline-flex items-center gap-2 text-[12.5px] font-semibold text-slate-700">
+            <input type="checkbox" className="h-4 w-4" checked={config.framePrice.enabled} onChange={(event) => patchFramePrice({ enabled: event.target.checked })} />
+            Bật tự động tính giá
+          </label>
+        }
+      >
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <NumberSetting label="Làm tròn Khuôn về nấc (mm)" value={config.framePrice.roundToMm} onChange={(value) => patchFramePrice({ roundToMm: value })} />
+          <NumberSetting label="Khuôn thường tiêu chuẩn đến (mm)" value={config.framePrice.standardMaxMm} onChange={(value) => patchFramePrice({ standardMaxMm: value })} />
+          <NumberSetting label="Khuôn kép bắt đầu từ (mm)" value={config.framePrice.doubleMinMm} onChange={(value) => patchFramePrice({ doubleMinMm: value })} />
+          <NumberSetting label="Khuôn kép cố định đến (mm)" value={config.framePrice.doubleMaxMm} onChange={(value) => patchFramePrice({ doubleMaxMm: value })} />
+          <NumberSetting label="Mỗi nấc tăng (mm)" value={config.framePrice.stepMm} onChange={(value) => patchFramePrice({ stepMm: value })} />
+          <NumberSetting label="Phụ thu / nấc khuôn thường (đ/m²)" value={config.framePrice.normalStepSurcharge} onChange={(value) => patchFramePrice({ normalStepSurcharge: value })} />
+          <NumberSetting label="Phụ thu cố định khuôn kép (đ/m²)" value={config.framePrice.doubleSurcharge} onChange={(value) => patchFramePrice({ doubleSurcharge: value })} />
+          <NumberSetting label="Phụ thu / nấc trên khuôn kép (đ/m²)" value={config.framePrice.overDoubleStepSurcharge} onChange={(value) => patchFramePrice({ overDoubleStepSurcharge: value })} />
+        </div>
+        <div className="mt-3">
+          <SettingsNote tone="info" title="Mốc phụ thu đang áp dụng">
+            <b>≤ {config.framePrice.standardMaxMm} mm = +0</b>; mỗi {config.framePrice.stepMm} mm vượt mốc cộng <b>{formatNumber(config.framePrice.normalStepSurcharge)} đ</b>;
+            {" "}<b>{config.framePrice.doubleMinMm}–{config.framePrice.doubleMaxMm} mm = +{formatNumber(config.framePrice.doubleSurcharge)} đ</b>;
+            {" "}trên {config.framePrice.doubleMaxMm} mm cộng tiếp <b>{formatNumber(config.framePrice.overDoubleStepSurcharge)} đ</b> mỗi {config.framePrice.stepMm} mm.
+          </SettingsNote>
+        </div>
+      </SettingsCard>
+
+      <section className="erp-card">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-3.5 py-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="erp-subsection-title">Rule tính KH/Lượng &amp; đề xuất nhập liệu</h3>
+            <SettingsBadge tone="cyan">{config.rules.length} rule</SettingsBadge>
+            <SettingsBadge tone="emerald">{activeRuleCount} đang dùng</SettingsBadge>
+          </div>
           <button className="erp-button-secondary" type="button" onClick={addRule}>+ Thêm rule</button>
-          <button className="erp-button" type="button" disabled={busy} onClick={() => void save()}>{busy ? "Đang xử lý..." : "Lưu cấu hình"}</button>
         </div>
-      </div>
-      <div className="flex flex-wrap items-end gap-3 p-4">
-        <label className="block">
-          <span className="mb-1 block text-xs font-semibold text-slate-600">Làm tròn KH/Lượng</span>
-          <select className="erp-input w-48" value={config.decimalPlaces} onChange={(event) => setConfig((current) => ({ ...current, decimalPlaces: Number(event.target.value) }))}>
-            {[0, 1, 2, 3, 4].map((value) => <option key={value} value={value}>{value} chữ số thập phân</option>)}
-          </select>
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs font-semibold text-slate-600">Số bắt đầu áp dụng Bộ số</span>
-          <input
-            className="erp-input w-48 text-right font-semibold text-sky-900"
-            type="number"
-            min="1"
-            step="1"
-            value={config.setNumberStart}
-            onChange={(event) => setConfig((current) => ({ ...current, setNumberStart: Math.max(1, Math.round(Number(event.target.value) || 1)) }))}
-          />
-        </label>
-        <p className="max-w-xl pb-2 text-xs leading-5 text-slate-500">
-          Bộ số do hệ thống tự tăng dần, người dùng không nhập tay. Đơn ở trạng thái <b>Nháp</b> hoặc <b>Chờ khách hàng xác nhận</b> chưa có Bộ số;
-          Bộ số được tạo khi đơn chuyển sang <b>Đã xác nhận</b> và giữ nguyên khi đơn chuyển tiếp sang <b>Đã chuyển sản xuất</b> hoặc <b>Đã hủy</b>.
-          Số cấp cho đơn mới luôn là số lớn nhất trong hai giá trị: số bắt đầu ở trên và số lớn nhất đã dùng + 1.
-        </p>
-      </div>
-    </section>
-
-    <section className="erp-card overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
-        <div>
-          <h2 className="font-semibold">Tự động tính Đơn giá cửa theo Khuôn</h2>
-          <p className="mt-0.5 text-xs text-slate-500">Giá gốc = Giá đại lý của Model cửa trong Master Data. Hệ thống làm tròn Khuôn trước rồi cộng phụ thu.</p>
-        </div>
-        <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
-          <input type="checkbox" className="h-4 w-4" checked={config.framePrice.enabled} onChange={(event) => patchFramePrice({ enabled: event.target.checked })} />
-          Bật tự động tính giá
-        </label>
-      </div>
-      <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
-        <NumberSetting label="Làm tròn Khuôn về nấc (mm)" value={config.framePrice.roundToMm} onChange={(value) => patchFramePrice({ roundToMm: value })} />
-        <NumberSetting label="Khuôn thường tiêu chuẩn đến (mm)" value={config.framePrice.standardMaxMm} onChange={(value) => patchFramePrice({ standardMaxMm: value })} />
-        <NumberSetting label="Khuôn kép bắt đầu từ (mm)" value={config.framePrice.doubleMinMm} onChange={(value) => patchFramePrice({ doubleMinMm: value })} />
-        <NumberSetting label="Khuôn kép cố định đến (mm)" value={config.framePrice.doubleMaxMm} onChange={(value) => patchFramePrice({ doubleMaxMm: value })} />
-        <NumberSetting label="Mỗi nấc tăng (mm)" value={config.framePrice.stepMm} onChange={(value) => patchFramePrice({ stepMm: value })} />
-        <NumberSetting label="Phụ thu / nấc khuôn thường (đ/m²)" value={config.framePrice.normalStepSurcharge} onChange={(value) => patchFramePrice({ normalStepSurcharge: value })} />
-        <NumberSetting label="Phụ thu cố định khuôn kép (đ/m²)" value={config.framePrice.doubleSurcharge} onChange={(value) => patchFramePrice({ doubleSurcharge: value })} />
-        <NumberSetting label="Phụ thu / nấc trên khuôn kép (đ/m²)" value={config.framePrice.overDoubleStepSurcharge} onChange={(value) => patchFramePrice({ overDoubleStepSurcharge: value })} />
-      </div>
-      <div className="border-t border-slate-200 bg-cyan-50 px-4 py-3 text-xs leading-5 text-slate-700">
-        Mặc định đã chốt: <b>≤140 mm = +0</b>; <b>150/160/170 = +10.000/+20.000/+30.000</b>; <b>180–250 mm = +110.000</b>; trên 250 mm cộng tiếp <b>10.000 mỗi 10 mm</b>. Ví dụ <b>245 → làm tròn 250 → +110.000</b>; <b>255 → 260 → +120.000</b>.
-      </div>
-    </section>
-
-    <section className="erp-card overflow-hidden">
-      <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
-        <h2 className="font-semibold">Rule tính KH/Lượng & đề xuất input</h2>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[1500px] text-sm">
-          <thead className="bg-slate-900 text-left text-[11px] uppercase text-slate-200">
+        <SettingsTable minWidthClass="min-w-[1560px]">
+          <thead>
             <tr>
-              <th className="px-3 py-2">Áp dụng cho</th>
-              <th className="px-3 py-2">Nhóm hàng</th>
-              <th className="px-3 py-2">Model / hàng hóa</th>
-              <th className="px-3 py-2">Cách tính KH/Lượng</th>
-              <th className="px-3 py-2">Đề xuất Cao</th>
-              <th className="px-3 py-2">Đề xuất Rộng</th>
-              <th className="px-3 py-2">Ghi chú</th>
-              <th className="px-3 py-2">Dùng</th>
-              <th className="px-3 py-2"></th>
+              <th className="w-44">Áp dụng cho</th>
+              <th className="w-56">Nhóm hàng</th>
+              <th className="w-72">Model / hàng hóa</th>
+              <th className="w-60">Cách tính KH/Lượng</th>
+              <th className="w-52">Đề xuất Cao</th>
+              <th className="w-52">Đề xuất Rộng</th>
+              <th className="min-w-72">Ghi chú</th>
+              <th className="w-20 text-center">Dùng</th>
+              <th className="w-20"></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200 bg-white">
+          <tbody>
             {config.rules.map((rule, index) => {
               const filteredItems = rule.groupName
                 ? catalogItems.filter((item) => normalizeLookup(item.name) === normalizeLookup(rule.groupName))
                 : catalogItems;
-              return <tr key={rule.id} className="align-top">
-                <td className="px-2 py-2">
-                  <select className="erp-input min-w-40" value={rule.scope} onChange={(event) => {
-                    const scope = event.target.value as CalculationScope;
-                    patchRule(index, {
-                      scope,
-                      groupName: scope === "MAIN" ? "" : rule.groupName,
-                      itemCode: scope === "ITEM" ? rule.itemCode : "",
-                      pricingRule: scope === "MAIN" && rule.pricingRule === "INHERIT" ? "DOOR_AREA" : rule.pricingRule,
-                    });
-                  }}>
-                    {SCOPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
-                </td>
-                <td className="px-2 py-2">
-                  {rule.scope === "MAIN" ? <span className="inline-flex h-9 items-center text-xs text-slate-400">—</span> : <select className="erp-input min-w-52" value={rule.groupName} onChange={(event) => patchRule(index, { groupName: event.target.value, itemCode: rule.scope === "ITEM" ? "" : rule.itemCode })}>
-                    <option value="">Chọn nhóm hàng</option>
-                    {rule.groupName && !groups.some((group) => normalizeLookup(group) === normalizeLookup(rule.groupName)) ? <option value={rule.groupName}>{rule.groupName} (cũ)</option> : null}
-                    {groups.map((group) => <option key={group} value={group}>{group}</option>)}
-                  </select>}
-                </td>
-                <td className="px-2 py-2">
-                  {rule.scope !== "ITEM" ? <span className="inline-flex h-9 items-center text-xs text-slate-400">{rule.scope === "GROUP" ? "Tất cả Model trong nhóm" : "—"}</span> : <select className="erp-input min-w-72" value={rule.itemCode} onChange={(event) => {
-                    const item = catalogItems.find((candidate) => candidate.code === event.target.value);
-                    patchRule(index, { itemCode: event.target.value, groupName: item?.name ?? rule.groupName });
-                  }}>
-                    <option value="">Chọn Model / hàng hóa</option>
-                    {rule.itemCode && !catalogItems.some((item) => item.code === rule.itemCode) ? <option value={rule.itemCode}>{rule.itemCode} (cũ)</option> : null}
-                    {filteredItems.map((item) => <option key={item.code} value={item.code}>{item.code}{item.productDescription ? ` · ${item.productDescription}` : ""}</option>)}
-                  </select>}
-                </td>
-                <td className="px-2 py-2"><RuleSelect value={rule.pricingRule} options={PRICING_OPTIONS} onChange={(value) => patchRule(index, { pricingRule: value as PricingQuantityRule })} /></td>
-                <td className="px-2 py-2"><RuleSelect value={rule.heightSuggestion} options={INPUT_OPTIONS} onChange={(value) => patchRule(index, { heightSuggestion: value as InputSuggestionRule })} /></td>
-                <td className="px-2 py-2"><RuleSelect value={rule.widthSuggestion} options={INPUT_OPTIONS} onChange={(value) => patchRule(index, { widthSuggestion: value as InputSuggestionRule })} /></td>
-                <td className="px-2 py-2"><input className="erp-input min-w-72" value={rule.note} onChange={(event) => patchRule(index, { note: event.target.value })} /></td>
-                <td className="px-2 py-2 text-center"><input className="mt-2 h-4 w-4" type="checkbox" checked={rule.active} onChange={(event) => patchRule(index, { active: event.target.checked })} /></td>
-                <td className="px-2 py-2"><button className="mt-1 rounded-md px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50" type="button" onClick={() => removeRule(index)}>Xóa</button></td>
-              </tr>;
+              return (
+                <tr key={rule.id} className={rule.active ? "bg-white" : "bg-slate-50 text-slate-500"}>
+                  <td>
+                    <select className="erp-input" value={rule.scope} onChange={(event) => {
+                      const scope = event.target.value as CalculationScope;
+                      patchRule(index, {
+                        scope,
+                        groupName: scope === "MAIN" ? "" : rule.groupName,
+                        itemCode: scope === "ITEM" ? rule.itemCode : "",
+                        pricingRule: scope === "MAIN" && rule.pricingRule === "INHERIT" ? "DOOR_AREA" : rule.pricingRule,
+                      });
+                    }}>
+                      {SCOPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                  </td>
+                  <td>
+                    {rule.scope === "MAIN" ? <span className="inline-flex h-9 items-center text-[12px] text-slate-400">—</span> : (
+                      <select className="erp-input" value={rule.groupName} onChange={(event) => patchRule(index, { groupName: event.target.value, itemCode: rule.scope === "ITEM" ? "" : rule.itemCode })}>
+                        <option value="">Chọn nhóm hàng</option>
+                        {rule.groupName && !groups.some((group) => normalizeLookup(group) === normalizeLookup(rule.groupName)) ? <option value={rule.groupName}>{rule.groupName} (cũ)</option> : null}
+                        {groups.map((group) => <option key={group} value={group}>{group}</option>)}
+                      </select>
+                    )}
+                  </td>
+                  <td>
+                    {rule.scope !== "ITEM" ? (
+                      <span className="inline-flex h-9 items-center text-[12px] text-slate-400">{rule.scope === "GROUP" ? "Tất cả Model trong nhóm" : "—"}</span>
+                    ) : (
+                      <select className="erp-input" value={rule.itemCode} onChange={(event) => {
+                        const item = catalogItems.find((candidate) => candidate.code === event.target.value);
+                        patchRule(index, { itemCode: event.target.value, groupName: item?.name ?? rule.groupName });
+                      }}>
+                        <option value="">Chọn Model / hàng hóa</option>
+                        {rule.itemCode && !catalogItems.some((item) => item.code === rule.itemCode) ? <option value={rule.itemCode}>{rule.itemCode} (cũ)</option> : null}
+                        {filteredItems.map((item) => <option key={item.code} value={item.code}>{item.code}{item.productDescription ? ` · ${item.productDescription}` : ""}</option>)}
+                      </select>
+                    )}
+                  </td>
+                  <td><RuleSelect value={rule.pricingRule} options={PRICING_OPTIONS} onChange={(value) => patchRule(index, { pricingRule: value as PricingQuantityRule })} /></td>
+                  <td><RuleSelect value={rule.heightSuggestion} options={INPUT_OPTIONS} onChange={(value) => patchRule(index, { heightSuggestion: value as InputSuggestionRule })} /></td>
+                  <td><RuleSelect value={rule.widthSuggestion} options={INPUT_OPTIONS} onChange={(value) => patchRule(index, { widthSuggestion: value as InputSuggestionRule })} /></td>
+                  <td><input className="erp-input min-w-64" value={rule.note} onChange={(event) => patchRule(index, { note: event.target.value })} /></td>
+                  <td className="text-center">
+                    <input className="h-4 w-4" type="checkbox" checked={rule.active} onChange={(event) => patchRule(index, { active: event.target.checked })} />
+                  </td>
+                  <td>
+                    <button className="rounded-md px-2 py-1 text-[12px] font-semibold text-red-600 hover:bg-red-50" type="button" onClick={() => removeRule(index)}>Xóa</button>
+                  </td>
+                </tr>
+              );
             })}
-            {config.rules.length === 0 ? <tr><td className="px-4 py-10 text-center text-slate-500" colSpan={9}>Chưa có rule tính toán.</td></tr> : null}
+            {config.rules.length === 0 ? <tr><td className="px-3 py-8 text-center text-slate-500" colSpan={9}>Chưa có rule tính toán.</td></tr> : null}
           </tbody>
-        </table>
-      </div>
-    </section>
+        </SettingsTable>
+      </section>
 
-    <section className="grid gap-3 lg:grid-cols-2 xl:grid-cols-5">
-      <Example title="Nhóm cửa" value="Cao × Rộng / 1.000.000" />
-      <Example title="Phào / Phao" value="(Cao × 2 + Rộng) / 1.000" />
-      <Example title="Ô thoáng" value="4TK → 4; 3TK → 3; 2TK → 2; 1TK → 1" />
-      <Example title="Khóa" value="Theo SL bộ cửa cha" />
-      <Example title="Đơn giá cửa" value="Giá đại lý + phụ thu Khuôn" />
-      <Example title="Bộ số" value="Tự tăng dần, tạo khi đơn Đã xác nhận" />
-    </section>
-  </div>;
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <Example title="Nhóm cửa" value="Cao × Rộng / 1.000.000" />
+        <Example title="Phào / Phao" value="(Cao × 2 + Rộng) / 1.000" />
+        <Example title="Ô thoáng" value="4TK → 4; 3TK → 3; 2TK → 2; 1TK → 1" />
+        <Example title="Khóa" value="Theo SL bộ cửa cha" />
+        <Example title="Bộ số" value="Tự tăng dần, tạo khi đơn Đã xác nhận" />
+      </section>
+    </div>
+  );
 }
 
 function NumberSetting({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
-  return <label className="block">
-    <span className="mb-1 block min-h-8 text-xs font-semibold leading-4 text-slate-600">{label}</span>
-    <input className="erp-input w-full text-right font-semibold text-sky-900" type="number" min="0" step="1" value={value} onChange={(event) => onChange(Number(event.target.value))} />
-  </label>;
+  return (
+    <label className="block">
+      <span className="mb-1 block min-h-8 text-[11px] font-semibold uppercase leading-4 tracking-wide text-slate-500">{label}</span>
+      <input className="erp-input text-right font-semibold tabular-nums text-sky-900" type="number" min="0" step="1" value={value} onChange={(event) => onChange(Number(event.target.value))} />
+    </label>
+  );
 }
 
 function RuleSelect({ value, options, onChange }: { value: string; options: Array<{ value: string; label: string }>; onChange: (value: string) => void }) {
-  return <select className="erp-input min-w-60" value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>;
+  return <select className="erp-input" value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>;
 }
 
 function Example({ title, value }: { title: string; value: string }) {
-  return <div className="rounded-xl border border-slate-200 bg-white p-4"><div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</div><div className="mt-2 text-sm font-semibold text-sky-900">{value}</div></div>;
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-3.5">
+      <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{title}</div>
+      <div className="mt-1.5 text-[13px] font-semibold text-sky-900">{value}</div>
+    </div>
+  );
+}
+
+function formatNumber(value: number) {
+  return Number.isFinite(value) ? new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(value) : String(value);
 }
 
 function newRule(): CalculationRule {

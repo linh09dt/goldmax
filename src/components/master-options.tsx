@@ -1,6 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  SettingsBadge,
+  SettingsCard,
+  SettingsNote,
+  SettingsSectionHeader,
+  SettingsTable,
+} from "@/components/settings/settings-ui";
 
 type GroupCode = "PANEL_OPTION" | "OPENING_DIRECTION" | "TRIM_DIRECTION" | "PAINT_COLOR" | "DEALER_CODE";
 type OptionRow = {
@@ -14,15 +21,16 @@ type OptionRow = {
   lastSourceFile: string | null;
 };
 
-const GROUPS: Array<{ code: GroupCode; label: string }> = [
-  { code: "PAINT_COLOR", label: "Màu sơn" },
-  { code: "OPENING_DIRECTION", label: "Hướng mở" },
-  { code: "TRIM_DIRECTION", label: "Hướng phào" },
-  { code: "PANEL_OPTION", label: "Ô thoáng / Pano / Nan chớp" },
-  { code: "DEALER_CODE", label: "Mã Đại Lý" },
+const GROUPS: Array<{ code: GroupCode; label: string; hint: string }> = [
+  { code: "PAINT_COLOR", label: "Màu sơn", hint: "Mã màu dùng ở cột Màu sơn của bộ cửa" },
+  { code: "OPENING_DIRECTION", label: "Hướng mở", hint: "Trái / phải / trong / ngoài…" },
+  { code: "TRIM_DIRECTION", label: "Hướng phào", hint: "Phào thuận / nghịch" },
+  { code: "PANEL_OPTION", label: "Ô thoáng / Pano / Nan chớp", hint: "Quy cách ô thoáng, ví dụ 1TK / 2TK" },
+  { code: "DEALER_CODE", label: "Mã Đại Lý", hint: "Danh mục mã đại lý dùng khi lập đơn" },
 ];
 
-export function MasterOptions() {
+/** V76: khối A2 của tab CẤU HÌNH — Danh mục cấu hình (thuộc tính chọn trong đơn). */
+export function MasterOptions({ onSummary }: { onSummary?: (text: string) => void } = {}) {
   const [items, setItems] = useState<OptionRow[]>([]);
   const [group, setGroup] = useState<GroupCode>("PAINT_COLOR");
   const [message, setMessage] = useState("");
@@ -39,8 +47,14 @@ export function MasterOptions() {
 
   useEffect(() => { void load().catch((error) => setMessage(error instanceof Error ? error.message : "Không thể tải dữ liệu.")); }, [load]);
 
+  useEffect(() => {
+    onSummary?.(`${items.length} giá trị`);
+  }, [items.length, onSummary]);
+
   const filtered = useMemo(() => items.filter((item) => item.groupCode === group), [items, group]);
-  const currentLabel = GROUPS.find((item) => item.code === group)?.label ?? group;
+  const currentGroup = GROUPS.find((item) => item.code === group) ?? GROUPS[0];
+  const currentLabel = currentGroup.label;
+  const activeInGroup = filtered.filter((item) => item.active).length;
 
   async function add() {
     setMessage("");
@@ -77,39 +91,92 @@ export function MasterOptions() {
     await load();
   }
 
-  return <div className="space-y-6">
-    {message ? <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm">{message}</div> : null}
+  return (
+    <div className="space-y-4">
+      <SettingsSectionHeader
+        code="A2"
+        title="Danh mục cấu hình"
+        description="Các danh mục nhỏ dùng để chọn nhanh khi lập đơn. Giá trị đã dùng trong đơn cũ vẫn giữ nguyên khi ngưng sử dụng."
+      />
 
-    <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-      {GROUPS.map((item) => <button key={item.code} type="button" onClick={() => setGroup(item.code)} className={`rounded-xl border p-4 text-left ${group === item.code ? "border-cyan-500 bg-cyan-50" : "border-slate-200 bg-white"}`}>
-        <div className="font-semibold">{item.label}</div>
-        <div className="mt-1 text-sm text-slate-500">{items.filter((row) => row.groupCode === item.code && row.active).length} đang sử dụng</div>
-      </button>)}
-    </section>
-
-    <section className="erp-card">
-      <div className="border-b border-slate-200 bg-slate-50 px-5 py-4"><h2 className="font-bold">Thêm {currentLabel}</h2></div>
-      <div className="grid gap-3 p-5 md:grid-cols-[1fr_1fr_160px_140px]">
-        <input className="erp-input" placeholder="Mã / giá trị" value={newCode} onChange={(e) => setNewCode(e.target.value)} />
-        <input className="erp-input" placeholder="Tên hiển thị" value={newName} onChange={(e) => setNewName(e.target.value)} />
-        <input className="erp-input" type="number" placeholder="Thứ tự" value={newSort} onChange={(e) => setNewSort(e.target.value)} />
-        <button className="erp-button" type="button" onClick={() => void add()}>+ Thêm</button>
+      <div className="erp-card">
+        <div className="erp-scrollbar flex items-stretch gap-2 overflow-x-auto p-2">
+          {GROUPS.map((item) => {
+            const active = group === item.code;
+            const total = items.filter((row) => row.groupCode === item.code).length;
+            const activeRows = items.filter((row) => row.groupCode === item.code && row.active).length;
+            return (
+              <button
+                key={item.code}
+                type="button"
+                onClick={() => setGroup(item.code)}
+                aria-current={active ? "true" : undefined}
+                className={`min-w-[188px] shrink-0 rounded-lg border px-3 py-2 text-left transition ${
+                  active ? "border-cyan-400 bg-cyan-50" : "border-slate-200 bg-white hover:bg-slate-50"
+                }`}
+              >
+                <span className={`block text-[12.5px] font-semibold ${active ? "text-cyan-900" : "text-slate-800"}`}>{item.label}</span>
+                <span className="mt-0.5 block text-[10.5px] text-slate-500">
+                  {activeRows} đang dùng{total !== activeRows ? ` / ${total} giá trị` : ""}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
-    </section>
 
-    <section className="erp-card overflow-hidden">
-      <div className="border-b border-slate-200 bg-slate-50 px-5 py-4"><h2 className="font-bold">{currentLabel}</h2></div>
-      <div className="overflow-x-auto">
-        <table className="min-w-[900px] w-full text-sm">
-          <thead className="bg-slate-900 text-left text-xs uppercase text-slate-200"><tr><th className="px-4 py-3">Mã</th><th className="px-4 py-3">Tên hiển thị</th><th className="px-4 py-3">Thứ tự</th><th className="px-4 py-3">Nguồn</th><th className="px-4 py-3">Trạng thái</th><th className="px-4 py-3">Thao tác</th></tr></thead>
-          <tbody className="divide-y divide-slate-200 bg-white">
-            {filtered.map((item) => <OptionEditor key={item.id} item={item} onSave={update} onDelete={item.groupCode === "DEALER_CODE" ? remove : undefined} />)}
-            {filtered.length === 0 ? <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-500">Chưa có dữ liệu.</td></tr> : null}
+      {message ? <SettingsNote tone={message.includes("Không thể") ? "danger" : "success"}>{message}</SettingsNote> : null}
+
+      <SettingsCard title={`Thêm ${currentLabel}`} description={currentGroup.hint} bodyClassName="p-3">
+        <div className="grid gap-2.5 md:grid-cols-[1fr_1fr_140px_auto]">
+          <label className="block">
+            <span className="erp-field-label">Mã / giá trị</span>
+            <input className="erp-input" placeholder="Mã hoặc giá trị" value={newCode} onChange={(e) => setNewCode(e.target.value)} />
+          </label>
+          <label className="block">
+            <span className="erp-field-label">Tên hiển thị</span>
+            <input className="erp-input" placeholder="Để trống sẽ lấy bằng Mã" value={newName} onChange={(e) => setNewName(e.target.value)} />
+          </label>
+          <label className="block">
+            <span className="erp-field-label">Thứ tự</span>
+            <input className="erp-input" type="number" value={newSort} onChange={(e) => setNewSort(e.target.value)} />
+          </label>
+          <div className="flex items-end">
+            <button className="erp-button h-[38px] w-full whitespace-nowrap" type="button" onClick={() => void add()}>+ Thêm giá trị</button>
+          </div>
+        </div>
+      </SettingsCard>
+
+      <section className="erp-card">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-3.5 py-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="erp-subsection-title">{currentLabel}</h3>
+            <SettingsBadge tone="cyan">{filtered.length} giá trị</SettingsBadge>
+            <SettingsBadge tone="emerald">{activeInGroup} đang sử dụng</SettingsBadge>
+          </div>
+          <p className="erp-hint">Sửa trực tiếp trên bảng rồi bấm Lưu từng dòng.</p>
+        </div>
+        <SettingsTable minWidthClass="min-w-[1000px]">
+          <thead>
+            <tr>
+              <th className="min-w-40">Mã</th>
+              <th>Tên hiển thị</th>
+              <th className="w-28 text-right">Thứ tự</th>
+              <th className="w-40">Nguồn</th>
+              <th className="w-36">Trạng thái</th>
+              <th className="w-64">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((item) => (
+              <OptionEditor key={item.id} item={item} onSave={update} onDelete={item.groupCode === "DEALER_CODE" ? remove : undefined} />
+            ))}
+            {filtered.length === 0 ? <tr><td colSpan={6} className="px-3 py-8 text-center text-slate-500">Chưa có giá trị nào trong nhóm này.</td></tr> : null}
           </tbody>
-        </table>
-      </div>
-    </section>
-  </div>;
+        </SettingsTable>
+      </section>
+    </div>
+  );
 }
 
 function OptionEditor({ item, onSave, onDelete }: { item: OptionRow; onSave: (item: OptionRow, patch: Partial<OptionRow>) => Promise<void>; onDelete?: (item: OptionRow) => Promise<void> }) {
@@ -117,12 +184,25 @@ function OptionEditor({ item, onSave, onDelete }: { item: OptionRow; onSave: (it
   const [name, setName] = useState(item.name);
   const [sortOrder, setSortOrder] = useState(String(item.sortOrder));
   useEffect(() => { setCode(item.code); setName(item.name); setSortOrder(String(item.sortOrder)); }, [item]);
-  return <tr>
-    <td className="px-4 py-3"><input className="erp-input min-w-40" value={code} onChange={(e) => setCode(e.target.value)} /></td>
-    <td className="px-4 py-3"><input className="erp-input min-w-64" value={name} onChange={(e) => setName(e.target.value)} /></td>
-    <td className="px-4 py-3"><input className="erp-input w-24" type="number" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} /></td>
-    <td className="px-4 py-3"><div>{item.source === "EXCEL_DON_GIA" ? "Excel đơn giá" : "Thủ công"}</div>{item.lastSourceFile ? <div className="mt-1 text-xs text-slate-500">{item.lastSourceFile}</div> : null}</td>
-    <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${item.active ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>{item.active ? "Đang sử dụng" : "Ngưng sử dụng"}</span></td>
-    <td className="px-4 py-3"><div className="flex gap-3"><button className="text-cyan-700 hover:underline" type="button" onClick={() => void onSave(item, { code, name, sortOrder: Number(sortOrder) || 0 })}>Lưu</button><button className="text-amber-700 hover:underline" type="button" onClick={() => void onSave(item, { active: !item.active })}>{item.active ? "Ngưng dùng" : "Kích hoạt"}</button>{onDelete ? <button className="text-red-700 hover:underline" type="button" onClick={() => void onDelete(item)}>Xóa</button> : null}</div></td>
-  </tr>;
+  return (
+    <tr className={item.active ? "bg-white" : "bg-slate-50 text-slate-500"}>
+      <td><input className="w-full rounded-md border border-slate-300 px-2 py-1 text-[12.5px] font-semibold text-sky-900" value={code} onChange={(e) => setCode(e.target.value)} /></td>
+      <td><input className="w-full min-w-64 rounded-md border border-slate-300 px-2 py-1 text-[12.5px]" value={name} onChange={(e) => setName(e.target.value)} /></td>
+      <td className="erp-td-num"><input className="w-20 rounded-md border border-slate-300 px-2 py-1 text-right text-[12.5px] tabular-nums" type="number" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} /></td>
+      <td>
+        <div className="text-[12.5px]">{item.source === "EXCEL_DON_GIA" ? "Excel đơn giá" : "Thủ công"}</div>
+        {item.lastSourceFile ? <div className="mt-0.5 truncate text-[10.5px] text-slate-500" title={item.lastSourceFile}>{item.lastSourceFile}</div> : null}
+      </td>
+      <td>
+        <SettingsBadge tone={item.active ? "emerald" : "slate"}>{item.active ? "Đang sử dụng" : "Ngưng sử dụng"}</SettingsBadge>
+      </td>
+      <td>
+        <div className="flex flex-wrap gap-3 text-[12.5px]">
+          <button className="font-semibold text-sky-700 hover:text-sky-900" type="button" onClick={() => void onSave(item, { code, name, sortOrder: Number(sortOrder) || 0 })}>Lưu</button>
+          <button className="font-semibold text-amber-700 hover:text-amber-900" type="button" onClick={() => void onSave(item, { active: !item.active })}>{item.active ? "Ngưng dùng" : "Kích hoạt"}</button>
+          {onDelete ? <button className="font-semibold text-red-600 hover:text-red-800" type="button" onClick={() => void onDelete(item)}>Xóa</button> : null}
+        </div>
+      </td>
+    </tr>
+  );
 }
