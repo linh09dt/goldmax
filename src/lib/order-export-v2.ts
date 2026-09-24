@@ -79,16 +79,21 @@ export async function buildOrderExcelV2(order: ExportableOrderV2, exportNote = "
 
   let stripe = 0;
   for (const group of groups) {
+    const pendingNotes: Array<{ note: string; main: boolean }> = [];
+    // V68: ghi chú kỹ thuật của cả bộ cửa được in ở CUỐI bộ (sau dòng phụ kiện cuối cùng).
+    const groupHasDetail = group.rows.some((entry) => !entry.main);
+    // Nếu bộ có ghi chú thì hàng cuối bộ là hàng ghi chú (không phải hàng hàng hóa cuối).
+    const groupHasNotes = group.rows.some((entry) => Boolean(cleanText(entry.row.note)));
     for (const [index, entry] of group.rows.entries()) {
       const nextIsDetail = Boolean(group.rows[index + 1] && !group.rows[index + 1].main);
+      const lastOfGroup = index === group.rows.length - 1 && !groupHasNotes;
       const note = cleanText(entry.row.note);
-      // V67: dòng cửa chỉ mờ vạch dưới khi ngay bên dưới (không có hàng ghi chú xen giữa) là phụ kiện.
-      await writeDataRow(ws, workbook, rowNo, group, entry.row, entry.main, entry.firstInGroup, stripe, nextIsDetail && !note);
+      await writeDataRow(ws, workbook, rowNo, group, entry.row, entry.main, entry.firstInGroup, stripe, nextIsDetail, lastOfGroup);
       rowNo += 1;
-      // V66: hàng nào có ghi chú thì chèn 1 hàng ghi chú trải hết chiều ngang ngay dưới hàng đó.
-      if (note) {
-        rowNo = writeItemNoteRow(ws, rowNo, note, entry.main, nextIsDetail);
-      }
+      if (note) pendingNotes.push({ note, main: entry.main });
+    }
+    for (const [index, item] of pendingNotes.entries()) {
+      rowNo = writeItemNoteRow(ws, rowNo, item.note, item.main, groupHasDetail, index === pendingNotes.length - 1);
     }
     stripe += 1;
   }
@@ -266,6 +271,7 @@ async function writeDataRow(
   firstInGroup: boolean,
   stripe: number,
   nextIsDetail: boolean,
+  lastOfGroup: boolean,
 ) {
   const productName = cleanText(row.productName) || "";
   const values: Array<string | number | null> = [
@@ -293,10 +299,13 @@ async function writeDataRow(
 
   const fill = main ? (stripe % 2 === 0 ? WHITE : LIGHT) : "FFFBFDFF";
   // V67: dòng phụ kiện chi tiết dùng đường kẻ mờ 60%; dòng cửa giữ đường kẻ thường
-  // (trừ vạch dưới cùng khi ngay bên dưới là phụ kiện, để cả khối phụ kiện cùng mờ).
-  const border: Partial<ExcelJS.Borders> = main
-    ? { ...ALL_BORDERS, bottom: nextIsDetail ? BORDER_SOFT : BORDER }
-    : ALL_BORDERS_SOFT;
+  // (trừ vạch dưới khi ngay bên dưới là phụ kiện, để cả khối phụ kiện cùng mờ).
+  // V68: vạch cuối cùng của mỗi bộ cửa luôn là vạch thường (ranh giới giữa các bộ rõ ràng).
+  const softBottom = !main || nextIsDetail;
+  const border: Partial<ExcelJS.Borders> = {
+    ...(main ? ALL_BORDERS : ALL_BORDERS_SOFT),
+    bottom: lastOfGroup ? BORDER : softBottom ? BORDER_SOFT : BORDER,
+  };
 
   for (let col = 1; col <= 19; col += 1) {
     const cell = ws.getCell(rowNo, col);
@@ -351,7 +360,14 @@ async function writeDataRow(
 }
 
 // V66: hàng ghi chú kỹ thuật của 1 dòng hàng — trải hết chiều ngang bảng (A→S).
-function writeItemNoteRow(ws: Worksheet, rowNo: number, note: string, main: boolean, nextIsDetail: boolean) {
+function writeItemNoteRow(
+  ws: Worksheet,
+  rowNo: number,
+  note: string,
+  main: boolean,
+  groupHasDetail: boolean,
+  isLastNote: boolean,
+) {
   ws.mergeCells(`A${rowNo}:S${rowNo}`);
   const cell = ws.getCell(`A${rowNo}`);
   cell.value = `GHI CHÚ KỸ THUẬT: ${note}`;
@@ -361,8 +377,10 @@ function writeItemNoteRow(ws: Worksheet, rowNo: number, note: string, main: bool
   cell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
   styleRange(ws, `A${rowNo}:S${rowNo}`, "FFF8FAFC", true);
   cell.font = { ...BASE_FONT, size: 9.5, italic: true, color: { argb: NOTE_RED } };
-  const top = main ? BORDER : BORDER_SOFT;
-  const bottom = !main || nextIsDetail ? BORDER_SOFT : BORDER;
+  // V68: hàng ghi chú nay nằm cuối bộ cửa — mép mờ theo khối phụ kiện phía trên,
+  // vạch dưới của hàng ghi chú cuối cùng là vạch thường (ranh giới bộ).
+  const top = groupHasDetail ? BORDER_SOFT : BORDER;
+  const bottom = isLastNote ? BORDER : groupHasDetail ? BORDER_SOFT : BORDER;
   styleRange(ws, `A${rowNo}:S${rowNo}`, "FFF8FAFC", true, { top, left: top, bottom, right: top });
   ws.getRow(rowNo).height = Math.max(16, 12.5 * Math.max(1, Math.ceil(cell.value.length / 190)));
   return rowNo + 1;

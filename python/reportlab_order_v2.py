@@ -840,11 +840,12 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
     ]
     main_row_numbers: list[int] = []
     detail_row_numbers: list[int] = []
-    note_rows: list[tuple[int, bool]] = []
+    note_rows: list[tuple[int, bool, bool]] = []
     group_ranges: list[tuple[int, int]] = []
 
     for group in groups:
         group_start = len(data)
+        pending_notes: list[tuple[str, bool]] = []
         for entry in group["rows"]:
             row = entry["row"]
             main = bool(entry["main"])
@@ -880,8 +881,13 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
                 detail_row_numbers.append(len(data) - 1)
             note_text = clean(row.get("note"))
             if note_text:
-                data.append([_item_note_flowable(note_text, main)] + [""] * (len(header_top) - 1))
-                note_rows.append((len(data) - 1, main))
+                pending_notes.append((note_text, main))
+        # V68: ghi chú kỹ thuật của bộ cửa được in ở CUỐI bộ (sau dòng phụ kiện cuối cùng),
+        # không in ngay dưới dòng hàng nữa; bộ chỉ có dòng cửa thì ghi chú nằm ngay dưới dòng đó.
+        group_has_detail = any(not bool(entry["main"]) for entry in group["rows"])
+        for note_text, note_main in pending_notes:
+            data.append([_item_note_flowable(note_text, note_main)] + [""] * (len(header_top) - 1))
+            note_rows.append((len(data) - 1, note_main, group_has_detail))
         group_end = len(data) - 1
         if group_end >= group_start:
             group_ranges.append((group_start, group_end))
@@ -931,15 +937,18 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
     for row_no in detail_row_numbers:
         commands.append(("BACKGROUND", (0, row_no), (-1, row_no), colors.HexColor("#FBFDFF")))
     # V66: hàng ghi chú trải hết chiều ngang bảng, nền nhạt để tách khỏi dòng hàng.
-    for row_no, main in note_rows:
+    for row_no, _main, _soft in note_rows:
         commands.append(("SPAN", (0, row_no), (-1, row_no)))
         commands.append(("BACKGROUND", (0, row_no), (-1, row_no), colors.HexColor("#F8FAFC")))
-    # V67: đường kẻ của dòng phụ kiện chi tiết (và hàng ghi chú của dòng chi tiết) mờ hơn 60%.
+    # V67: đường kẻ của dòng phụ kiện chi tiết (và hàng ghi chú nằm trong khối phụ kiện) mờ hơn 60%.
     for row_no in detail_row_numbers:
         _soften_row_lines(commands, row_no, len(header_top))
-    for row_no, main in note_rows:
-        if not main:
+    for row_no, _main, soft in note_rows:
+        if soft:
             _soften_row_lines(commands, row_no, len(header_top), spanned=True)
+    # V68: vạch cuối mỗi bộ cửa luôn là vạch thường để ranh giới giữa các bộ rõ ràng.
+    for _start, end in group_ranges:
+        commands.append(("LINEBELOW", (0, end), (-1, end), 0.45, BORDER))
     table.setStyle(TableStyle(commands))
     return table
 
