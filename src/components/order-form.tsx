@@ -81,6 +81,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
   const router = useRouter();
   const [form, setForm] = useState<OrderFormData>(() => initialData ?? createDefaultOrderForm());
   const [busy, setBusy] = useState(false);
+  const [persistedOrderId, setPersistedOrderId] = useState<number | undefined>(orderId);
   const [message, setMessage] = useState<{ type: "ok" | "error"; text: string } | null>(null);
   const [invalidOrderInfoFields, setInvalidOrderInfoFields] = useState<Set<RequiredOrderInfoKey>>(() => new Set());
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
@@ -299,7 +300,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
     }
   }
 
-  async function save() {
+  async function save(stayOnPage = false) {
     setMessage(null);
     const missingFields = REQUIRED_ORDER_INFO_FIELDS.filter(({ key }) => {
       const value = form[key];
@@ -318,7 +319,8 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
     setInvalidOrderInfoFields(new Set());
     setBusy(true);
     try {
-      const url = mode === "create" ? "/api/orders" : `/api/orders/${orderId}`;
+      const targetOrderId = persistedOrderId;
+      const url = targetOrderId ? `/api/orders/${targetOrderId}` : "/api/orders";
       const response = await fetch(url, {
         // Dùng POST cho cập nhật để tránh proxy/hosting trả HTML với PUT ở route động.
         method: "POST",
@@ -327,9 +329,15 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
       });
       const result = await readJsonResponse(response);
       if (!response.ok || !result.ok || !result.id) throw new Error(result.error || "Không thể lưu đơn hàng.");
-      setMessage({ type: "ok", text: mode === "create" ? "Đã tạo đơn hàng." : "Đã cập nhật đơn hàng." });
-      router.push(`/orders/${result.id}`);
-      router.refresh();
+      setPersistedOrderId(result.id);
+      setMessage({ type: "ok", text: targetOrderId ? "Đã cập nhật đơn hàng." : "Đã tạo đơn hàng." });
+      if (stayOnPage) {
+        if (!targetOrderId) router.replace(`/orders/${result.id}/edit`);
+        else router.refresh();
+      } else {
+        router.push(`/orders/${result.id}`);
+        router.refresh();
+      }
     } catch (error) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Không thể lưu đơn hàng." });
     } finally {
@@ -392,7 +400,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
         <div className="flex flex-col gap-2 border-b border-slate-200 bg-white px-3 py-2 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-[14px] font-semibold text-slate-900">Chi tiết đơn hàng theo từng bộ cửa</h2>
-            <p className="mt-0.5 text-[10px] text-slate-500">Master-detail: xem nhanh toàn bộ, chỉ mở một dòng phụ kiện để chỉnh sửa.</p>
+            <p className="mt-0.5 text-[10px] text-slate-500">Phụ kiện / chi tiết nhập trực tiếp, không qua dòng tóm tắt trung gian.</p>
           </div>
           <Button onClick={addItem}>+ Thêm bộ cửa</Button>
         </div>
@@ -418,6 +426,8 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
               onMainCatalogSelect={applyMainCatalog}
               onDetailCatalogSelect={applyDetailCatalog}
               optionValues={optionValues}
+              onSave={() => void save(true)}
+              saveBusy={busy}
             />
           ))}
         </div>
@@ -503,6 +513,8 @@ function DoorSetCard({
   onMainCatalogSelect,
   onDetailCatalogSelect,
   optionValues,
+  onSave,
+  saveBusy,
 }: {
   item: OrderItemForm;
   itemIndex: number;
@@ -521,11 +533,11 @@ function DoorSetCard({
   onMainCatalogSelect: (index: number, item: CatalogItem) => void;
   onDetailCatalogSelect: (itemIndex: number, detailIndex: number, item: CatalogItem) => void;
   optionValues: { panel: MasterOption[]; opening: MasterOption[]; trim: MasterOption[]; color: MasterOption[] };
+  onSave: () => void;
+  saveBusy: boolean;
 }) {
   const inferredGroup = catalogGroupForCode(doorCatalogItems, item.productCode) || catalogGroupFromText(doorGroups, item.productName);
   const [selectedGroup, setSelectedGroup] = useState(inferredGroup);
-  const [expandedDetailIndex, setExpandedDetailIndex] = useState<number | null>(null);
-  const previousDetailCount = useRef(item.details.length);
   const change = (key: keyof Omit<OrderItemForm, "clientId" | "lineNo" | "details">) => (value: string) => onChange(itemIndex, key, value);
 
   useEffect(() => {
@@ -533,14 +545,6 @@ function DoorSetCard({
     if (group && group !== selectedGroup) setSelectedGroup(group);
   }, [doorCatalogItems, doorGroups, item.productCode, item.productName, selectedGroup]);
 
-  useEffect(() => {
-    if (item.details.length > previousDetailCount.current) {
-      setExpandedDetailIndex(item.details.length - 1);
-    } else if (expandedDetailIndex !== null && expandedDetailIndex >= item.details.length) {
-      setExpandedDetailIndex(item.details.length ? item.details.length - 1 : null);
-    }
-    previousDetailCount.current = item.details.length;
-  }, [item.details.length, expandedDetailIndex]);
 
   const groupItems = selectedGroup ? doorCatalogItems.filter((catalog) => sameText(catalog.name, selectedGroup)) : [];
   const itemTotal = lineAmount(item) + item.details.reduce((sum, detail) => sum + lineAmount(detail), 0);
@@ -566,11 +570,6 @@ function DoorSetCard({
 
   function removeDetail(detailIndex: number) {
     onRemoveDetail(itemIndex, detailIndex);
-    setExpandedDetailIndex((current) => {
-      if (current === null) return null;
-      if (current === detailIndex) return null;
-      return current > detailIndex ? current - 1 : current;
-    });
   }
 
   return (
@@ -661,36 +660,25 @@ function DoorSetCard({
         </div>
 
         {item.details.length ? (
-          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-            <div className="hidden grid-cols-[2.4fr_1.35fr_0.45fr_0.55fr_0.75fr_0.85fr_1fr] gap-1.5 border-b border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[10px] font-semibold text-slate-600 lg:grid">
-              <div>Chi tiết / Model</div>
-              <div>KT dùng tính</div>
-              <div className="text-center">SL</div>
-              <div className="text-center">ĐVT</div>
-              <div className="text-right">KH/Lượng</div>
-              <div className="text-right">Đơn giá</div>
-              <div className="text-right">Thành tiền</div>
-            </div>
-            <div className="divide-y divide-slate-200">
-              {item.details.map((detail, detailIndex) => (
-                <DetailMasterRow
-                  key={`${item.clientId}-detail-${detail.rowOrder}-${detailIndex}`}
-                  row={detail}
-                  itemIndex={itemIndex}
-                  detailIndex={detailIndex}
-                  isOpen={expandedDetailIndex === detailIndex}
-                  onToggle={() => setExpandedDetailIndex((current) => current === detailIndex ? null : detailIndex)}
-                  onChange={onDetailChange}
-                  onUpload={onUpload}
-                  onRemove={removeDetail}
-                  catalogItems={catalogItems}
-                  accessoryCatalogItems={accessoryCatalogItems}
-                  accessoryGroups={accessoryGroups}
-                  onCatalogSelect={onDetailCatalogSelect}
-                  optionValues={optionValues}
-                />
-              ))}
-            </div>
+          <div className="space-y-1.5">
+            {item.details.map((detail, detailIndex) => (
+              <DetailMasterRow
+                key={`${item.clientId}-detail-${detail.rowOrder}-${detailIndex}`}
+                row={detail}
+                itemIndex={itemIndex}
+                detailIndex={detailIndex}
+                onChange={onDetailChange}
+                onUpload={onUpload}
+                onRemove={removeDetail}
+                catalogItems={catalogItems}
+                accessoryCatalogItems={accessoryCatalogItems}
+                accessoryGroups={accessoryGroups}
+                onCatalogSelect={onDetailCatalogSelect}
+                optionValues={optionValues}
+                onSave={onSave}
+                saveBusy={saveBusy}
+              />
+            ))}
           </div>
         ) : (
           <div className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-3 text-center text-[11px] text-slate-500">Chưa có phụ kiện / chi tiết. Bấm “+ Thêm phụ kiện” để thêm dòng.</div>
@@ -704,8 +692,6 @@ function DetailMasterRow({
   row,
   itemIndex,
   detailIndex,
-  isOpen,
-  onToggle,
   onChange,
   onUpload,
   onRemove,
@@ -714,12 +700,12 @@ function DetailMasterRow({
   accessoryGroups,
   onCatalogSelect,
   optionValues,
+  onSave,
+  saveBusy,
 }: {
   row: OrderLineForm;
   itemIndex: number;
   detailIndex: number;
-  isOpen: boolean;
-  onToggle: () => void;
   onChange: (itemIndex: number, detailIndex: number, key: keyof OrderLineForm, value: string) => void;
   onUpload: (file: File, itemIndex: number, detailIndex?: number) => Promise<void>;
   onRemove: (detailIndex: number) => void;
@@ -728,6 +714,8 @@ function DetailMasterRow({
   accessoryGroups: string[];
   onCatalogSelect: (itemIndex: number, detailIndex: number, item: CatalogItem) => void;
   optionValues: { panel: MasterOption[]; opening: MasterOption[]; trim: MasterOption[]; color: MasterOption[] };
+  onSave: () => void;
+  saveBusy: boolean;
 }) {
   const inferredGroup = catalogGroupForCode(accessoryCatalogItems, row.productCode) || catalogGroupFromText(accessoryGroups, row.productName);
   const [selectedGroup, setSelectedGroup] = useState(inferredGroup);
@@ -740,10 +728,6 @@ function DetailMasterRow({
 
   const groupItems = selectedGroup ? accessoryCatalogItems.filter((catalog) => sameText(catalog.name, selectedGroup)) : [];
   const orientation = detailOrientation(row);
-  const title = row.productName || selectedGroup || "Chưa chọn chi tiết / phụ kiện";
-  const code = row.productCode || row.model;
-  const summaryDimensions = detailDimensionSummary(row, orientation);
-  const pricingStatus = detailPricingStatus(row);
 
   function changeGroup(nextGroup: string) {
     setSelectedGroup(nextGroup);
@@ -765,26 +749,8 @@ function DetailMasterRow({
   }
 
   return (
-    <div className={isOpen ? "bg-cyan-50/30" : "bg-white"}>
-      <button
-        className={`grid w-full grid-cols-1 gap-1 px-2.5 py-2 text-left transition hover:bg-slate-50 lg:grid-cols-[2.4fr_1.35fr_0.45fr_0.55fr_0.75fr_0.85fr_1fr] lg:items-center lg:gap-1.5 ${isOpen ? "bg-cyan-50/60 ring-1 ring-inset ring-cyan-300" : ""}`}
-        type="button"
-        onClick={onToggle}
-      >
-        <div className="min-w-0 text-[12px] font-semibold text-slate-900">
-          <span className="mr-2 inline-block w-3 text-slate-500">{isOpen ? "▾" : "▸"}</span>
-          <span className="align-middle">{title}{code ? ` · ${code}` : ""}</span>
-        </div>
-        <div className="text-[11px] font-medium text-slate-600"><span className="lg:hidden">KT: </span>{summaryDimensions}</div>
-        <div className="text-[11px] font-medium text-slate-700 lg:text-center"><span className="lg:hidden">SL: </span>{row.quantity || "—"}</div>
-        <div className="text-[11px] font-medium text-slate-700 lg:text-center"><span className="lg:hidden">ĐVT: </span>{row.unit || "—"}</div>
-        <div className="text-[11px] font-semibold tabular-nums text-slate-700 lg:text-right"><span className="lg:hidden">KH/Lượng: </span>{row.pricingQuantity || "—"}</div>
-        <div className="lg:text-right">{pricingStatus.priceNode}</div>
-        <div className="lg:text-right">{pricingStatus.amountNode}</div>
-      </button>
-
-      {isOpen ? (
-        <div className="border-t border-cyan-200 bg-white px-2.5 py-2">
+    <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+      <div>
           <div className="erp-scrollbar overflow-x-auto pb-1">
             <div className="grid min-w-[1120px] grid-cols-[1.25fr_1.25fr_0.7fr_0.7fr_0.7fr_0.72fr_0.82fr_0.9fr_1.65fr] gap-1.5">
             <CardField label="Nhóm hàng">
@@ -840,53 +806,21 @@ function DetailMasterRow({
                 </CardField>
               </div>
             </details>
-            <button className="rounded-md px-2 py-1 text-[10px] font-semibold text-red-600 hover:bg-red-50" type="button" onClick={() => onRemove(detailIndex)}>Xóa</button>
+            <div className="flex items-center gap-1.5">
+              <button
+                className="rounded-md bg-cyan-600 px-3 py-1.5 text-[10px] font-semibold text-white hover:bg-cyan-500 disabled:opacity-50"
+                type="button"
+                disabled={saveBusy}
+                onClick={onSave}
+              >
+                {saveBusy ? "Đang lưu..." : "Lưu ngay"}
+              </button>
+              <button className="rounded-md px-2 py-1 text-[10px] font-semibold text-red-600 hover:bg-red-50" type="button" onClick={() => onRemove(detailIndex)}>Xóa</button>
+            </div>
           </div>
-        </div>
-      ) : null}
+      </div>
     </div>
   );
-}
-
-function detailDimensionSummary(row: OrderLineForm, orientation: "vertical" | "horizontal" | "free"): string {
-  const height = row.heightMm?.trim();
-  const width = row.widthMm?.trim();
-  const text = normalizeText(`${row.productName} ${row.productCode} ${row.model}`);
-  if (text.includes("khoa")) return "Theo bộ cửa";
-  if (orientation === "vertical") return height ? `C: ${height}` : "C: —";
-  if (orientation === "horizontal") return width ? `R: ${width}` : "R: —";
-  const values = [height ? `C: ${height}` : "", width ? `R: ${width}` : ""].filter(Boolean);
-  return values.length ? values.join(" · ") : "—";
-}
-
-function detailPricingStatus(row: OrderLineForm): { priceNode: React.ReactNode; amountNode: React.ReactNode } {
-  const price = numeric(row.unitPrice);
-  const pricingQuantity = numeric(row.pricingQuantity);
-  const productText = normalizeText(`${row.productName} ${row.productCode} ${row.model}`);
-  const isLockOrCustom = productText.includes("khoa") && price <= 0;
-
-  if (isLockOrCustom) {
-    return {
-      priceNode: <span className="text-[12px] font-semibold text-slate-500">—</span>,
-      amountNode: <span className="inline-flex min-w-[52px] justify-center rounded border border-slate-300 bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-700">TC</span>,
-    };
-  }
-  if (!row.pricingQuantity.trim() || pricingQuantity <= 0) {
-    return {
-      priceNode: price > 0 ? <span className="text-[12px] font-semibold tabular-nums text-slate-700">{formatMoney(price)}</span> : <span className="text-[12px] text-slate-400">—</span>,
-      amountNode: <span className="inline-flex rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">Cần nhập KH/Lượng</span>,
-    };
-  }
-  if (!row.unitPrice.trim() || price <= 0) {
-    return {
-      priceNode: <span className="inline-flex rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">Chưa có giá</span>,
-      amountNode: <span className="text-[12px] font-semibold text-slate-400">—</span>,
-    };
-  }
-  return {
-    priceNode: <span className="text-[12px] font-semibold tabular-nums text-slate-700">{formatMoney(price)}</span>,
-    amountNode: <span className="text-[13px] font-extrabold tabular-nums text-cyan-700">{formatMoney(lineAmount(row))}đ</span>,
-  };
 }
 
 
