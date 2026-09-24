@@ -178,7 +178,7 @@ function ReadRow({ lineNo, row, main = false }: { lineNo: number | null; main?: 
     <tr className={main ? "bg-cyan-50 font-medium" : "hover:bg-slate-50"}>
       <Td>{lineNo ?? ""}</Td><Td>{row.setNo || ""}</Td><Td wide>{row.productName || ""}</Td><Td>{row.productCode || row.model || ""}</Td><Td wide>{row.panelInfo || ""}</Td>
       <Td>{row.openingDirection || ""}</Td><Td>{row.trimDirection || ""}</Td><Td>{row.paintColor || ""}</Td><Td>{row.heightMm ?? ""}</Td><Td>{row.widthMm ?? ""}</Td><Td>{row.frameMm ?? ""}</Td>
-      <Td>{row.clearHeightMm ?? ""}</Td><Td>{row.clearWidthMm ?? ""}</Td><Td>{row.quantity ?? ""}</Td><Td>{row.unit || ""}</Td><Td>{formatNumber(row.pricingQuantity)}</Td><Td>{formatMoney(row.unitPrice)}</Td><Td>{formatMoney(row.amount)}</Td>
+      <Td>{row.clearHeightMm ?? ""}</Td><Td>{row.clearWidthMm ?? ""}</Td><Td>{row.quantity ?? ""}</Td><Td>{row.unit || ""}</Td>{/* V74: dòng cửa hiển thị KHỐI LƯỢNG đến 2 số thập phân; dòng phụ kiện giữ tối đa 4. */}<Td>{main ? formatQuantity2(row.pricingQuantity) : formatNumber(row.pricingQuantity)}</Td><Td>{formatMoney(row.unitPrice)}</Td><Td>{formatMoney(row.amount)}</Td>
       <Td wide>{row.note || ""}</Td><Td>{row.imagePath ? <ProductImage path={row.imagePath} /> : ""}</Td>
     </tr>
   );
@@ -213,6 +213,8 @@ function Td({ children }: { children: React.ReactNode; wide?: boolean }) { retur
 function MoneyLine({ label, value, strong, percent }: { label: string; value: unknown; strong?: boolean; percent?: boolean }) { return <div className={`flex justify-between gap-4 rounded-lg px-3 py-2 ${strong ? "bg-slate-900 text-white" : "bg-slate-50"}`}><span>{label}</span><span className="font-semibold">{percent ? `${formatNumber(value)} %` : formatMoney(value)}</span></div>; }
 function formatDate(value: Date | null) { return value ? new Intl.DateTimeFormat("vi-VN").format(value) : "—"; }
 function formatDateTime(value: Date) { return new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(value); }
+// V74: KHỐI LƯỢNG của dòng cửa — hiển thị đúng 2 số thập phân.
+function formatQuantity2(value: unknown) { if (value === null || value === undefined || value === "") return "—"; const n = Number(String(value)); return Number.isFinite(n) ? new Intl.NumberFormat("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) : String(value); }
 function formatNumber(value: unknown) { if (value === null || value === undefined || value === "") return "—"; const n = Number(String(value)); return Number.isFinite(n) ? new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 4 }).format(n) : String(value); }
 function formatMoney(value: unknown) { if (value === null || value === undefined || value === "") return "—"; const n = Number(String(value)); return Number.isFinite(n) ? `${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(n)} đ` : String(value); }
 function statusLabel(value: string) { return ({ NHAP:"Nháp", CHO_XAC_NHAN:"Chờ khách hàng xác nhận", DA_XAC_NHAN:"Đã xác nhận", CHUYEN_SAN_XUAT:"Đã chuyển sản xuất", HUY:"Đã hủy" } as Record<string,string>)[value] ?? value; }
