@@ -1,14 +1,11 @@
-DOOR PRODUCTION - ACCESSORY DIRECT EDIT + SAVE PATCH
-
-Thay đổi:
-1. Bỏ dòng tóm tắt "Chưa chọn chi tiết / phụ kiện" và toàn bộ hàng summary master-detail.
-2. Bấm "+ Thêm phụ kiện" sẽ hiện trực tiếp hàng nhập liệu để chọn Nhóm hàng / Model / kích thước / KH-Lượng / Đơn giá / Ghi chú.
-3. Thêm nút "Lưu ngay" ngay trên từng hàng phụ kiện.
-4. "Lưu ngay" dùng API lưu đơn hàng hiện có, không thay DB/schema/API. Khi tạo đơn mới lần đầu, hệ thống tạo đơn rồi chuyển sang URL chỉnh sửa để các lần lưu sau cập nhật đúng đơn, tránh tạo trùng.
-5. Giữ nút "Xóa" trên từng hàng phụ kiện và giữ toàn bộ logic catalog/tính giá/upload hiện có.
+PATCH: Cho phép chọn lại đề xuất mà không cần xóa giá trị cũ
 
 File thay đổi:
 - src/components/order-form.tsx
 
-Cách dùng:
-- Copy thư mục src trong patch đè vào project hiện tại.
+Thay đổi:
+- Ô thoáng / Hướng mở / Phào / Màu sơn dùng dropdown đề xuất riêng thay cho datalist của trình duyệt.
+- Sau khi đã chọn một giá trị (ví dụ TP), bấm mũi tên vẫn hiển thị toàn bộ đề xuất để chọn giá trị khác.
+- Vẫn cho phép gõ tay giá trị nếu cần.
+- Áp dụng cả Bộ cửa và phần Thông số thêm của phụ kiện.
+- Không thay DB/API/logic tính giá/lưu đơn hàng.

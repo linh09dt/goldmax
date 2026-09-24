@@ -615,10 +615,10 @@ function DoorSetCard({
               </span>
             </div>
           </CardField>
-          <CardField label="Ô thoáng"><CardInput value={item.panelInfo} onChange={change("panelInfo")} listId="panel-options" /></CardField>
-          <CardField label="Hướng mở"><CardInput value={item.openingDirection} onChange={change("openingDirection")} listId="opening-direction-options" /></CardField>
-          <CardField label="Phào"><CardInput value={item.trimDirection} onChange={change("trimDirection")} listId="trim-direction-options" /></CardField>
-          <CardField label="Màu sơn"><CardInput value={item.paintColor} onChange={change("paintColor")} listId="paint-color-options" /></CardField>
+          <CardField label="Ô thoáng"><CardSuggestionInput value={item.panelInfo} onChange={change("panelInfo")} items={optionValues.panel} /></CardField>
+          <CardField label="Hướng mở"><CardSuggestionInput value={item.openingDirection} onChange={change("openingDirection")} items={optionValues.opening} /></CardField>
+          <CardField label="Phào"><CardSuggestionInput value={item.trimDirection} onChange={change("trimDirection")} items={optionValues.trim} /></CardField>
+          <CardField label="Màu sơn"><CardSuggestionInput value={item.paintColor} onChange={change("paintColor")} items={optionValues.color} /></CardField>
           <CardField label="Cao"><CardNumberInput value={item.heightMm} onChange={change("heightMm")} /></CardField>
           <CardField label="Rộng"><CardNumberInput value={item.widthMm} onChange={change("widthMm")} /></CardField>
           <CardField label="Khuôn"><CardNumberInput value={item.frameMm} onChange={change("frameMm")} /></CardField>
@@ -783,10 +783,10 @@ function DetailMasterRow({
                 </CardField>
                 <CardField label="SL"><CardNumberInput value={row.quantity} onChange={change("quantity")} /></CardField>
                 <CardField label="Bộ số"><CardInput value={row.setNo} onChange={change("setNo")} /></CardField>
-                <CardField label="Ô thoáng"><CardInput value={row.panelInfo} onChange={change("panelInfo")} listId="panel-options" /></CardField>
-                <CardField label="Hướng mở"><CardInput value={row.openingDirection} onChange={change("openingDirection")} listId="opening-direction-options" /></CardField>
-                <CardField label="Phào"><CardInput value={row.trimDirection} onChange={change("trimDirection")} listId="trim-direction-options" /></CardField>
-                <CardField label="Màu sơn"><CardInput value={row.paintColor} onChange={change("paintColor")} listId="paint-color-options" /></CardField>
+                <CardField label="Ô thoáng"><CardSuggestionInput value={row.panelInfo} onChange={change("panelInfo")} items={optionValues.panel} /></CardField>
+                <CardField label="Hướng mở"><CardSuggestionInput value={row.openingDirection} onChange={change("openingDirection")} items={optionValues.opening} /></CardField>
+                <CardField label="Phào"><CardSuggestionInput value={row.trimDirection} onChange={change("trimDirection")} items={optionValues.trim} /></CardField>
+                <CardField label="Màu sơn"><CardSuggestionInput value={row.paintColor} onChange={change("paintColor")} items={optionValues.color} /></CardField>
                 <CardField label="KT thông thủy - Cao"><CardNumberInput value={row.clearHeightMm} onChange={change("clearHeightMm")} /></CardField>
                 <CardField label="KT thông thủy - Rộng"><CardNumberInput value={row.clearWidthMm} onChange={change("clearWidthMm")} /></CardField>
                 <CardField label="Số thanh phào / bộ"><CardNumberInput value={row.trimBarsPerSet} onChange={change("trimBarsPerSet")} /></CardField>
@@ -843,6 +843,58 @@ function CardSelectShell({ children }: { children: React.ReactNode }) {
 
 function CardInput({ value, onChange, placeholder, listId }: { value: string; onChange: (value: string) => void; placeholder?: string; listId?: string }) {
   return <input className="h-8 w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 text-[11px] font-medium text-sky-900 placeholder:text-slate-400 outline-none transition focus:border-cyan-400 focus:ring-1 focus:ring-cyan-100" value={value} placeholder={placeholder} list={listId} onChange={(event) => onChange(event.target.value)} />;
+}
+
+function CardSuggestionInput({ value, onChange, items, placeholder }: { value: string; onChange: (value: string) => void; items: MasterOption[]; placeholder?: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative min-w-0">
+      <input
+        className="h-8 w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 pr-7 text-[11px] font-medium text-sky-900 outline-none transition placeholder:text-slate-400 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-100"
+        value={value}
+        placeholder={placeholder}
+        onChange={(event) => {
+          onChange(event.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") setOpen(false);
+          if (event.key === "ArrowDown") setOpen(true);
+        }}
+      />
+      <button
+        type="button"
+        aria-label="Mở danh sách đề xuất"
+        className="absolute inset-y-0 right-0 flex w-7 items-center justify-center text-[11px] font-bold text-cyan-700 hover:text-cyan-900"
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => setOpen((current) => !current)}
+      >
+        ▾
+      </button>
+      {open && items.length ? (
+        <div className="absolute left-0 top-full z-[80] mt-1 max-h-52 min-w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 shadow-xl">
+          {items.map((option) => (
+            <button
+              key={`${option.groupCode}-${option.id}`}
+              type="button"
+              className={`flex w-full items-start gap-1.5 whitespace-nowrap px-2 py-1.5 text-left text-[11px] hover:bg-cyan-50 ${sameText(option.code, value) ? "bg-cyan-50 font-semibold text-cyan-800" : "text-slate-800"}`}
+              onMouseDown={(event) => {
+                event.preventDefault();
+                onChange(option.code);
+                setOpen(false);
+              }}
+            >
+              <span className="font-semibold">{option.code}</span>
+              {option.name && !sameText(option.name, option.code) ? <span className="text-slate-500">· {option.name}</span> : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function CardNumberInput({ value, onChange, step = "1" }: { value: string; onChange: (value: string) => void; step?: string }) {
