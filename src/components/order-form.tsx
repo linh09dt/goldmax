@@ -590,10 +590,9 @@ function DoorSetCard({
       </header>
 
       <div className="p-2.5">
-        {/* Full-view UI: 22 trường Bộ cửa chia đều 2 dòng, mỗi dòng 11 ô; không cuộn ngang. */}
+        {/* Full-view UI: 17 trường Bộ cửa trên 1 dòng; không cuộn ngang. */}
         <div>
-          <div className="grid grid-cols-[repeat(11,minmax(0,1fr))] gap-x-1.5 gap-y-2">
-          {/* 1 → 11 */}
+          <div className="grid grid-cols-[0.72fr_1fr_1.05fr_1.05fr_0.78fr_0.78fr_0.72fr_0.8fr_0.66fr_0.66fr_0.66fr_0.92fr_0.92fr_0.62fr_0.62fr_0.82fr_0.9fr] gap-x-1 gap-y-1.5">
           <CardField label="Bộ số">
             <CardInput value={item.setNo} onChange={change("setNo")} placeholder="VD: 12097" />
           </CardField>
@@ -631,7 +630,6 @@ function DoorSetCard({
           <CardField label="Rộng"><CardNumberInput value={item.widthMm} onChange={change("widthMm")} /></CardField>
           <CardField label="Khuôn"><CardNumberInput value={item.frameMm} onChange={change("frameMm")} /></CardField>
 
-          {/* 12 → 22 */}
           <CardField label="KT thông thủy - Cao"><CardNumberInput value={item.clearHeightMm} onChange={change("clearHeightMm")} /></CardField>
           <CardField label="KT thông thủy - Rộng"><CardNumberInput value={item.clearWidthMm} onChange={change("clearWidthMm")} /></CardField>
           <CardField label="SL bộ"><CardNumberInput value={item.quantity} onChange={change("quantity")} /></CardField>
@@ -640,15 +638,10 @@ function DoorSetCard({
           <CardField label="Đơn giá">
             <CardSelectShell><GridPriceInput value={item.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, item.productCode)} /></CardSelectShell>
           </CardField>
-          <CardField label="Model khóa"><CardInput value={item.lockModel} onChange={change("lockModel")} /></CardField>
-          <CardField label="Loại phào"><CardInput value={item.trimType} onChange={change("trimType")} /></CardField>
-          <CardField label="Thanh phào / bộ"><CardNumberInput value={item.trimBarsPerSet} onChange={change("trimBarsPerSet")} /></CardField>
-          <CardField label="Nan ô thoáng"><CardNumberInput value={item.windowBars} onChange={change("windowBars")} /></CardField>
-          <CardField label="Cánh / bộ"><CardNumberInput value={item.leavesPerSet} onChange={change("leavesPerSet")} /></CardField>
           </div>
         </div>
 
-        {/* Ghi chú + ảnh tách riêng bên dưới 2 dòng thông tin Bộ cửa. */}
+        {/* Ghi chú + ảnh tách riêng bên dưới dòng thông tin Bộ cửa. */}
         <div className="mt-2 grid grid-cols-1 gap-1.5 border-t border-slate-200 pt-2 lg:grid-cols-[minmax(0,1fr)_190px]">
           <CardField label="Ghi chú">
             <CardInput value={item.note} onChange={change("note")} placeholder="Nhập ghi chú kỹ thuật" />
