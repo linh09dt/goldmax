@@ -366,27 +366,32 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
 
       <section id="order-information" className="erp-card scroll-mt-4">
         <SectionTitle title="Thông tin đơn hàng" />
-        <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
-          <Field label="Mã Đại Lý" required invalid={invalidOrderInfoFields.has("customerCode")}><DealerCodeSelect value={form.customerCode} options={optionValues.dealer} onChange={(v) => setField("customerCode", v)} /></Field>
-          <Field label="Tên khách hàng" required invalid={invalidOrderInfoFields.has("customerName")}><TextInput value={form.customerName} onChange={(v) => setField("customerName", v)} /></Field>
-          <Field label="NVKD phụ trách" required invalid={invalidOrderInfoFields.has("salesEmployeeCode")}><TextInput value={form.salesEmployeeCode} onChange={(v) => setField("salesEmployeeCode", v)} /></Field>
-          <Field label="Mã đơn hàng" required invalid={invalidOrderInfoFields.has("orderCode")}><TextInput value={form.orderCode} onChange={(v) => setField("orderCode", v)} /></Field>
-          <Field label="Ngày đặt hàng" required invalid={invalidOrderInfoFields.has("orderDate")}><DateInput value={form.orderDate} onChange={(v) => setField("orderDate", v)} /></Field>
-          <Field label="Ngày cần giao hàng" required invalid={invalidOrderInfoFields.has("requiredDeliveryDate")}><DateInput value={form.requiredDeliveryDate} onChange={(v) => setField("requiredDeliveryDate", v)} /></Field>
-          <Field label="Trạng thái" required invalid={invalidOrderInfoFields.has("status")}>
-            <select className="erp-input" value={form.status} onChange={(e) => setField("status", e.target.value)}>
-              {ORDER_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-          </Field>
-          <Field label="Ngày cập nhật" required invalid={invalidOrderInfoFields.has("excelUpdateDate")}><DateInput value={form.excelUpdateDate} onChange={(v) => setField("excelUpdateDate", v)} /></Field>
-          <Field label="Người nhận" required invalid={invalidOrderInfoFields.has("receiverName")}><TextInput value={form.receiverName} onChange={(v) => setField("receiverName", v)} /></Field>
-          <Field label="Số điện thoại" required invalid={invalidOrderInfoFields.has("receiverPhone")}><TextInput value={form.receiverPhone} onChange={(v) => setField("receiverPhone", v)} /></Field>
-          <Field label="Số Km giao hàng" required invalid={invalidOrderInfoFields.has("deliveryKm")}><NumberInput value={form.deliveryKm} onChange={(v) => setField("deliveryKm", v)} /></Field>
-          <Field label="Vùng miền" required invalid={invalidOrderInfoFields.has("region")}><TextInput value={form.region} onChange={(v) => setField("region", v)} /></Field>
-          <Field label="Nhóm" required invalid={invalidOrderInfoFields.has("groupNo")}><NumberInput value={form.groupNo} onChange={(v) => setField("groupNo", v)} /></Field>
-          <Field label="Mã biểu mẫu" required invalid={invalidOrderInfoFields.has("formCode")}><TextInput value={form.formCode} onChange={(v) => setField("formCode", v)} /></Field>
-          <Field label="Ngày hiệu lực" required invalid={invalidOrderInfoFields.has("formEffectiveDate")}><DateInput value={form.formEffectiveDate} onChange={(v) => setField("formEffectiveDate", v)} /></Field>
-          <Field label="Địa chỉ nhận hàng" required invalid={invalidOrderInfoFields.has("receiverAddress")} wide><textarea className="erp-input min-h-20 resize-y" value={form.receiverAddress} onChange={(e) => setField("receiverAddress", e.target.value)} /></Field>
+        <div className="space-y-3 p-4">
+          <div className="grid gap-x-2.5 gap-y-3 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-[1fr_1.15fr_1fr_1.25fr_0.95fr_0.95fr_0.9fr_0.95fr]">
+            <Field label="Mã Đại Lý" required invalid={invalidOrderInfoFields.has("customerCode")}><DealerCodeSelect value={form.customerCode} options={optionValues.dealer} onChange={(v) => setField("customerCode", v)} /></Field>
+            <Field label="Tên khách hàng" required invalid={invalidOrderInfoFields.has("customerName")}><TextInput value={form.customerName} onChange={(v) => setField("customerName", v)} /></Field>
+            <Field label="NVKD phụ trách" required invalid={invalidOrderInfoFields.has("salesEmployeeCode")}><TextInput value={form.salesEmployeeCode} onChange={(v) => setField("salesEmployeeCode", v)} /></Field>
+            <Field label="Mã đơn hàng" required invalid={invalidOrderInfoFields.has("orderCode")}><TextInput value={form.orderCode} onChange={(v) => setField("orderCode", v)} /></Field>
+            <Field label="Ngày đặt hàng" required invalid={invalidOrderInfoFields.has("orderDate")}><DateInput value={form.orderDate} onChange={(v) => setField("orderDate", v)} /></Field>
+            <Field label="Ngày cần giao hàng" required invalid={invalidOrderInfoFields.has("requiredDeliveryDate")}><DateInput value={form.requiredDeliveryDate} onChange={(v) => setField("requiredDeliveryDate", v)} /></Field>
+            <Field label="Trạng thái" required invalid={invalidOrderInfoFields.has("status")}>
+              <select className="erp-input" value={form.status} onChange={(e) => setField("status", e.target.value)}>
+                {ORDER_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </Field>
+            <Field label="Ngày cập nhật" required invalid={invalidOrderInfoFields.has("excelUpdateDate")}><DateInput value={form.excelUpdateDate} onChange={(v) => setField("excelUpdateDate", v)} /></Field>
+          </div>
+
+          <div className="grid gap-x-2.5 gap-y-3 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-[1fr_0.95fr_0.8fr_0.85fr_0.65fr_0.75fr_0.95fr_1.6fr]">
+            <Field label="Người nhận" required invalid={invalidOrderInfoFields.has("receiverName")}><TextInput value={form.receiverName} onChange={(v) => setField("receiverName", v)} /></Field>
+            <Field label="Số điện thoại" required invalid={invalidOrderInfoFields.has("receiverPhone")}><TextInput value={form.receiverPhone} onChange={(v) => setField("receiverPhone", v)} /></Field>
+            <Field label="Số Km giao hàng" required invalid={invalidOrderInfoFields.has("deliveryKm")}><NumberInput value={form.deliveryKm} onChange={(v) => setField("deliveryKm", v)} /></Field>
+            <Field label="Vùng miền" required invalid={invalidOrderInfoFields.has("region")}><TextInput value={form.region} onChange={(v) => setField("region", v)} /></Field>
+            <Field label="Nhóm" required invalid={invalidOrderInfoFields.has("groupNo")}><NumberInput value={form.groupNo} onChange={(v) => setField("groupNo", v)} /></Field>
+            <Field label="Mã biểu mẫu" required invalid={invalidOrderInfoFields.has("formCode")}><TextInput value={form.formCode} onChange={(v) => setField("formCode", v)} /></Field>
+            <Field label="Ngày hiệu lực" required invalid={invalidOrderInfoFields.has("formEffectiveDate")}><DateInput value={form.formEffectiveDate} onChange={(v) => setField("formEffectiveDate", v)} /></Field>
+            <Field label="Địa chỉ nhận hàng" required invalid={invalidOrderInfoFields.has("receiverAddress")}><TextInput value={form.receiverAddress} onChange={(v) => setField("receiverAddress", v)} /></Field>
+          </div>
         </div>
       </section>
 
@@ -760,17 +765,17 @@ function percent(value: string) { return Math.min(100, Math.max(0, numeric(value
 function formatMoney(value: number) { return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(value); }
 
 function SectionTitle({ title }: { title: string }) { return <div className="border-b border-slate-200 bg-slate-50 px-5 py-4"><h2 className="font-bold text-slate-900">{title}</h2></div>; }
-function Field({ label, children, required, invalid, wide }: { label: string; children: React.ReactNode; required?: boolean; invalid?: boolean; wide?: boolean }) {
+function Field({ label, children, required, invalid }: { label: string; children: React.ReactNode; required?: boolean; invalid?: boolean }) {
   const invalidClass = invalid
     ? " [&_input]:border-red-500 [&_select]:border-red-500 [&_textarea]:border-red-500 [&_input]:ring-1 [&_select]:ring-1 [&_textarea]:ring-1 [&_input]:ring-red-200 [&_select]:ring-red-200 [&_textarea]:ring-red-200"
     : "";
   return (
-    <label className={`${wide ? "md:col-span-2 xl:col-span-2" : ""}${invalidClass}`}>
-      <span className={`mb-1.5 block text-xs font-semibold uppercase tracking-wide ${invalid ? "text-red-600" : "text-slate-500"}`}>
+    <label className={`min-w-0${invalidClass} [&_.erp-input]:h-9 [&_.erp-input]:rounded-md [&_.erp-input]:px-2 [&_.erp-input]:py-1.5 [&_.erp-input]:text-[13px]`}>
+      <span className={`mb-1 block min-h-4 truncate text-[10px] font-semibold uppercase tracking-[0.035em] xl:text-[11px] ${invalid ? "text-red-600" : "text-slate-500"}`} title={label}>
         {label}{required ? " *" : ""}
       </span>
       {children}
-      {invalid ? <span className="mt-1 block text-xs font-medium text-red-600">Bắt buộc nhập</span> : null}
+      {invalid ? <span className="mt-1 block text-[10px] font-medium text-red-600">Bắt buộc nhập</span> : null}
     </label>
   );
 }
