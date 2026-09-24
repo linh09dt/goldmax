@@ -49,7 +49,7 @@ export default function GuidePage() {
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 1.</b> Nhập đầy đủ toàn bộ trường trong Thông tin đơn hàng; tất cả các trường có dấu * đều bắt buộc.</li>
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 2.</b> Thêm bộ cửa, chọn Nhóm cửa + Model và nhập theo các card Sản phẩm / Kích thước & cấu hình / Số lượng & giá.</li>
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 3.</b> Nhập kích thước, số lượng và đơn giá. KH/Lượng sẽ tự tính nếu Model/Nhóm hàng đã được gán rule trong Cấu hình tính toán; nếu không thì nhập tay.</li>
-            <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 4.</b> Thêm chi tiết / phụ kiện / phụ phí. Mỗi dòng là một mini-card; bấm mở để nhập kỹ thuật đầy đủ, không cần cuộn ngang.</li>
+            <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 4.</b> Thêm chi tiết / phụ kiện / phụ phí. Mỗi dòng là một mini-card; nhập trực tiếp các cột hiển thị, không cần cuộn ngang.</li>
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 5.</b> Dán ảnh bằng Ctrl+V hoặc tải ảnh sản phẩm nếu cần, sau đó kiểm tra tổng giá trị.</li>
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 6.</b> Bấm Lưu đơn hàng hoặc Lưu thay đổi.</li>
           </ol>
@@ -58,7 +58,6 @@ export default function GuidePage() {
             ["+ Bộ cửa", "Thêm một bộ cửa mới vào đơn."],
             ["Nhân bản bộ", "Sao chép bộ cửa hiện tại để nhập nhanh một bộ tương tự."],
             ["+ Thêm dòng", "Thêm một mini-card chi tiết / phụ kiện / phụ phí vào bộ cửa đang chọn."],
-            ["Thông số thêm", "Mở các trường kỹ thuật nâng cao như KT thông thủy, ảnh, thông số phào/khóa và dữ liệu bổ sung."],
             ["Xóa bộ", "Xóa toàn bộ bộ cửa và các dòng chi tiết thuộc bộ đó."],
             ["Dán / Tải ảnh", "Bấm vào ô Hình ảnh SP rồi nhấn Ctrl+V để dán ảnh từ Clipboard, hoặc tải file ảnh như trước. Ảnh được lưu trên Supabase Storage."],
             ["Xóa", "Xóa một dòng chi tiết / phụ kiện / phụ phí."],

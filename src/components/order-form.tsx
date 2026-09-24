@@ -692,13 +692,11 @@ function DoorSetCard({
                 itemIndex={itemIndex}
                 detailIndex={detailIndex}
                 onChange={onDetailChange}
-                onUpload={onUpload}
                 onRemove={removeDetail}
                 catalogItems={catalogItems}
                 accessoryCatalogItems={accessoryCatalogItems}
                 accessoryGroups={accessoryGroups}
                 onCatalogSelect={onDetailCatalogSelect}
-                optionValues={optionValues}
                 calculationConfig={calculationConfig}
               />
             ))}
@@ -716,26 +714,22 @@ function DetailMasterRow({
   itemIndex,
   detailIndex,
   onChange,
-  onUpload,
   onRemove,
   catalogItems,
   accessoryCatalogItems,
   accessoryGroups,
   onCatalogSelect,
-  optionValues,
   calculationConfig,
 }: {
   row: OrderLineForm;
   itemIndex: number;
   detailIndex: number;
   onChange: (itemIndex: number, detailIndex: number, key: keyof OrderLineForm, value: string) => void;
-  onUpload: (file: File, itemIndex: number, detailIndex?: number) => Promise<void>;
   onRemove: (detailIndex: number) => void;
   catalogItems: CatalogItem[];
   accessoryCatalogItems: CatalogItem[];
   accessoryGroups: string[];
   onCatalogSelect: (itemIndex: number, detailIndex: number, item: CatalogItem) => void;
-  optionValues: { panel: MasterOption[]; opening: MasterOption[]; trim: MasterOption[]; color: MasterOption[] };
   calculationConfig: CalculationConfig;
 }) {
   const inferredGroup = catalogGroupForCode(accessoryCatalogItems, row.productCode) || catalogGroupFromText(accessoryGroups, row.productName);
@@ -811,36 +805,8 @@ function DetailMasterRow({
             </div>
           </div>
 
-          <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1.5">
-            <details className="group min-w-0 flex-1 rounded-md border border-dashed border-slate-200 bg-slate-50/70">
-              <summary className="cursor-pointer list-none px-2.5 py-1 text-[10px] font-semibold text-cyan-700 marker:hidden">Thông số thêm <span className="inline-block transition-transform group-open:rotate-180">⌄</span></summary>
-              <div className="grid gap-1.5 border-t border-slate-200 bg-white p-2.5 sm:grid-cols-2 lg:grid-cols-4">
-                <CardField label="Tên sản phẩm" className="sm:col-span-2">
-                  <div className="min-h-8 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] font-medium text-sky-900">
-                    {row.productName || <span className="font-normal text-slate-400">Tự điền theo danh mục</span>}
-                  </div>
-                </CardField>
-                <CardField label="SL"><CardNumberInput value={row.quantity} onChange={change("quantity")} /></CardField>
-                <CardField label="Bộ số"><CardInput value={row.setNo} onChange={change("setNo")} /></CardField>
-                <CardField label="Ô thoáng"><CardSuggestionInput value={row.panelInfo} onChange={change("panelInfo")} items={optionValues.panel} /></CardField>
-                <CardField label="Hướng mở"><CardSuggestionInput value={row.openingDirection} onChange={change("openingDirection")} items={optionValues.opening} /></CardField>
-                <CardField label="Phào"><CardSuggestionInput value={row.trimDirection} onChange={change("trimDirection")} items={optionValues.trim} /></CardField>
-                <CardField label="Màu sơn"><CardSuggestionInput value={row.paintColor} onChange={change("paintColor")} items={optionValues.color} /></CardField>
-                <CardField label="KT thông thủy - Cao"><CardNumberInput value={row.clearHeightMm} onChange={change("clearHeightMm")} /></CardField>
-                <CardField label="KT thông thủy - Rộng"><CardNumberInput value={row.clearWidthMm} onChange={change("clearWidthMm")} /></CardField>
-                <CardField label="Số thanh phào / bộ"><CardNumberInput value={row.trimBarsPerSet} onChange={change("trimBarsPerSet")} /></CardField>
-                <CardField label="Loại phào"><CardInput value={row.trimType} onChange={change("trimType")} /></CardField>
-                <CardField label="Model khóa"><CardInput value={row.lockModel} onChange={change("lockModel")} /></CardField>
-                <CardField label="Số nan ô thoáng"><CardNumberInput value={row.windowBars} onChange={change("windowBars")} /></CardField>
-                <CardField label="Số cánh / bộ"><CardNumberInput value={row.leavesPerSet} onChange={change("leavesPerSet")} /></CardField>
-                <CardField label="Hình ảnh SP" className="sm:col-span-2 lg:col-span-4">
-                  <div className="rounded-md border border-slate-200 bg-white"><ImageCell path={row.imagePath} onUpload={(file) => onUpload(file, itemIndex, detailIndex)} /></div>
-                </CardField>
-              </div>
-            </details>
-            <div className="flex items-center gap-1.5">
-              <button className="rounded-md px-2 py-1 text-[10px] font-semibold text-red-600 hover:bg-red-50" type="button" onClick={() => onRemove(detailIndex)}>Xóa</button>
-            </div>
+          <div className="mt-1.5 flex flex-wrap items-center justify-end gap-1.5">
+            <button className="rounded-md px-2 py-1 text-[10px] font-semibold text-red-600 hover:bg-red-50" type="button" onClick={() => onRemove(detailIndex)}>Xóa</button>
           </div>
       </div>
     </div>
@@ -937,14 +903,15 @@ function CardSuggestionInput({ value, onChange, items, placeholder }: { value: s
 }
 
 function CardNumberInput({ value, onChange, step = "1", readOnly = false, autoCalculated = false }: { value: string; onChange: (value: string) => void; step?: string; readOnly?: boolean; autoCalculated?: boolean }) {
+  const displayValue = autoCalculated && readOnly ? formatPricingQuantityDisplay(value, 2) : value;
   return (
     <input
       className={`h-8 w-full min-w-0 rounded-md border px-2 text-right text-[11px] font-semibold tabular-nums text-sky-900 outline-none transition ${readOnly ? "cursor-default border-sky-200 bg-sky-50" : "border-slate-300 bg-white focus:border-cyan-400 focus:ring-1 focus:ring-cyan-100"}`}
-      type="number"
+      type={autoCalculated && readOnly ? "text" : "number"}
       step={step}
-      value={value}
+      value={displayValue}
       readOnly={readOnly}
-      title={autoCalculated ? "KH/Lượng được tính tự động" : undefined}
+      title={autoCalculated ? `KH/Lượng tự động · Giá trị chính xác: ${value || "—"}` : undefined}
       onChange={(event) => onChange(event.target.value)}
     />
   );
@@ -1164,7 +1131,7 @@ function recalculateAutomaticPricingQuantity(item: OrderItemForm, catalogItems: 
     itemCode: item.productCode || item.model,
   });
 
-  const mainPricingQuantity = calculatePricingQuantityByRule(mainRule.pricingRule, item, item, calculationConfig.decimalPlaces);
+  const mainPricingQuantity = calculatePricingQuantityByRule(mainRule.pricingRule, item, item);
   if (mainPricingQuantity !== null && item.pricingQuantity !== mainPricingQuantity) {
     nextItem = { ...nextItem, pricingQuantity: mainPricingQuantity, amount: "" };
     changed = true;
@@ -1192,7 +1159,7 @@ function recalculateAutomaticPricingQuantity(item: OrderItemForm, catalogItems: 
       groupName: catalog?.name || detail.productName,
       itemCode: detail.productCode || detail.model,
     });
-    const calculated = calculatePricingQuantityByRule(resolved.pricingRule, detail, nextItem, calculationConfig.decimalPlaces);
+    const calculated = calculatePricingQuantityByRule(resolved.pricingRule, detail, nextItem);
     if (calculated === null || detail.pricingQuantity === calculated) return detail;
     changed = true;
     return { ...detail, pricingQuantity: calculated, amount: "" };
@@ -1209,7 +1176,6 @@ function calculatePricingQuantityByRule(
   rule: Exclude<PricingQuantityRule, "INHERIT">,
   line: Pick<OrderLineForm, "heightMm" | "widthMm">,
   parent: OrderItemForm,
-  decimalPlaces: number,
 ): string | null {
   if (rule === "MANUAL") return null;
 
@@ -1217,20 +1183,20 @@ function calculatePricingQuantityByRule(
     const height = positiveNumber(line.heightMm);
     const width = positiveNumber(line.widthMm);
     if (height === null || width === null) return "";
-    return formatPricingQuantity((height * width) / 1_000_000, decimalPlaces);
+    return formatPricingQuantityExact((height * width) / 1_000_000);
   }
 
   if (rule === "TRIM_LINEAR") {
     const height = positiveNumber(line.heightMm);
     const width = positiveNumber(line.widthMm);
     if (height === null && width === null) return "";
-    return formatPricingQuantity(((height ?? 0) * 2 + (width ?? 0)) / 1000, decimalPlaces);
+    return formatPricingQuantityExact(((height ?? 0) * 2 + (width ?? 0)) / 1000);
   }
 
   if (rule === "PANEL_COUNT") return panelCountFromDoor(parent.panelInfo);
 
   const quantity = positiveNumber(parent.quantity);
-  return quantity === null ? "" : formatPricingQuantity(quantity, decimalPlaces);
+  return quantity === null ? "" : formatPricingQuantityExact(quantity);
 }
 
 function panelCountFromDoor(panelInfo: string) {
@@ -1247,10 +1213,21 @@ function positiveNumber(value: string) {
   return Number.isFinite(number) && number > 0 ? number : null;
 }
 
-function formatPricingQuantity(value: number, decimalPlaces = 2) {
+function formatPricingQuantityExact(value: number) {
   if (!Number.isFinite(value)) return "";
+  // Giữ độ chính xác của công thức để Thành tiền dùng toàn bộ phần thập phân.
+  // Các công thức hiện tại xuất phát từ kích thước mm nên tối đa chỉ cần vài chữ số thập phân.
+  return Number(value.toFixed(12)).toString();
+}
+
+function formatPricingQuantityDisplay(value: string, decimalPlaces = 2) {
+  const number = Number(String(value || "").replace(",", "."));
+  if (!Number.isFinite(number)) return value;
   const places = Math.max(0, Math.min(4, Math.round(decimalPlaces)));
-  return Number(value.toFixed(places)).toString();
+  return new Intl.NumberFormat("vi-VN", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: places,
+  }).format(number);
 }
 
 function applyAccessoryDimensionSuggestion(
