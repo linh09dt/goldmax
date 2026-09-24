@@ -14,6 +14,7 @@ import {
 } from "@/lib/order-form";
 import {
   DEFAULT_CALCULATION_CONFIG,
+  calculateDoorUnitPrice,
   cloneCalculationConfig,
   resolveCalculationRule,
   type CalculationConfig,
@@ -148,7 +149,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
   // sau đó mọi chỉnh sửa trên form sẽ áp dụng công thức mới.
   useEffect(() => {
     if (!catalogItems.length || !calculationConfigLoaded || importedFromExcelRef.current) return;
-    setForm((current) => recalculateAutomaticPricingForm(current, catalogItems, calculationConfig));
+    setForm((current) => recalculateAutomaticPricingForm(current, catalogItems, calculationConfig, { applyDoorUnitPrice: mode === "create" }));
   }, [catalogItems, calculationConfig, calculationConfigLoaded]);
 
   const totals = useMemo(() => calculateTotals(form), [form]);
@@ -192,7 +193,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
     setForm((current) => {
       const items = [...current.items];
       const nextItem = { ...items[index], [key]: value };
-      items[index] = recalculateAutomaticPricingQuantity(nextItem, catalogItems, calculationConfig);
+      items[index] = recalculateAutomaticPricingQuantity(nextItem, catalogItems, calculationConfig, { applyDoorUnitPrice: key === "frameMm" });
       return { ...current, items };
     });
   }
@@ -208,7 +209,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
         model: catalog.code,
         unit: catalog.unit ?? currentItem.unit,
         unitPrice: catalogDefaultPrice(catalog, currentItem.unitPrice),
-      }, catalogItems, calculationConfig);
+      }, catalogItems, calculationConfig, { applyDoorUnitPrice: true });
       return { ...current, items };
     });
   }
@@ -1136,17 +1137,19 @@ function EditableDetailRow({ row, itemIndex, detailIndex, onChange, onUpload, on
   );
 }
 
-function recalculateAutomaticPricingForm(form: OrderFormData, catalogItems: CatalogItem[], calculationConfig: CalculationConfig) {
+type AutomaticRecalculationOptions = { applyDoorUnitPrice?: boolean };
+
+function recalculateAutomaticPricingForm(form: OrderFormData, catalogItems: CatalogItem[], calculationConfig: CalculationConfig, options: AutomaticRecalculationOptions = {}) {
   let changed = false;
   const items = form.items.map((item) => {
-    const next = recalculateAutomaticPricingQuantity(item, catalogItems, calculationConfig);
+    const next = recalculateAutomaticPricingQuantity(item, catalogItems, calculationConfig, options);
     if (next !== item) changed = true;
     return next;
   });
   return changed ? { ...form, items } : form;
 }
 
-function recalculateAutomaticPricingQuantity(item: OrderItemForm, catalogItems: CatalogItem[], calculationConfig: CalculationConfig): OrderItemForm {
+function recalculateAutomaticPricingQuantity(item: OrderItemForm, catalogItems: CatalogItem[], calculationConfig: CalculationConfig, options: AutomaticRecalculationOptions = {}): OrderItemForm {
   let changed = false;
   let nextItem = item;
   const mainCatalog = findCatalog(catalogItems, item.productCode || item.model);
@@ -1160,6 +1163,21 @@ function recalculateAutomaticPricingQuantity(item: OrderItemForm, catalogItems: 
   if (mainPricingQuantity !== null && item.pricingQuantity !== mainPricingQuantity) {
     nextItem = { ...nextItem, pricingQuantity: mainPricingQuantity, amount: "" };
     changed = true;
+  }
+
+  if (options.applyDoorUnitPrice && mainCatalog && calculationConfig.framePrice.enabled) {
+    const baseDealerPrice = catalogDealerPriceNumber(mainCatalog);
+    const frameMm = positiveNumber(nextItem.frameMm);
+    const calculatedUnitPrice = baseDealerPrice === null
+      ? null
+      : calculateDoorUnitPrice(baseDealerPrice, frameMm, calculationConfig.framePrice);
+    if (calculatedUnitPrice !== null) {
+      const nextUnitPrice = formatUnitPrice(calculatedUnitPrice);
+      if (nextItem.unitPrice !== nextUnitPrice) {
+        nextItem = { ...nextItem, unitPrice: nextUnitPrice, amount: "" };
+        changed = true;
+      }
+    }
   }
 
   const details = nextItem.details.map((detail) => {
@@ -1184,7 +1202,7 @@ function recalculateAutomaticPricingQuantity(item: OrderItemForm, catalogItems: 
 
 function calculatePricingQuantityByRule(
   rule: Exclude<PricingQuantityRule, "INHERIT">,
-  line: { heightMm: string; widthMm: string },
+  line: Pick<OrderLineForm, "heightMm" | "widthMm">,
   parent: OrderItemForm,
   decimalPlaces: number,
 ): string | null {
@@ -1473,6 +1491,16 @@ function catalogDefaultPrice(item: CatalogItem, fallback: string) {
   // Đơn hàng chỉ dùng giá Đại lý từ Master Data. Không fallback sang giá Bán lẻ.
   if (item.dealerPrice !== null && item.dealerPrice !== undefined && String(item.dealerPrice).trim() !== "") return String(item.dealerPrice);
   return fallback;
+}
+
+function catalogDealerPriceNumber(item: CatalogItem) {
+  if (item.dealerPrice === null || item.dealerPrice === undefined || String(item.dealerPrice).trim() === "") return null;
+  const value = Number(item.dealerPrice);
+  return Number.isFinite(value) ? value : null;
+}
+
+function formatUnitPrice(value: number) {
+  return Number.isInteger(value) ? String(value) : String(Math.round(value * 100) / 100);
 }
 
 function findCatalog(items: CatalogItem[], code: string) {

@@ -31,7 +31,7 @@ const PRICING_OPTIONS: Array<{ value: PricingQuantityRule; label: string }> = [
   { value: "MANUAL", label: "Nhập tay" },
   { value: "DOOR_AREA", label: "Cao × Rộng / 1.000.000" },
   { value: "TRIM_LINEAR", label: "(Cao × 2 + Rộng) / 1.000" },
-  { value: "PANEL_COUNT", label: "Theo Ô thoáng 1TK/2TK/3TK" },
+  { value: "PANEL_COUNT", label: "Theo Ô thoáng 1TK/2TK/3TK/4TK" },
   { value: "PARENT_QUANTITY", label: "Theo SL bộ cửa cha" },
 ];
 
@@ -125,12 +125,17 @@ export function CalculationConfigEditor() {
     setConfig((current) => ({ ...current, rules: current.rules.filter((_, ruleIndex) => ruleIndex !== index) }));
   }
 
+  function patchFramePrice(patch: Partial<CalculationConfig["framePrice"]>) {
+    setConfig((current) => ({ ...current, framePrice: { ...current.framePrice, ...patch } }));
+  }
+
   return <div className="space-y-4">
     <section className="rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-slate-700">
       <div className="font-semibold text-cyan-900">Logic áp dụng</div>
       <div className="mt-1 leading-6">
         Cấu hình <b>Model / hàng hóa</b> ưu tiên cao nhất, sau đó đến <b>Nhóm hàng</b>. Nếu không có rule thì KH/Lượng nhập tay.
         Đề xuất Cao/Rộng chỉ điền khi chọn hàng hóa; người dùng vẫn có thể sửa lại bằng tay. KH/Lượng tự động được làm tròn theo số chữ số bên dưới.
+        Đơn giá Bộ cửa lấy <b>Giá đại lý</b> từ Master Data và có thể tự cộng phụ thu theo độ dày Khuôn.
       </div>
     </section>
 
@@ -155,6 +160,32 @@ export function CalculationConfigEditor() {
             {[0, 1, 2, 3, 4].map((value) => <option key={value} value={value}>{value} chữ số thập phân</option>)}
           </select>
         </label>
+      </div>
+    </section>
+
+    <section className="erp-card overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+        <div>
+          <h2 className="font-semibold">Tự động tính Đơn giá cửa theo Khuôn</h2>
+          <p className="mt-0.5 text-xs text-slate-500">Giá gốc = Giá đại lý của Model cửa trong Master Data. Hệ thống làm tròn Khuôn trước rồi cộng phụ thu.</p>
+        </div>
+        <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <input type="checkbox" className="h-4 w-4" checked={config.framePrice.enabled} onChange={(event) => patchFramePrice({ enabled: event.target.checked })} />
+          Bật tự động tính giá
+        </label>
+      </div>
+      <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <NumberSetting label="Làm tròn Khuôn về nấc (mm)" value={config.framePrice.roundToMm} onChange={(value) => patchFramePrice({ roundToMm: value })} />
+        <NumberSetting label="Khuôn thường tiêu chuẩn đến (mm)" value={config.framePrice.standardMaxMm} onChange={(value) => patchFramePrice({ standardMaxMm: value })} />
+        <NumberSetting label="Khuôn kép bắt đầu từ (mm)" value={config.framePrice.doubleMinMm} onChange={(value) => patchFramePrice({ doubleMinMm: value })} />
+        <NumberSetting label="Khuôn kép cố định đến (mm)" value={config.framePrice.doubleMaxMm} onChange={(value) => patchFramePrice({ doubleMaxMm: value })} />
+        <NumberSetting label="Mỗi nấc tăng (mm)" value={config.framePrice.stepMm} onChange={(value) => patchFramePrice({ stepMm: value })} />
+        <NumberSetting label="Phụ thu / nấc khuôn thường (đ/m²)" value={config.framePrice.normalStepSurcharge} onChange={(value) => patchFramePrice({ normalStepSurcharge: value })} />
+        <NumberSetting label="Phụ thu cố định khuôn kép (đ/m²)" value={config.framePrice.doubleSurcharge} onChange={(value) => patchFramePrice({ doubleSurcharge: value })} />
+        <NumberSetting label="Phụ thu / nấc trên khuôn kép (đ/m²)" value={config.framePrice.overDoubleStepSurcharge} onChange={(value) => patchFramePrice({ overDoubleStepSurcharge: value })} />
+      </div>
+      <div className="border-t border-slate-200 bg-cyan-50 px-4 py-3 text-xs leading-5 text-slate-700">
+        Mặc định đã chốt: <b>≤140 mm = +0</b>; <b>150/160/170 = +10.000/+20.000/+30.000</b>; <b>180–250 mm = +110.000</b>; trên 250 mm cộng tiếp <b>10.000 mỗi 10 mm</b>. Ví dụ <b>245 → làm tròn 250 → +110.000</b>; <b>255 → 260 → +120.000</b>.
       </div>
     </section>
 
@@ -227,13 +258,21 @@ export function CalculationConfigEditor() {
       </div>
     </section>
 
-    <section className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
+    <section className="grid gap-3 lg:grid-cols-2 xl:grid-cols-5">
       <Example title="Nhóm cửa" value="Cao × Rộng / 1.000.000" />
       <Example title="Phào / Phao" value="(Cao × 2 + Rộng) / 1.000" />
-      <Example title="Ô thoáng" value="3TK → 3; 2TK → 2; 1TK → 1" />
+      <Example title="Ô thoáng" value="4TK → 4; 3TK → 3; 2TK → 2; 1TK → 1" />
       <Example title="Khóa" value="Theo SL bộ cửa cha" />
+      <Example title="Đơn giá cửa" value="Giá đại lý + phụ thu Khuôn" />
     </section>
   </div>;
+}
+
+function NumberSetting({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+  return <label className="block">
+    <span className="mb-1 block min-h-8 text-xs font-semibold leading-4 text-slate-600">{label}</span>
+    <input className="erp-input w-full text-right font-semibold text-sky-900" type="number" min="0" step="1" value={value} onChange={(event) => onChange(Number(event.target.value))} />
+  </label>;
 }
 
 function RuleSelect({ value, options, onChange }: { value: string; options: Array<{ value: string; label: string }>; onChange: (value: string) => void }) {

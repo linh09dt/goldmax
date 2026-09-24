@@ -15,6 +15,18 @@ export type InputSuggestionRule =
   | "PARENT_WIDTH"
   | "CLEAR";
 
+export type FramePriceConfig = {
+  enabled: boolean;
+  roundToMm: number;
+  standardMaxMm: number;
+  doubleMinMm: number;
+  doubleMaxMm: number;
+  stepMm: number;
+  normalStepSurcharge: number;
+  doubleSurcharge: number;
+  overDoubleStepSurcharge: number;
+};
+
 export type CalculationRule = {
   id: string;
   scope: CalculationScope;
@@ -28,8 +40,9 @@ export type CalculationRule = {
 };
 
 export type CalculationConfig = {
-  version: 1;
+  version: 2;
   decimalPlaces: number;
+  framePrice: FramePriceConfig;
   rules: CalculationRule[];
 };
 
@@ -46,9 +59,22 @@ export type ResolvedCalculationRule = {
   matchedRuleIds: string[];
 };
 
+export const DEFAULT_FRAME_PRICE_CONFIG: FramePriceConfig = {
+  enabled: true,
+  roundToMm: 10,
+  standardMaxMm: 140,
+  doubleMinMm: 180,
+  doubleMaxMm: 250,
+  stepMm: 10,
+  normalStepSurcharge: 10_000,
+  doubleSurcharge: 110_000,
+  overDoubleStepSurcharge: 10_000,
+};
+
 export const DEFAULT_CALCULATION_CONFIG: CalculationConfig = {
-  version: 1,
+  version: 2,
   decimalPlaces: 2,
+  framePrice: { ...DEFAULT_FRAME_PRICE_CONFIG },
   rules: [
     {
       id: "main-door-area",
@@ -81,7 +107,7 @@ export const DEFAULT_CALCULATION_CONFIG: CalculationConfig = {
       heightSuggestion: "KEEP",
       widthSuggestion: "KEEP",
       active: true,
-      note: "Ô thoáng: lấy số 1TK/2TK/3TK từ Bộ cửa cha",
+      note: "Ô thoáng: lấy số 1TK/2TK/3TK/4TK từ Bộ cửa cha",
     },
     {
       id: "group-khoa",
@@ -122,13 +148,15 @@ export function normalizeCalculationConfig(value: unknown, fallback: Calculation
   const rules = rawRules
     .map((raw, index) => normalizeRule(raw, index))
     .filter((rule): rule is CalculationRule => Boolean(rule));
-  return { version: 1, decimalPlaces, rules };
+  const framePrice = normalizeFramePriceConfig(source.framePrice, fallback.framePrice);
+  return { version: 2, decimalPlaces, framePrice, rules };
 }
 
 export function cloneCalculationConfig(config: CalculationConfig): CalculationConfig {
   return {
-    version: 1,
+    version: 2,
     decimalPlaces: config.decimalPlaces,
+    framePrice: { ...config.framePrice },
     rules: config.rules.map((rule) => ({ ...rule })),
   };
 }
@@ -148,7 +176,7 @@ export function buildSuggestedCalculationConfig(items: CalculationCatalogItem[])
       note = "KH/Lượng = (Cao × 2 + Rộng) / 1.000";
     } else if (normalized.startsWith("o thoang")) {
       pricingRule = "PANEL_COUNT";
-      note = "KH/Lượng lấy từ 1TK/2TK/3TK của Bộ cửa cha";
+      note = "KH/Lượng lấy từ 1TK/2TK/3TK/4TK của Bộ cửa cha";
     } else if (normalized.startsWith("khoa")) {
       pricingRule = "PARENT_QUANTITY";
       note = "KH/Lượng = SL bộ cửa cha";
@@ -201,7 +229,12 @@ export function buildSuggestedCalculationConfig(items: CalculationCatalogItem[])
     });
   }
 
-  return { version: 1, decimalPlaces: 2, rules: dedupeRules(rules) };
+  return {
+    version: 2,
+    decimalPlaces: 2,
+    framePrice: { ...DEFAULT_FRAME_PRICE_CONFIG },
+    rules: dedupeRules(rules),
+  };
 }
 
 export function resolveCalculationRule(
@@ -227,6 +260,33 @@ export function resolveCalculationRule(
   return result;
 }
 
+export function roundFrameMm(frameMm: number, config: FramePriceConfig) {
+  const roundTo = Math.max(1, Math.round(config.roundToMm));
+  return Math.round(frameMm / roundTo) * roundTo;
+}
+
+export function calculateDoorFrameSurcharge(frameMm: number, config: FramePriceConfig) {
+  if (!config.enabled || !Number.isFinite(frameMm) || frameMm <= 0) return 0;
+  const rounded = roundFrameMm(frameMm, config);
+  const stepMm = Math.max(1, config.stepMm);
+
+  if (rounded <= config.standardMaxMm) return 0;
+  if (rounded < config.doubleMinMm) {
+    const steps = Math.max(0, Math.round((rounded - config.standardMaxMm) / stepMm));
+    return steps * config.normalStepSurcharge;
+  }
+  if (rounded <= config.doubleMaxMm) return config.doubleSurcharge;
+
+  const overSteps = Math.max(0, Math.round((rounded - config.doubleMaxMm) / stepMm));
+  return config.doubleSurcharge + overSteps * config.overDoubleStepSurcharge;
+}
+
+export function calculateDoorUnitPrice(baseDealerPrice: number, frameMm: number | null, config: FramePriceConfig) {
+  if (!Number.isFinite(baseDealerPrice)) return null;
+  if (!config.enabled || frameMm === null || !Number.isFinite(frameMm) || frameMm <= 0) return baseDealerPrice;
+  return baseDealerPrice + calculateDoorFrameSurcharge(frameMm, config);
+}
+
 export function normalizeLookup(value: unknown) {
   return String(value ?? "")
     .normalize("NFD")
@@ -238,6 +298,21 @@ export function normalizeLookup(value: unknown) {
     .replace(/[^a-z0-9]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function normalizeFramePriceConfig(value: unknown, fallback: FramePriceConfig): FramePriceConfig {
+  const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return {
+    enabled: source.enabled === undefined ? fallback.enabled : source.enabled !== false,
+    roundToMm: positiveInteger(source.roundToMm, fallback.roundToMm),
+    standardMaxMm: nonNegativeNumber(source.standardMaxMm, fallback.standardMaxMm),
+    doubleMinMm: nonNegativeNumber(source.doubleMinMm, fallback.doubleMinMm),
+    doubleMaxMm: nonNegativeNumber(source.doubleMaxMm, fallback.doubleMaxMm),
+    stepMm: positiveInteger(source.stepMm, fallback.stepMm),
+    normalStepSurcharge: nonNegativeNumber(source.normalStepSurcharge, fallback.normalStepSurcharge),
+    doubleSurcharge: nonNegativeNumber(source.doubleSurcharge, fallback.doubleSurcharge),
+    overDoubleStepSurcharge: nonNegativeNumber(source.overDoubleStepSurcharge, fallback.overDoubleStepSurcharge),
+  };
 }
 
 function normalizeRule(value: unknown, index: number): CalculationRule | null {
@@ -297,6 +372,18 @@ function clampInteger(value: unknown, min: number, max: number, fallback: number
   const number = Number(value);
   if (!Number.isFinite(number)) return fallback;
   return Math.max(min, Math.min(max, Math.round(number)));
+}
+
+function positiveInteger(value: unknown, fallback: number) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return fallback;
+  return Math.max(1, Math.round(number));
+}
+
+function nonNegativeNumber(value: unknown, fallback: number) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0) return fallback;
+  return number;
 }
 
 function safeId(value: string) {

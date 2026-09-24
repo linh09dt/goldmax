@@ -113,9 +113,11 @@ export default function GuidePage() {
         </GuideSection>
 
         <GuideSection title="7. Cấu hình tính toán" href="/calculation-config" linkLabel="Mở Cấu hình tính toán">
-          <p className="text-sm text-slate-600">Gán cách tính KH/Lượng và nguồn đề xuất Cao/Rộng cho đúng Nhóm hàng hoặc đúng Model. Rule Model ưu tiên hơn rule Nhóm hàng.</p>
+          <p className="text-sm text-slate-600">Gán cách tính KH/Lượng, nguồn đề xuất Cao/Rộng và cấu hình tự động tính Đơn giá Bộ cửa theo Khuôn. Rule Model ưu tiên hơn rule Nhóm hàng.</p>
           <ActionTable rows={[
             ["Làm tròn KH/Lượng", "Chọn số chữ số thập phân dùng cho các giá trị KH/Lượng tự tính; mặc định 2."],
+            ["Đơn giá cửa theo Khuôn", "Giá gốc lấy từ Giá đại lý của Model. Khuôn được làm tròn theo nấc cấu hình (mặc định 10 mm) rồi cộng phụ thu."],
+            ["Mốc Khuôn", "Mặc định ≤140 mm không phụ thu; 150–170 mm cộng 10.000đ/m² mỗi 10 mm; 180–250 mm cộng cố định 110.000đ/m²; trên 250 mm tiếp tục cộng 10.000đ/m² mỗi 10 mm."],
             ["Bộ cửa chính", "Dùng công thức Cao × Rộng / 1.000.000 hoặc chọn Nhập tay nếu cần."],
             ["Theo nhóm hàng", "Áp một công thức chung cho toàn bộ Model thuộc Nhóm hàng, ví dụ Phào / Ô thoáng / Khóa."],
             ["Theo Model / hàng hóa", "Gán rule riêng cho đúng Model. Có thể kế thừa công thức KH/Lượng từ Nhóm nhưng cấu hình Cao/Rộng riêng."],
