@@ -365,8 +365,8 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
         <div className="border-b border-slate-200 bg-slate-50 px-3 py-1.5">
           <h2 className="text-[12px] font-semibold tracking-normal text-slate-900">Thông tin đơn hàng</h2>
         </div>
-        <div className="erp-scrollbar overflow-x-auto p-2.5">
-          <div className="grid min-w-[1900px] grid-cols-[160px_120px_130px_150px_150px_180px_135px_135px_140px_120px_220px_100px_100px] gap-1.5">
+        <div className="p-2.5">
+          <div className="grid grid-cols-[1.18fr_0.88fr_0.96fr_1.05fr_1.12fr_1.28fr_0.96fr_1.02fr_0.98fr_0.88fr_1.42fr_0.78fr_0.82fr] gap-1.5">
             <Field label="Mã đơn hàng" required invalid={invalidOrderInfoFields.has("orderCode")}><TextInput value={form.orderCode} onChange={(v) => setField("orderCode", v)} /></Field>
             <Field label="Trạng thái" required invalid={invalidOrderInfoFields.has("status")}>
               <select className="erp-input" value={form.status} onChange={(e) => setField("status", e.target.value)}>
@@ -590,9 +590,9 @@ function DoorSetCard({
       </header>
 
       <div className="p-2.5">
-        {/* Compact UI: 22 trường Bộ cửa hiển thị trên một dòng ngang; cuộn ngang khi màn hình không đủ rộng. */}
-        <div className="erp-scrollbar overflow-x-auto pb-1">
-          <div className="grid min-w-[2260px] grid-cols-[repeat(22,minmax(92px,1fr))] gap-1.5">
+        {/* Full-view UI: 22 trường Bộ cửa chia đều 2 dòng, mỗi dòng 11 ô; không cuộn ngang. */}
+        <div>
+          <div className="grid grid-cols-[repeat(11,minmax(0,1fr))] gap-x-1.5 gap-y-2">
           {/* 1 → 11 */}
           <CardField label="Bộ số">
             <CardInput value={item.setNo} onChange={change("setNo")} placeholder="VD: 12097" />
@@ -648,7 +648,7 @@ function DoorSetCard({
           </div>
         </div>
 
-        {/* Ghi chú + ảnh tách riêng để hàng 22 trường chính luôn giữ một dòng. */}
+        {/* Ghi chú + ảnh tách riêng bên dưới 2 dòng thông tin Bộ cửa. */}
         <div className="mt-2 grid grid-cols-1 gap-1.5 border-t border-slate-200 pt-2 lg:grid-cols-[minmax(0,1fr)_190px]">
           <CardField label="Ghi chú">
             <CardInput value={item.note} onChange={change("note")} placeholder="Nhập ghi chú kỹ thuật" />
