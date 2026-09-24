@@ -11,10 +11,13 @@ Gồm toàn bộ thay đổi kể từ file zip gốc:
 - **V79** — Bộ cửa về **17 ô / 1 hàng**; **Email → Website: goldmaxdoor.vn** trong Excel V2 + PDF V2 + PDF preview;
   **tab mới “Thông tin khách hàng”** (`/customers`) tự động tổng hợp tên KH / SĐT / địa chỉ từ đơn hàng, có tìm kiếm, sắp xếp và **Xuất Excel**
 
+- **V80** — Hàng Bộ cửa: **Model rộng 175px hiện đủ "MODEL · tên diễn giải"**, thu nhỏ Ô thoáng/Hướng mở/SL bộ;
+  **Thông tin đơn hàng gộp 13 ô lên 1 hàng**; nhãn 2 dòng (line-clamp) không bị cắt chữ.
+
 ## Cách áp
 
 ```
-unzip -o door-production-changes-v79.zip -d <thư-mục-project>
+unzip -o door-production-changes-v80.zip -d <thư-mục-project>
 npm run db:generate
 npm run build
 npm run dev

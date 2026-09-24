@@ -466,9 +466,9 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
         <div className="border-b border-slate-200 bg-slate-50 px-3 py-1.5">
           <h2 className="text-[12px] font-semibold tracking-normal text-slate-900">Thông tin đơn hàng</h2>
         </div>
-        {/* V77: tách 2 hàng (7 + 6 trường) để ô nhập rộng rãi, đọc được nội dung đã nhập. */}
-        <div className="space-y-1.5 p-2.5">
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+        {/* V80: đưa toàn bộ 13 ô thông tin đơn hàng lên 1 hàng (như yêu cầu). */}
+        <div className="p-2.5">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-[1.05fr_0.85fr_0.9fr_0.95fr_1fr_1.2fr_0.9fr_0.95fr_0.9fr_0.85fr_1.5fr_0.75fr_0.8fr]">
             <Field label="Mã đơn hàng" required invalid={invalidOrderInfoFields.has("orderCode")}><TextInput value={form.orderCode} onChange={(v) => setField("orderCode", v)} /></Field>
             <Field label="Trạng thái" required invalid={invalidOrderInfoFields.has("status")}>
               <select className="erp-input" value={form.status} onChange={(e) => setField("status", e.target.value)}>
@@ -480,16 +480,12 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
             <Field label="Mã Đại Lý" required invalid={invalidOrderInfoFields.has("customerCode")}><DealerCodeSelect value={form.customerCode} options={optionValues.dealer} onChange={(v) => setField("customerCode", v)} /></Field>
             <Field label="Tên khách hàng" required invalid={invalidOrderInfoFields.has("customerName")}><TextInput value={form.customerName} onChange={(v) => setField("customerName", v)} /></Field>
             <Field label="Ngày đặt hàng" required invalid={invalidOrderInfoFields.has("orderDate")}><DateInput value={form.orderDate} onChange={(v) => setField("orderDate", v)} /></Field>
-          </div>
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
-            <Field label="Ngày cần giao hàng" required invalid={invalidOrderInfoFields.has("requiredDeliveryDate")}><DateInput value={form.requiredDeliveryDate} onChange={(v) => setField("requiredDeliveryDate", v)} /></Field>
+            <Field label="Ngày cần giao" title="Ngày cần giao hàng" required invalid={invalidOrderInfoFields.has("requiredDeliveryDate")}><DateInput value={form.requiredDeliveryDate} onChange={(v) => setField("requiredDeliveryDate", v)} /></Field>
             <Field label="Người nhận"><TextInput value={form.receiverName} onChange={(v) => setField("receiverName", v)} /></Field>
             <Field label="Số điện thoại" required invalid={invalidOrderInfoFields.has("receiverPhone")}><TextInput value={form.receiverPhone} onChange={(v) => setField("receiverPhone", v)} /></Field>
-            <div className="col-span-2 min-w-0">
-              <Field label="Địa chỉ nhận hàng" required invalid={invalidOrderInfoFields.has("receiverAddress")}><TextInput value={form.receiverAddress} onChange={(v) => setField("receiverAddress", v)} /></Field>
-            </div>
+            <Field label="Địa chỉ nhận hàng" required invalid={invalidOrderInfoFields.has("receiverAddress")}><TextInput value={form.receiverAddress} onChange={(v) => setField("receiverAddress", v)} /></Field>
             <Field label="Vùng miền"><TextInput value={form.region} onChange={(v) => setField("region", v)} /></Field>
-            <Field label="Số Km giao hàng"><NumberInput value={form.deliveryKm} onChange={(v) => setField("deliveryKm", v)} /></Field>
+            <Field label="Số Km" title="Số Km giao hàng"><NumberInput value={form.deliveryKm} onChange={(v) => setField("deliveryKm", v)} /></Field>
           </div>
         </div>
       </section>
@@ -708,7 +704,7 @@ function DoorSetCard({
         {/* Full-view UI: 17 trường Bộ cửa trên 1 dòng; ẩn riêng Tên sản phẩm; không cuộn ngang. */}
         {/* V79: 17 ô Bộ cửa trên 1 hàng (theo yêu cầu), giữ style nhãn/ô nhập như mockup. */}
         <div>
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-[0.66fr_0.94fr_1fr_0.54fr_0.72fr_0.6fr_0.6fr_0.5fr_0.5fr_0.5fr_0.56fr_0.56fr_0.42fr_0.38fr_0.6fr_0.62fr_0.68fr]">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-[0.66fr_0.9fr_minmax(168px,2.6fr)_minmax(46px,0.3fr)_minmax(46px,0.34fr)_0.6fr_0.6fr_0.52fr_0.52fr_0.52fr_0.6fr_0.6fr_minmax(30px,0.25fr)_0.44fr_0.6fr_0.62fr_0.68fr]">
             <CardField label="Bộ số">
               {/* V75: Bộ số tự tăng dần, không nhập tay. Chỉ hiển thị số đã được tạo. */}
               <CardReadonlyValue
@@ -746,7 +742,7 @@ function DoorSetCard({
             <CardField label="TT Rộng" title="Kích thước thông thủy - Rộng"><CardNumberInput value={item.clearWidthMm} onChange={change("clearWidthMm")} /></CardField>
             <CardField label="SL bộ"><CardNumberInput value={item.quantity} onChange={change("quantity")} /></CardField>
             <CardField label="ĐVT"><CardInput value={item.unit} onChange={change("unit")} /></CardField>
-            <CardField label="KH/Lượng"><CardNumberInput value={item.pricingQuantity} onChange={change("pricingQuantity")} step="0.01" /></CardField>
+            <CardField label="KH/L" title="KH/Lượng"><CardNumberInput value={item.pricingQuantity} onChange={change("pricingQuantity")} step="0.01" /></CardField>
             <CardField label="Đơn giá">
               <CardSelectShell><GridPriceInput value={item.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, item.productCode)} /></CardSelectShell>
             </CardField>
@@ -916,10 +912,10 @@ function CardField({ label, title, children, className = "", emphasized = false 
     <label className={`flex min-w-0 flex-col ${className}`}>
       {/* V78: khung nhãn trải đúng bằng bề ngang khung input bên dưới (theo mockup). */}
       <span
-        className={`mb-1 flex h-[18px] w-full min-w-0 items-center rounded border px-1.5 text-[8px] font-semibold uppercase leading-[9px] ${emphasized ? "border-cyan-200 bg-cyan-50 text-cyan-700" : "border-slate-200 bg-slate-100 text-slate-600"}`}
+        className={`mb-1 flex h-[22px] w-full min-w-0 items-center rounded border px-1.5 text-[9px] font-semibold uppercase leading-[10px] ${emphasized ? "border-cyan-200 bg-cyan-50 text-cyan-700" : "border-slate-200 bg-slate-100 text-slate-600"}`}
         title={title ?? label}
       >
-        <span className="min-w-0 whitespace-normal break-words">{label}</span>
+        <span className="line-clamp-2 min-w-0 break-words">{label}</span>
       </span>
       <div className={emphasized ? "rounded-md ring-1 ring-cyan-300" : ""}>{children}</div>
     </label>
@@ -1391,17 +1387,17 @@ function percent(value: string) { return Math.min(100, Math.max(0, numeric(value
 function formatMoney(value: number) { return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(value); }
 
 function SectionTitle({ title }: { title: string }) { return <div className="border-b border-slate-200 bg-slate-50 px-3 py-1.5"><h2 className="text-[11px] font-semibold leading-4 text-slate-900">{title}</h2></div>; }
-function Field({ label, children, required, invalid }: { label: string; children: React.ReactNode; required?: boolean; invalid?: boolean }) {
+function Field({ label, title, children, required, invalid }: { label: string; title?: string; children: React.ReactNode; required?: boolean; invalid?: boolean }) {
   const invalidClass = invalid
     ? " [&_input]:border-red-500 [&_select]:border-red-500 [&_textarea]:border-red-500 [&_input]:ring-1 [&_select]:ring-1 [&_textarea]:ring-1 [&_input]:ring-red-200 [&_select]:ring-red-200 [&_textarea]:ring-red-200"
     : "";
   return (
     <label className={`flex min-w-0 flex-col${invalidClass} [&_.erp-input]:h-8 [&_.erp-input]:w-full [&_.erp-input]:rounded-md [&_.erp-input]:px-2 [&_.erp-input]:py-1 [&_.erp-input]:text-[12px] [&_.erp-input]:font-medium [&_.erp-input]:text-sky-900`}>
       <span
-        className={`mb-1 flex h-[18px] w-full min-w-0 items-center rounded border px-1.5 text-[9px] font-semibold uppercase leading-[10px] ${invalid ? "border-red-200 bg-red-50 text-red-600" : "border-slate-200 bg-slate-100 text-slate-600"}`}
-        title={label}
+        className={`mb-1 flex h-[22px] w-full min-w-0 items-center rounded border px-1.5 text-[9px] font-semibold uppercase leading-[10px] ${invalid ? "border-red-200 bg-red-50 text-red-600" : "border-slate-200 bg-slate-100 text-slate-600"}`}
+        title={title ?? label}
       >
-        <span className="min-w-0 truncate">{label}{required ? " *" : ""}</span>
+        <span className="line-clamp-2 min-w-0 break-words">{label}{required ? " *" : ""}</span>
       </span>
       {children}
       {invalid ? <span className="mt-0.5 block text-[9px] font-medium text-red-600">Bắt buộc nhập</span> : null}
@@ -1442,10 +1438,16 @@ function GridGroupSelect({ value, groups, placeholder, onChange }: { value: stri
 
 function GridCatalogSelect({ value, currentLabel, items, display, placeholder, disabled, onCatalogSelect }: { value: string; currentLabel?: string; items: CatalogItem[]; display: "description" | "model"; placeholder: string; disabled?: boolean; onCatalogSelect: (item: CatalogItem) => void }) {
   const hasCurrent = items.some((item) => sameText(item.code, value));
+  // V80: ô đã chọn hiện đầy đủ "MODEL · tên diễn giải"; tooltip giữ nguyên nội dung khi cột còn hẹp.
+  const currentItem = items.find((item) => sameText(item.code, value));
+  const selectedLabel = currentItem
+    ? (display === "description" ? catalogProductName(currentItem) : `${currentItem.code} · ${catalogProductName(currentItem)}`)
+    : (currentLabel ? `${currentLabel} · dữ liệu cũ` : placeholder);
   return (
     <select
       className="h-8 w-full min-w-0 border-0 bg-transparent px-2 text-[11px] font-medium text-sky-900 outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300 disabled:bg-slate-100 disabled:text-slate-400"
       value={value}
+      title={selectedLabel}
       disabled={disabled}
       onChange={(e) => {
         const catalog = findCatalog(items, e.target.value);
