@@ -127,6 +127,13 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
     setForm((current) => hydrateCreateFormFromCatalog(current, catalogItems));
   }, [mode, catalogItems]);
 
+  // KH/Lượng tự động theo loại dòng. Không chạy lại ngay sau import Excel để giữ snapshot import nghiêm ngặt;
+  // sau đó mọi chỉnh sửa trên form sẽ áp dụng công thức mới.
+  useEffect(() => {
+    if (!catalogItems.length || importedFromExcelRef.current) return;
+    setForm((current) => recalculateAutomaticPricingForm(current, catalogItems));
+  }, [catalogItems]);
+
   const totals = useMemo(() => calculateTotals(form), [form]);
 
   function setField<K extends keyof OrderFormData>(key: K, value: OrderFormData[K]) {
@@ -167,7 +174,8 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
   function updateMain(index: number, key: keyof Omit<OrderItemForm, "clientId" | "lineNo" | "details">, value: string) {
     setForm((current) => {
       const items = [...current.items];
-      items[index] = { ...items[index], [key]: value };
+      const nextItem = { ...items[index], [key]: value };
+      items[index] = recalculateAutomaticPricingQuantity(nextItem, catalogItems);
       return { ...current, items };
     });
   }
@@ -176,14 +184,14 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
     setForm((current) => {
       const items = [...current.items];
       const currentItem = items[itemIndex];
-      items[itemIndex] = {
+      items[itemIndex] = recalculateAutomaticPricingQuantity({
         ...currentItem,
         productCode: catalog.code,
         productName: catalogProductName(catalog),
         model: catalog.code,
         unit: catalog.unit ?? currentItem.unit,
         unitPrice: catalogDefaultPrice(catalog, currentItem.unitPrice),
-      };
+      }, catalogItems);
       return { ...current, items };
     });
   }
@@ -202,7 +210,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
         unit: catalog.unit ?? currentDetail.unit,
         unitPrice: catalogDefaultPrice(catalog, currentDetail.unitPrice),
       };
-      items[itemIndex] = { ...item, details };
+      items[itemIndex] = recalculateAutomaticPricingQuantity({ ...item, details }, catalogItems);
       return { ...current, items };
     });
   }
@@ -213,7 +221,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
       const item = items[itemIndex];
       const details = [...item.details];
       details[detailIndex] = { ...details[detailIndex], [key]: value };
-      items[itemIndex] = { ...item, details };
+      items[itemIndex] = recalculateAutomaticPricingQuantity({ ...item, details }, catalogItems);
       return { ...current, items };
     });
   }
@@ -617,7 +625,7 @@ function DoorSetCard({
           <CardField label="KT thông thủy - Rộng"><CardNumberInput value={item.clearWidthMm} onChange={change("clearWidthMm")} /></CardField>
           <CardField label="SL bộ"><CardNumberInput value={item.quantity} onChange={change("quantity")} /></CardField>
           <CardField label="ĐVT"><CardInput value={item.unit} onChange={change("unit")} /></CardField>
-          <CardField label="KH/Lượng"><CardNumberInput value={item.pricingQuantity} onChange={change("pricingQuantity")} step="0.0001" /></CardField>
+          <CardField label="KH/Lượng"><CardNumberInput value={item.pricingQuantity} onChange={change("pricingQuantity")} step="0.0001" readOnly autoCalculated /></CardField>
           <CardField label="Đơn giá">
             <CardSelectShell><GridPriceInput value={item.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, item.productCode)} /></CardSelectShell>
           </CardField>
@@ -710,6 +718,7 @@ function DetailMasterRow({
   }, [accessoryCatalogItems, accessoryGroups, row.productCode, row.productName, selectedGroup]);
 
   const groupItems = selectedGroup ? accessoryCatalogItems.filter((catalog) => sameText(catalog.name, selectedGroup)) : [];
+  const automaticPricing = automaticDetailPricingType(row, catalogItems) !== null;
   const orientation = detailOrientation(row);
 
   function changeGroup(nextGroup: string) {
@@ -756,7 +765,7 @@ function DetailMasterRow({
             <CardField label="Rộng" emphasized={orientation === "horizontal"}><CardNumberInput value={row.widthMm} onChange={change("widthMm")} /></CardField>
             <CardField label="Khuôn"><CardNumberInput value={row.frameMm} onChange={change("frameMm")} /></CardField>
             <CardField label="ĐVT"><CardInput value={row.unit} onChange={change("unit")} /></CardField>
-            <CardField label="KH/Lượng"><CardNumberInput value={row.pricingQuantity} onChange={change("pricingQuantity")} step="0.0001" /></CardField>
+            <CardField label="KH/Lượng"><CardNumberInput value={row.pricingQuantity} onChange={change("pricingQuantity")} step="0.0001" readOnly={automaticPricing} autoCalculated={automaticPricing} /></CardField>
             <CardField label="Đơn giá"><CardSelectShell><GridPriceInput value={row.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, row.productCode)} /></CardSelectShell></CardField>
             <CardField label="Ghi chú"><CardInput value={row.note} onChange={change("note")} placeholder="Nhập ghi chú..." /></CardField>
             </div>
@@ -887,8 +896,18 @@ function CardSuggestionInput({ value, onChange, items, placeholder }: { value: s
   );
 }
 
-function CardNumberInput({ value, onChange, step = "1" }: { value: string; onChange: (value: string) => void; step?: string }) {
-  return <input className="h-8 w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 text-right text-[11px] font-semibold tabular-nums text-sky-900 outline-none transition focus:border-cyan-400 focus:ring-1 focus:ring-cyan-100" type="number" step={step} value={value} onChange={(event) => onChange(event.target.value)} />;
+function CardNumberInput({ value, onChange, step = "1", readOnly = false, autoCalculated = false }: { value: string; onChange: (value: string) => void; step?: string; readOnly?: boolean; autoCalculated?: boolean }) {
+  return (
+    <input
+      className={`h-8 w-full min-w-0 rounded-md border px-2 text-right text-[11px] font-semibold tabular-nums text-sky-900 outline-none transition ${readOnly ? "cursor-default border-sky-200 bg-sky-50" : "border-slate-300 bg-white focus:border-cyan-400 focus:ring-1 focus:ring-cyan-100"}`}
+      type="number"
+      step={step}
+      value={value}
+      readOnly={readOnly}
+      title={autoCalculated ? "KH/Lượng được tính tự động" : undefined}
+      onChange={(event) => onChange(event.target.value)}
+    />
+  );
 }
 
 function detailOrientation(row: OrderLineForm): "vertical" | "horizontal" | "free" {
@@ -1081,6 +1100,99 @@ function EditableDetailRow({ row, itemIndex, detailIndex, onChange, onUpload, on
       <CellStatic><button className="text-red-600 hover:underline" type="button" onClick={() => onRemove(itemIndex, detailIndex)}>Xóa</button></CellStatic>
     </tr>
   );
+}
+
+type AutomaticDetailPricingType = "trim" | "panel" | "lock";
+
+function recalculateAutomaticPricingForm(form: OrderFormData, catalogItems: CatalogItem[]) {
+  let changed = false;
+  const items = form.items.map((item) => {
+    const next = recalculateAutomaticPricingQuantity(item, catalogItems);
+    if (next !== item) changed = true;
+    return next;
+  });
+  return changed ? { ...form, items } : form;
+}
+
+function recalculateAutomaticPricingQuantity(item: OrderItemForm, catalogItems: CatalogItem[]): OrderItemForm {
+  let changed = false;
+  let nextItem = item;
+
+  // Nhóm cửa: KH/Lượng = (Cao x Rộng) / 1.000.000.
+  const mainPricingQuantity = calculateDoorPricingQuantity(item.heightMm, item.widthMm);
+  if (item.pricingQuantity !== mainPricingQuantity) {
+    nextItem = { ...nextItem, pricingQuantity: mainPricingQuantity, amount: "" };
+    changed = true;
+  }
+
+  const details = nextItem.details.map((detail) => {
+    const calculated = calculateDetailPricingQuantity(detail, nextItem, catalogItems);
+    if (calculated === null || detail.pricingQuantity === calculated) return detail;
+    changed = true;
+    return { ...detail, pricingQuantity: calculated, amount: "" };
+  });
+
+  if (details.some((detail, index) => detail !== nextItem.details[index])) {
+    nextItem = { ...nextItem, details };
+  }
+
+  return changed ? nextItem : item;
+}
+
+function calculateDoorPricingQuantity(heightMm: string, widthMm: string) {
+  const height = positiveNumber(heightMm);
+  const width = positiveNumber(widthMm);
+  if (height === null || width === null) return "";
+  return formatPricingQuantity((height * width) / 1_000_000);
+}
+
+function calculateDetailPricingQuantity(detail: OrderLineForm, parent: OrderItemForm, catalogItems: CatalogItem[]): string | null {
+  const type = automaticDetailPricingType(detail, catalogItems);
+  if (type === null) return null; // Các nhóm khác vẫn nhập KH/Lượng bằng tay.
+
+  if (type === "trim") {
+    const height = positiveNumber(detail.heightMm);
+    const width = positiveNumber(detail.widthMm);
+    if (height === null || width === null) return "";
+    return formatPricingQuantity((height * 2 + width) / 1000);
+  }
+
+  if (type === "panel") {
+    return panelCountFromDoor(parent.panelInfo);
+  }
+
+  // Khóa: theo số lượng bộ cửa của dòng cửa chính.
+  const quantity = positiveNumber(parent.quantity);
+  return quantity === null ? "" : formatPricingQuantity(quantity);
+}
+
+function automaticDetailPricingType(detail: OrderLineForm, catalogItems: CatalogItem[]): AutomaticDetailPricingType | null {
+  const catalog = findCatalog(catalogItems, detail.productCode || detail.model);
+  const groupText = normalizeText(catalog?.name || detail.productName || "");
+  if (!groupText) return null;
+  if (groupText === "phao" || groupText.startsWith("phao ")) return "trim";
+  if (groupText === "o thoang" || groupText.startsWith("o thoang ")) return "panel";
+  if (groupText === "khoa" || groupText.startsWith("khoa ")) return "lock";
+  return null;
+}
+
+function panelCountFromDoor(panelInfo: string) {
+  const match = String(panelInfo || "").trim().toUpperCase().match(/^(\d+)\s*TK\b/);
+  if (!match) return "";
+  const count = Number(match[1]);
+  return Number.isFinite(count) && count > 0 ? String(count) : "";
+}
+
+function positiveNumber(value: string) {
+  const normalized = String(value || "").trim().replace(",", ".");
+  if (!normalized) return null;
+  const number = Number(normalized);
+  return Number.isFinite(number) && number > 0 ? number : null;
+}
+
+function formatPricingQuantity(value: number) {
+  if (!Number.isFinite(value)) return "";
+  return Number(value.toFixed(4)).toString();
 }
 
 function emptyDetail(rowOrder: number): OrderLineForm {
