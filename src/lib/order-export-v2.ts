@@ -391,16 +391,17 @@ function writeSummary(
   // V53→V57: hộp ghi chú ở dưới box tiền, trải hết chiều ngang bản in (cột A→S), chữ 8pt xám.
   const noteStart = wordsEnd + 2;
   let noteRow = noteStart;
-  const noteLines: Array<{ text: string; bold: boolean }> = [
-    { text: FOOTNOTE_TITLE, bold: true },
-    { text: FOOTNOTE_LEAD, bold: true },
-    ...FOOTNOTE_LINES.map((text) => ({ text, bold: false })),
+  const noteLines: Array<{ text: string; font: Partial<ExcelJS.Font> }> = [
+    // V60: “Ghi chú:” đậm + nghiêng + gạch chân + chữ đỏ.
+    { text: FOOTNOTE_TITLE, font: { bold: true, italic: true, underline: true, color: { argb: "FFDC2626" } } },
+    { text: FOOTNOTE_LEAD, font: { bold: true } },
+    ...FOOTNOTE_LINES.map((text) => ({ text, font: {} })),
   ];
   for (const line of noteLines) {
     ws.mergeCells(`A${noteRow}:S${noteRow}`);
     const cell = ws.getCell(`A${noteRow}`);
     cell.value = line.text;
-    cell.font = { ...BASE_FONT, size: 8, bold: line.bold, color: { argb: MUTED } };
+    cell.font = { ...BASE_FONT, size: 8, color: { argb: MUTED }, ...line.font };
     cell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
     // Ước lượng số dòng cho câu dài (A→S rộng ~202 ký tự ≈ 270 ký tự @8pt) để không bị cắt chữ.
     ws.getRow(noteRow).height = 13 * Math.max(1, Math.ceil(line.text.length / 200));

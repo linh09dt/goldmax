@@ -112,7 +112,7 @@ def _find_font_file(names: Iterable[str]) -> str | None:
     return None
 
 
-def _fontpkg_roboto_files() -> tuple[str | None, str | None, str | None]:
+def _fontpkg_roboto_files() -> tuple[str | None, str | None, str | None, str | None]:
     """Lấy trực tiếp file Roboto từ các package fontpkg trên Vercel.
 
     `fontpkg.path()` trả về *đường dẫn file font*, không phải thư mục.
@@ -125,14 +125,19 @@ def _fontpkg_roboto_files() -> tuple[str | None, str | None, str | None]:
         regular = str(fontpkg.path("Roboto"))
         bold = str(fontpkg.path("Roboto", weight=700))
         italic = str(fontpkg.path("Roboto", style="italic"))
-        return regular, bold, italic
+        # V60: cần bản bold-italic cho dòng “Ghi chú:” (đậm + nghiêng).
+        try:
+            bold_italic = str(fontpkg.path("Roboto", weight=700, style="italic"))
+        except Exception:
+            bold_italic = None
+        return regular, bold, italic, bold_italic
     except Exception:
-        return None, None, None
+        return None, None, None, None
 
 
 def register_fonts() -> dict[str, str]:
     # 1) Ưu tiên Roboto Unicode đóng gói bằng pip trên Vercel.
-    regular, bold, italic = _fontpkg_roboto_files()
+    regular, bold, italic, bold_italic = _fontpkg_roboto_files()
 
     # 2) Cho phép override bằng env và fallback sang font Unicode của hệ điều hành khi chạy local.
     regular = os.getenv("REPORTLAB_FONT_PATH") or regular or _find_font_file([
@@ -144,12 +149,22 @@ def register_fonts() -> dict[str, str]:
     italic = os.getenv("REPORTLAB_FONT_ITALIC_PATH") or italic or _find_font_file([
         "DejaVuSans-Oblique.ttf", "NotoSans-Italic.ttf", "Arial Italic.ttf", "LiberationSans-Italic.ttf"
     ])
+    bold_italic = os.getenv("REPORTLAB_FONT_BOLDITALIC_PATH") or bold_italic or _find_font_file([
+        "DejaVuSans-BoldOblique.ttf", "NotoSans-BoldItalic.ttf", "Arial Bold Italic.ttf", "LiberationSans-BoldItalic.ttf"
+    ])
 
     if regular:
         pdfmetrics.registerFont(TTFont("GM-Regular", regular))
         pdfmetrics.registerFont(TTFont("GM-Bold", bold or regular))
         pdfmetrics.registerFont(TTFont("GM-Italic", italic or regular))
-        return {"regular": "GM-Regular", "bold": "GM-Bold", "italic": "GM-Italic"}
+        # V60: không có file bold-italic thì lùi về bold (vẫn đậm) để không lỗi.
+        pdfmetrics.registerFont(TTFont("GM-BoldItalic", bold_italic or bold or italic or regular))
+        return {
+            "regular": "GM-Regular",
+            "bold": "GM-Bold",
+            "italic": "GM-Italic",
+            "bold_italic": "GM-BoldItalic",
+        }
 
     # Không âm thầm dùng Helvetica vì Helvetica không có đủ glyph tiếng Việt.
     raise RuntimeError(
@@ -202,7 +217,8 @@ S = {
     "summary_total": pstyle("summary_total", size=9.5, font="bold", color=WHITE),
     "summary_total_amount": pstyle("summary_total_amount", size=9.5, font="bold", color=WHITE, align=TA_RIGHT),
     "words": pstyle("words", size=8.4, leading=9.4, font="italic", color=MUTED, align=TA_RIGHT),
-    "footnote_title": pstyle("footnote_title", size=7.2, leading=8.6, font="bold", color=MUTED),
+    # V60: “Ghi chú:” đậm + nghiêng + gạch chân + chữ đỏ.
+    "footnote_title": pstyle("footnote_title", size=7.2, leading=8.6, font="bold_italic", color=colors.HexColor("#DC2626")),
     "footnote_lead": pstyle("footnote_lead", size=7.2, leading=8.6, font="bold", color=MUTED),
     "footnote": pstyle("footnote", size=7.2, leading=8.6, color=MUTED),
     "sign": pstyle("sign", size=9.3, leading=10.5, font="bold", align=TA_CENTER),
@@ -747,7 +763,7 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
 def _footnote_block() -> Table:
     """Hộp ghi chú nhỏ ở góc dưới bên trái: chữ nhỏ màu xám, có khung + nền nhạt nhạt."""
     rows: list[list[Any]] = [
-        [para(FOOTNOTE_TITLE, "footnote_title")],
+        [Paragraph(f"<u>{esc(FOOTNOTE_TITLE)}</u>", S["footnote_title"])],
         [para(FOOTNOTE_LEAD, "footnote_lead")],
     ]
     rows += [[para(line, "footnote")] for line in FOOTNOTE_LINES]

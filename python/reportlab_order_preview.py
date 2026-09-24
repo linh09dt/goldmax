@@ -78,13 +78,13 @@ COMPANY_LINES = [
 
 
 def pstyle(name: str, *, size: float = 7.7, leading: float | None = None, bold: bool = False,
-           color: colors.Color = TEXT, align: int = TA_LEFT) -> ParagraphStyle:
+           color: colors.Color = TEXT, align: int = TA_LEFT, font: str | None = None) -> ParagraphStyle:
     actual_size = size + FONT_DELTA
     actual_leading = (leading + FONT_DELTA) if leading is not None else actual_size * 1.18
     return ParagraphStyle(
         name,
         parent=getSampleStyleSheet()["BodyText"],
-        fontName=FONTS["bold"] if bold else FONTS["regular"],
+        fontName=FONTS[font] if font else (FONTS["bold"] if bold else FONTS["regular"]),
         fontSize=actual_size,
         leading=actual_leading,
         textColor=color,
@@ -121,7 +121,8 @@ STYLES = {
     "summary_amount": pstyle("preview_summary_amount", size=7.5, leading=8.6, color=TEXT, align=TA_RIGHT),
     "summary_total": pstyle("preview_summary_total", size=7.8, leading=8.9, bold=True, color=WHITE),
     "summary_total_amount": pstyle("preview_summary_total_amount", size=8.0, leading=9.1, bold=True, color=WHITE, align=TA_RIGHT),
-    "footnote_title": pstyle("preview_footnote_title", size=6.6, leading=7.8, bold=True, color=MUTED),
+    # V60: “Ghi chú:” đậm + nghiêng + gạch chân + đỏ.
+    "footnote_title": pstyle("preview_footnote_title", size=6.6, leading=7.8, font="bold_italic", color=colors.HexColor("#DC2626")),
     "footnote_lead": pstyle("preview_footnote_lead", size=6.6, leading=7.8, bold=True, color=MUTED),
     "footnote": pstyle("preview_footnote", size=6.6, leading=7.8, color=MUTED),
 }
@@ -432,7 +433,7 @@ def _items_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | No
 def _footnote_block() -> Table:
     """V53/V54: hộp ghi chú nhỏ ở góc dưới bên trái (chữ nhỏ xám, khung + nền nhạt nhạt)."""
     rows: list[list[Any]] = [
-        [para(FOOTNOTE_TITLE, "footnote_title")],
+        [rich(f"<u>{esc(FOOTNOTE_TITLE)}</u>", "footnote_title")],
         [para(FOOTNOTE_LEAD, "footnote_lead")],
     ]
     rows += [[para(line, "footnote")] for line in FOOTNOTE_LINES]
