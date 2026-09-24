@@ -397,9 +397,9 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
         <div className="flex flex-col gap-3 border-b border-slate-200 bg-white p-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-[17px] font-bold text-slate-900">Chi tiết đơn hàng theo từng bộ cửa</h2>
-            <p className="mt-0.5 text-[12px] text-slate-500">Nhập theo từng nhóm thông tin, không cần cuộn ngang như bảng Excel.</p>
+            <p className="mt-0.5 text-[12px] text-slate-500">Master-detail: xem nhanh toàn bộ, chỉ mở một dòng phụ kiện để chỉnh sửa.</p>
           </div>
-          <Button onClick={addItem}>+ Bộ cửa</Button>
+          <Button onClick={addItem}>+ Thêm bộ cửa</Button>
         </div>
 
         <div className="space-y-5 bg-slate-50 p-3 md:p-4">
@@ -529,12 +529,23 @@ function DoorSetCard({
 }) {
   const inferredGroup = catalogGroupForCode(doorCatalogItems, item.productCode) || catalogGroupFromText(doorGroups, item.productName);
   const [selectedGroup, setSelectedGroup] = useState(inferredGroup);
+  const [expandedDetailIndex, setExpandedDetailIndex] = useState<number | null>(null);
+  const previousDetailCount = useRef(item.details.length);
   const change = (key: keyof Omit<OrderItemForm, "clientId" | "lineNo" | "details">) => (value: string) => onChange(itemIndex, key, value);
 
   useEffect(() => {
     const group = catalogGroupForCode(doorCatalogItems, item.productCode) || catalogGroupFromText(doorGroups, item.productName);
     if (group && group !== selectedGroup) setSelectedGroup(group);
   }, [doorCatalogItems, doorGroups, item.productCode, item.productName, selectedGroup]);
+
+  useEffect(() => {
+    if (item.details.length > previousDetailCount.current) {
+      setExpandedDetailIndex(item.details.length - 1);
+    } else if (expandedDetailIndex !== null && expandedDetailIndex >= item.details.length) {
+      setExpandedDetailIndex(item.details.length ? item.details.length - 1 : null);
+    }
+    previousDetailCount.current = item.details.length;
+  }, [item.details.length, expandedDetailIndex]);
 
   const groupItems = selectedGroup ? doorCatalogItems.filter((catalog) => sameText(catalog.name, selectedGroup)) : [];
   const itemTotal = lineAmount(item) + item.details.reduce((sum, detail) => sum + lineAmount(detail), 0);
@@ -558,38 +569,58 @@ function DoorSetCard({
     onMainCatalogSelect(itemIndex, catalog);
   }
 
+  function removeDetail(detailIndex: number) {
+    onRemoveDetail(itemIndex, detailIndex);
+    setExpandedDetailIndex((current) => {
+      if (current === null) return null;
+      if (current === detailIndex) return null;
+      return current > detailIndex ? current - 1 : current;
+    });
+  }
+
   return (
     <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <header className="flex flex-col gap-3 bg-slate-900 px-4 py-3 text-white lg:flex-row lg:items-center lg:justify-between">
+      <header className="flex flex-col gap-2 bg-slate-900 px-4 py-3 text-white lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <h3 className="text-[16px] font-bold">Bộ cửa #{itemIndex + 1}{item.setNo ? ` · Bộ số ${item.setNo}` : ""}</h3>
-            <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-slate-200">{item.details.length} chi tiết</span>
-          </div>
-          <p className="mt-1 truncate text-[12px] text-slate-300">
+          <h3 className="text-[17px] font-extrabold tracking-[-0.01em]">Bộ cửa #{itemIndex + 1}{item.setNo ? ` · Bộ số ${item.setNo}` : ""}</h3>
+          <p className="mt-0.5 truncate text-[12px] font-medium text-slate-300">
             {item.productName || selectedGroup || "Chưa chọn sản phẩm"}{item.model || item.productCode ? ` · ${item.model || item.productCode}` : ""}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-          <div className="mr-1 min-w-[150px] text-left lg:text-right">
-            <div className="text-[10px] uppercase tracking-wide text-slate-400">Tổng bộ cửa</div>
-            <div className="text-[20px] font-extrabold tabular-nums text-white">{formatMoney(itemTotal)} đ</div>
-          </div>
-          <button className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-[12px] font-semibold hover:bg-slate-700" type="button" onClick={() => onDuplicate(itemIndex)}>Nhân bản bộ</button>
-          <button className="rounded-lg border border-red-500/70 bg-red-900/60 px-3 py-2 text-[12px] font-semibold text-red-50 hover:bg-red-800" type="button" onClick={() => onRemoveItem(itemIndex)}>Xóa</button>
+          <div className="mr-1 text-[21px] font-extrabold tabular-nums text-white">{formatMoney(itemTotal)}đ</div>
+          <button className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-[12px] font-semibold hover:bg-slate-700" type="button" onClick={() => onDuplicate(itemIndex)}>Nhân bản bộ</button>
+          <button className="rounded-lg border border-red-500/70 bg-red-900/60 px-3 py-1.5 text-[12px] font-semibold text-red-50 hover:bg-red-800" type="button" onClick={() => onRemoveItem(itemIndex)}>Xóa</button>
         </div>
       </header>
 
-      <div className="grid gap-3 p-3 xl:grid-cols-[1.05fr_1.45fr_0.9fr] xl:p-4">
-        <DoorSection title="Sản phẩm">
-          <div className="grid gap-2 sm:grid-cols-2">
-            <CardField label="Bộ số">
-              <CardInput value={item.setNo} onChange={change("setNo")} placeholder="VD: 12097" />
-            </CardField>
+      <div className="p-3 md:p-4">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2 md:grid-cols-3 xl:grid-cols-6">
+          <CardField label="Cao"><CardNumberInput value={item.heightMm} onChange={change("heightMm")} /></CardField>
+          <CardField label="Rộng"><CardNumberInput value={item.widthMm} onChange={change("widthMm")} /></CardField>
+          <CardField label="Khuôn"><CardNumberInput value={item.frameMm} onChange={change("frameMm")} /></CardField>
+          <CardField label="SL bộ"><CardNumberInput value={item.quantity} onChange={change("quantity")} /></CardField>
+          <CardField label="Ô thoáng"><CardInput value={item.panelInfo} onChange={change("panelInfo")} listId="panel-options" /></CardField>
+          <CardField label="Hướng mở"><CardInput value={item.openingDirection} onChange={change("openingDirection")} listId="opening-direction-options" /></CardField>
+
+          <CardField label="Phào"><CardInput value={item.trimDirection} onChange={change("trimDirection")} listId="trim-direction-options" /></CardField>
+          <CardField label="Màu sơn"><CardInput value={item.paintColor} onChange={change("paintColor")} listId="paint-color-options" /></CardField>
+          <CardField label="ĐVT"><CardInput value={item.unit} onChange={change("unit")} /></CardField>
+          <CardField label="KH/Lượng"><CardNumberInput value={item.pricingQuantity} onChange={change("pricingQuantity")} step="0.0001" /></CardField>
+          <CardField label="Đơn giá" className="xl:col-span-2">
+            <CardSelectShell><GridPriceInput value={item.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, item.productCode)} /></CardSelectShell>
+          </CardField>
+        </div>
+
+        <details className="group mt-3 overflow-hidden rounded-lg border border-slate-200 bg-slate-50/80">
+          <summary className="cursor-pointer list-none px-3 py-2 text-[12px] font-semibold text-slate-700 marker:hidden">
+            <span className="mr-2 inline-block text-slate-500 transition-transform group-open:rotate-90">▸</span>
+            Thông số nâng cao <span className="mx-2 text-slate-300">·</span> KT thông thủy <span className="mx-2 text-slate-300">·</span> Model khóa <span className="mx-2 text-slate-300">·</span> Ghi chú <span className="mx-2 text-slate-300">·</span> Hình ảnh
+          </summary>
+          <div className="grid gap-2 border-t border-slate-200 bg-white p-3 sm:grid-cols-2 lg:grid-cols-4">
+            <CardField label="Bộ số"><CardInput value={item.setNo} onChange={change("setNo")} placeholder="VD: 12097" /></CardField>
             <CardField label="Nhóm cửa">
-              <CardSelectShell>
-                <GridGroupSelect value={selectedGroup} groups={doorGroups} placeholder="Chọn nhóm cửa" onChange={changeGroup} />
-              </CardSelectShell>
+              <CardSelectShell><GridGroupSelect value={selectedGroup} groups={doorGroups} placeholder="Chọn nhóm cửa" onChange={changeGroup} /></CardSelectShell>
             </CardField>
             <CardField label="Model" className="sm:col-span-2">
               <CardSelectShell>
@@ -604,103 +635,95 @@ function DoorSetCard({
                 />
               </CardSelectShell>
             </CardField>
-            <CardField label="Tên sản phẩm" className="sm:col-span-2">
+            <CardField label="Tên sản phẩm" className="sm:col-span-2 lg:col-span-4">
               <div className="min-h-10 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] font-medium text-slate-700">
                 {item.productName || <span className="font-normal text-slate-400">Tự điền theo danh mục</span>}
               </div>
             </CardField>
-          </div>
-        </DoorSection>
-
-        <DoorSection title="Kích thước & cấu hình">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <CardField label="Cao (mm)"><CardNumberInput value={item.heightMm} onChange={change("heightMm")} /></CardField>
-            <CardField label="Rộng (mm)"><CardNumberInput value={item.widthMm} onChange={change("widthMm")} /></CardField>
-            <CardField label="Khuôn (mm)"><CardNumberInput value={item.frameMm} onChange={change("frameMm")} /></CardField>
-            <CardField label="Ô thoáng"><CardInput value={item.panelInfo} onChange={change("panelInfo")} listId="panel-options" /></CardField>
-            <CardField label="Hướng mở"><CardInput value={item.openingDirection} onChange={change("openingDirection")} listId="opening-direction-options" /></CardField>
-            <CardField label="Phào"><CardInput value={item.trimDirection} onChange={change("trimDirection")} listId="trim-direction-options" /></CardField>
-            <CardField label="Màu sơn" className="sm:col-span-2"><CardInput value={item.paintColor} onChange={change("paintColor")} listId="paint-color-options" /></CardField>
-          </div>
-          <details className="group mt-2 rounded-lg border border-dashed border-slate-200 bg-slate-50/70">
-            <summary className="cursor-pointer list-none px-3 py-2 text-[12px] font-semibold text-cyan-700 marker:hidden">Thông số thêm <span className="inline-block transition-transform group-open:rotate-180">⌄</span></summary>
-            <div className="grid gap-2 border-t border-slate-200 p-3 sm:grid-cols-2 lg:grid-cols-3">
-              <CardField label="KT thông thủy - Cao"><CardNumberInput value={item.clearHeightMm} onChange={change("clearHeightMm")} /></CardField>
-              <CardField label="KT thông thủy - Rộng"><CardNumberInput value={item.clearWidthMm} onChange={change("clearWidthMm")} /></CardField>
-              <CardField label="Số thanh phào / bộ"><CardNumberInput value={item.trimBarsPerSet} onChange={change("trimBarsPerSet")} /></CardField>
-              <CardField label="Loại phào"><CardInput value={item.trimType} onChange={change("trimType")} /></CardField>
-              <CardField label="Model khóa"><CardInput value={item.lockModel} onChange={change("lockModel")} /></CardField>
-              <CardField label="Số nan ô thoáng"><CardNumberInput value={item.windowBars} onChange={change("windowBars")} /></CardField>
-              <CardField label="Số cánh / bộ"><CardNumberInput value={item.leavesPerSet} onChange={change("leavesPerSet")} /></CardField>
-              <CardField label="Ghi chú" className="sm:col-span-2"><CardInput value={item.note} onChange={change("note")} placeholder="Nhập ghi chú kỹ thuật" /></CardField>
-              <CardField label="Hình ảnh SP" className="sm:col-span-2 lg:col-span-3">
-                <div className="rounded-lg border border-slate-200 bg-white"><ImageCell path={item.imagePath} onUpload={(file) => onUpload(file, itemIndex)} /></div>
-              </CardField>
-            </div>
-          </details>
-        </DoorSection>
-
-        <DoorSection title="Số lượng & giá">
-          <div className="grid grid-cols-2 gap-2">
-            <CardField label="SL bộ"><CardNumberInput value={item.quantity} onChange={change("quantity")} /></CardField>
-            <CardField label="ĐVT"><CardInput value={item.unit} onChange={change("unit")} /></CardField>
-            <CardField label="KH/Lượng"><CardNumberInput value={item.pricingQuantity} onChange={change("pricingQuantity")} step="0.0001" /></CardField>
-            <CardField label="Đơn giá">
-              <CardSelectShell><GridPriceInput value={item.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, item.productCode)} /></CardSelectShell>
+            <CardField label="KT thông thủy - Cao"><CardNumberInput value={item.clearHeightMm} onChange={change("clearHeightMm")} /></CardField>
+            <CardField label="KT thông thủy - Rộng"><CardNumberInput value={item.clearWidthMm} onChange={change("clearWidthMm")} /></CardField>
+            <CardField label="Model khóa"><CardInput value={item.lockModel} onChange={change("lockModel")} /></CardField>
+            <CardField label="Loại phào"><CardInput value={item.trimType} onChange={change("trimType")} /></CardField>
+            <CardField label="Số thanh phào / bộ"><CardNumberInput value={item.trimBarsPerSet} onChange={change("trimBarsPerSet")} /></CardField>
+            <CardField label="Số nan ô thoáng"><CardNumberInput value={item.windowBars} onChange={change("windowBars")} /></CardField>
+            <CardField label="Số cánh / bộ"><CardNumberInput value={item.leavesPerSet} onChange={change("leavesPerSet")} /></CardField>
+            <CardField label="Ghi chú"><CardInput value={item.note} onChange={change("note")} placeholder="Nhập ghi chú kỹ thuật" /></CardField>
+            <CardField label="Hình ảnh SP" className="sm:col-span-2 lg:col-span-4">
+              <div className="rounded-lg border border-slate-200 bg-white"><ImageCell path={item.imagePath} onUpload={(file) => onUpload(file, itemIndex)} /></div>
             </CardField>
           </div>
-          <div className="mt-3 rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-3">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-cyan-700">Thành tiền</div>
-            <div className="mt-0.5 text-[22px] font-extrabold tabular-nums text-cyan-800">{formatMoney(lineAmount(item))} đ</div>
-          </div>
-        </DoorSection>
+        </details>
       </div>
 
-      <section className="border-t border-slate-200 bg-slate-50/70 p-3 xl:p-4">
-        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h4 className="text-[14px] font-bold text-slate-900">Phụ kiện / Chi tiết của bộ cửa ({item.details.length})</h4>
-            <p className="text-[11px] text-slate-500">Mở từng dòng để xem đầy đủ kỹ thuật; dữ liệu giá và kích thước luôn hiển thị rõ ràng.</p>
-          </div>
-          <button className="rounded-lg bg-cyan-600 px-3 py-2 text-[12px] font-semibold text-white hover:bg-cyan-500" type="button" onClick={() => onAddDetail(itemIndex)}>+ Thêm dòng</button>
+      <section className="border-t border-slate-200 bg-slate-50/60 p-3 md:p-4">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h4 className="text-[15px] font-extrabold tracking-[-0.01em] text-slate-900">PHỤ KIỆN / CHI TIẾT CỦA BỘ CỬA ({item.details.length})</h4>
+          <button className="rounded-lg bg-cyan-600 px-3.5 py-2 text-[12px] font-bold text-white shadow-sm hover:bg-cyan-500" type="button" onClick={() => onAddDetail(itemIndex)}>+ Thêm phụ kiện</button>
         </div>
 
         {item.details.length ? (
-          <div className="grid items-start gap-3 xl:grid-cols-2 2xl:grid-cols-3">
-            {item.details.map((detail, detailIndex) => (
-              <DetailCard
-                key={`${item.clientId}-${detailIndex}`}
-                row={detail}
-                itemIndex={itemIndex}
-                detailIndex={detailIndex}
-                onChange={onDetailChange}
-                onUpload={onUpload}
-                onRemove={onRemoveDetail}
-                catalogItems={catalogItems}
-                accessoryCatalogItems={accessoryCatalogItems}
-                accessoryGroups={accessoryGroups}
-                onCatalogSelect={onDetailCatalogSelect}
-                optionValues={optionValues}
-              />
-            ))}
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <div className="hidden grid-cols-[2.4fr_1.35fr_0.45fr_0.55fr_0.75fr_0.85fr_1fr] gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-600 lg:grid">
+              <div>Chi tiết / Model</div>
+              <div>KT dùng tính</div>
+              <div className="text-center">SL</div>
+              <div className="text-center">ĐVT</div>
+              <div className="text-right">KH/Lượng</div>
+              <div className="text-right">Đơn giá</div>
+              <div className="text-right">Thành tiền</div>
+            </div>
+            <div className="divide-y divide-slate-200">
+              {item.details.map((detail, detailIndex) => (
+                <DetailMasterRow
+                  key={`${item.clientId}-detail-${detail.rowOrder}-${detailIndex}`}
+                  row={detail}
+                  itemIndex={itemIndex}
+                  detailIndex={detailIndex}
+                  isOpen={expandedDetailIndex === detailIndex}
+                  onToggle={() => setExpandedDetailIndex((current) => current === detailIndex ? null : detailIndex)}
+                  onChange={onDetailChange}
+                  onUpload={onUpload}
+                  onRemove={removeDetail}
+                  catalogItems={catalogItems}
+                  accessoryCatalogItems={accessoryCatalogItems}
+                  accessoryGroups={accessoryGroups}
+                  onCatalogSelect={onDetailCatalogSelect}
+                  optionValues={optionValues}
+                />
+              ))}
+            </div>
           </div>
         ) : (
-          <button className="w-full rounded-xl border border-dashed border-slate-300 bg-white px-4 py-5 text-center text-[13px] font-medium text-slate-500 hover:border-cyan-300 hover:bg-cyan-50/50 hover:text-cyan-700" type="button" onClick={() => onAddDetail(itemIndex)}>
-            Chưa có phụ kiện / chi tiết. Bấm để thêm dòng đầu tiên.
-          </button>
+          <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-5 text-center text-[12px] text-slate-500">Chưa có phụ kiện / chi tiết. Bấm “+ Thêm phụ kiện” để thêm dòng.</div>
         )}
       </section>
     </article>
   );
 }
 
-function DetailCard({ row, itemIndex, detailIndex, onChange, onUpload, onRemove, catalogItems, accessoryCatalogItems, accessoryGroups, onCatalogSelect, optionValues }: {
+function DetailMasterRow({
+  row,
+  itemIndex,
+  detailIndex,
+  isOpen,
+  onToggle,
+  onChange,
+  onUpload,
+  onRemove,
+  catalogItems,
+  accessoryCatalogItems,
+  accessoryGroups,
+  onCatalogSelect,
+  optionValues,
+}: {
   row: OrderLineForm;
   itemIndex: number;
   detailIndex: number;
+  isOpen: boolean;
+  onToggle: () => void;
   onChange: (itemIndex: number, detailIndex: number, key: keyof OrderLineForm, value: string) => void;
   onUpload: (file: File, itemIndex: number, detailIndex?: number) => Promise<void>;
-  onRemove: (itemIndex: number, detailIndex: number) => void;
+  onRemove: (detailIndex: number) => void;
   catalogItems: CatalogItem[];
   accessoryCatalogItems: CatalogItem[];
   accessoryGroups: string[];
@@ -720,8 +743,8 @@ function DetailCard({ row, itemIndex, detailIndex, onChange, onUpload, onRemove,
   const orientation = detailOrientation(row);
   const title = row.productName || selectedGroup || "Chưa chọn chi tiết / phụ kiện";
   const code = row.productCode || row.model;
-  const isNew = !row.productName && !row.productCode;
-  const [isOpen, setIsOpen] = useState(detailIndex < 3 || isNew);
+  const summaryDimensions = detailDimensionSummary(row, orientation);
+  const pricingStatus = detailPricingStatus(row);
 
   function changeGroup(nextGroup: string) {
     setSelectedGroup(nextGroup);
@@ -742,124 +765,129 @@ function DetailCard({ row, itemIndex, detailIndex, onChange, onUpload, onRemove,
     onCatalogSelect(itemIndex, detailIndex, catalog);
   }
 
-  const dimensionFields = orientation === "vertical"
-    ? [["Cao (mm)", "heightMm"], ["Rộng (mm)", "widthMm"], ["Khuôn (mm)", "frameMm"]] as const
-    : orientation === "horizontal"
-      ? [["Rộng (mm)", "widthMm"], ["Cao (mm)", "heightMm"], ["Khuôn (mm)", "frameMm"]] as const
-      : [["Cao (mm)", "heightMm"], ["Rộng (mm)", "widthMm"], ["Khuôn (mm)", "frameMm"]] as const;
-
   return (
-    <details
-      className="group rounded-xl border border-slate-200 bg-white shadow-sm open:ring-1 open:ring-cyan-100"
-      open={isOpen}
-      onToggle={(event) => setIsOpen(event.currentTarget.open)}
-    >
-      <summary className="cursor-pointer list-none px-3 py-3 marker:hidden">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-start gap-2">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-cyan-100 text-[12px] font-extrabold text-cyan-800">{detailIndex + 1}</span>
-            <div className="min-w-0">
-              <div className="truncate text-[13px] font-bold text-slate-900">{title}{code ? ` · ${code}` : ""}</div>
-              <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500">
-                <span>ĐVT <b className="text-slate-700">{row.unit || "—"}</b></span>
-                <span>KH/Lượng <b className="text-slate-700">{row.pricingQuantity || "—"}</b></span>
-                <span>Đơn giá <b className="text-slate-700">{row.unitPrice ? formatMoney(numeric(row.unitPrice)) : "—"}</b></span>
-              </div>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-start gap-2">
-            <div className="text-right">
-              <div className="text-[10px] text-slate-500">Thành tiền</div>
-              <div className="text-[13px] font-extrabold tabular-nums text-cyan-800">{formatMoney(lineAmount(row))} đ</div>
-            </div>
-            <button
-              className="rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-100"
-              type="button"
-              title="Xóa dòng"
-              onClick={(event) => { event.preventDefault(); event.stopPropagation(); onRemove(itemIndex, detailIndex); }}
-            >
-              Xóa
-            </button>
-            <span className="mt-1 text-slate-400 transition-transform group-open:rotate-180">⌄</span>
-          </div>
+    <div className={isOpen ? "bg-cyan-50/30" : "bg-white"}>
+      <button
+        className={`grid w-full grid-cols-1 gap-1 px-3 py-2.5 text-left transition hover:bg-slate-50 lg:grid-cols-[2.4fr_1.35fr_0.45fr_0.55fr_0.75fr_0.85fr_1fr] lg:items-center lg:gap-2 ${isOpen ? "bg-cyan-50/60 ring-1 ring-inset ring-cyan-300" : ""}`}
+        type="button"
+        onClick={onToggle}
+      >
+        <div className="min-w-0 text-[13px] font-bold text-slate-900">
+          <span className="mr-2 inline-block w-3 text-slate-500">{isOpen ? "▾" : "▸"}</span>
+          <span className="align-middle">{title}{code ? ` · ${code}` : ""}</span>
         </div>
-      </summary>
+        <div className="text-[12px] font-medium text-slate-600"><span className="lg:hidden">KT: </span>{summaryDimensions}</div>
+        <div className="text-[12px] font-medium text-slate-700 lg:text-center"><span className="lg:hidden">SL: </span>{row.quantity || "—"}</div>
+        <div className="text-[12px] font-medium text-slate-700 lg:text-center"><span className="lg:hidden">ĐVT: </span>{row.unit || "—"}</div>
+        <div className="text-[12px] font-semibold tabular-nums text-slate-700 lg:text-right"><span className="lg:hidden">KH/Lượng: </span>{row.pricingQuantity || "—"}</div>
+        <div className="lg:text-right">{pricingStatus.priceNode}</div>
+        <div className="lg:text-right">{pricingStatus.amountNode}</div>
+      </button>
 
-      <div className="border-t border-slate-200 p-3">
-        <div className="grid gap-2 sm:grid-cols-2">
-          <CardField label="Nhóm hàng">
-            <CardSelectShell><GridGroupSelect value={selectedGroup} groups={accessoryGroups} placeholder="Chọn nhóm hàng kèm" onChange={changeGroup} /></CardSelectShell>
-          </CardField>
-          <CardField label="Model">
-            <CardSelectShell>
-              <GridCatalogSelect
-                value={row.productCode}
-                currentLabel={row.productCode}
-                items={groupItems}
-                display="model"
-                placeholder={selectedGroup ? "Chọn Model" : "Chọn nhóm trước"}
-                disabled={!selectedGroup}
-                onCatalogSelect={selectCatalog}
-              />
-            </CardSelectShell>
-          </CardField>
-          <CardField label="Tên sản phẩm" className="sm:col-span-2">
-            <div className="min-h-10 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] font-medium text-slate-700">
-              {row.productName || <span className="font-normal text-slate-400">Tự điền theo danh mục</span>}
-            </div>
-          </CardField>
-        </div>
-
-        <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50/60 p-2.5">
-          <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-600">Kích thước dùng để tính</div>
-          <div className="grid grid-cols-3 gap-2">
-            {dimensionFields.map(([label, key], index) => (
-              <CardField key={key} label={label} emphasized={index === 0 && orientation !== "free"}>
-                <CardNumberInput value={row[key]} onChange={change(key)} />
-              </CardField>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <CardField label="SL"><CardNumberInput value={row.quantity} onChange={change("quantity")} /></CardField>
-          <CardField label="ĐVT"><CardInput value={row.unit} onChange={change("unit")} /></CardField>
-          <CardField label="KH/Lượng"><CardNumberInput value={row.pricingQuantity} onChange={change("pricingQuantity")} step="0.0001" /></CardField>
-          <CardField label="Đơn giá"><CardSelectShell><GridPriceInput value={row.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, row.productCode)} /></CardSelectShell></CardField>
-        </div>
-
-        <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
-          <CardField label="Ghi chú"><CardInput value={row.note} onChange={change("note")} placeholder="Nhập ghi chú..." /></CardField>
-          <div className="rounded-lg bg-cyan-50 px-3 py-2 text-right">
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-cyan-700">Thành tiền</div>
-            <div className="text-[15px] font-extrabold tabular-nums text-cyan-800">{formatMoney(lineAmount(row))} đ</div>
-          </div>
-        </div>
-
-        <details className="mt-3 rounded-lg border border-dashed border-slate-200 bg-slate-50/70">
-          <summary className="cursor-pointer list-none px-3 py-2 text-[11px] font-semibold text-cyan-700 marker:hidden">Thông số thêm <span className="text-slate-400">⌄</span></summary>
-          <div className="grid gap-2 border-t border-slate-200 p-3 sm:grid-cols-2 lg:grid-cols-3">
-            <CardField label="Bộ số"><CardInput value={row.setNo} onChange={change("setNo")} /></CardField>
-            <CardField label="Ô thoáng"><CardInput value={row.panelInfo} onChange={change("panelInfo")} listId="panel-options" /></CardField>
-            <CardField label="Hướng mở"><CardInput value={row.openingDirection} onChange={change("openingDirection")} listId="opening-direction-options" /></CardField>
-            <CardField label="Phào"><CardInput value={row.trimDirection} onChange={change("trimDirection")} listId="trim-direction-options" /></CardField>
-            <CardField label="Màu sơn"><CardInput value={row.paintColor} onChange={change("paintColor")} listId="paint-color-options" /></CardField>
-            <CardField label="KT thông thủy - Cao"><CardNumberInput value={row.clearHeightMm} onChange={change("clearHeightMm")} /></CardField>
-            <CardField label="KT thông thủy - Rộng"><CardNumberInput value={row.clearWidthMm} onChange={change("clearWidthMm")} /></CardField>
-            <CardField label="Số thanh phào / bộ"><CardNumberInput value={row.trimBarsPerSet} onChange={change("trimBarsPerSet")} /></CardField>
-            <CardField label="Loại phào"><CardInput value={row.trimType} onChange={change("trimType")} /></CardField>
-            <CardField label="Model khóa"><CardInput value={row.lockModel} onChange={change("lockModel")} /></CardField>
-            <CardField label="Số nan ô thoáng"><CardNumberInput value={row.windowBars} onChange={change("windowBars")} /></CardField>
-            <CardField label="Số cánh / bộ"><CardNumberInput value={row.leavesPerSet} onChange={change("leavesPerSet")} /></CardField>
-            <CardField label="Hình ảnh SP" className="sm:col-span-2 lg:col-span-3">
-              <div className="rounded-lg border border-slate-200 bg-white"><ImageCell path={row.imagePath} onUpload={(file) => onUpload(file, itemIndex, detailIndex)} /></div>
+      {isOpen ? (
+        <div className="border-t border-cyan-200 bg-white px-3 py-3">
+          <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-[1.25fr_1.25fr_0.7fr_0.7fr_0.7fr_0.72fr_0.82fr_0.9fr_1.65fr]">
+            <CardField label="Nhóm hàng">
+              <CardSelectShell><GridGroupSelect value={selectedGroup} groups={accessoryGroups} placeholder="Chọn nhóm hàng" onChange={changeGroup} /></CardSelectShell>
             </CardField>
+            <CardField label="Model">
+              <CardSelectShell>
+                <GridCatalogSelect
+                  value={row.productCode}
+                  currentLabel={row.productCode}
+                  items={groupItems}
+                  display="model"
+                  placeholder={selectedGroup ? "Chọn Model" : "Chọn nhóm trước"}
+                  disabled={!selectedGroup}
+                  onCatalogSelect={selectCatalog}
+                />
+              </CardSelectShell>
+            </CardField>
+            <CardField label="Cao" emphasized={orientation === "vertical"}><CardNumberInput value={row.heightMm} onChange={change("heightMm")} /></CardField>
+            <CardField label="Rộng" emphasized={orientation === "horizontal"}><CardNumberInput value={row.widthMm} onChange={change("widthMm")} /></CardField>
+            <CardField label="Khuôn"><CardNumberInput value={row.frameMm} onChange={change("frameMm")} /></CardField>
+            <CardField label="ĐVT"><CardInput value={row.unit} onChange={change("unit")} /></CardField>
+            <CardField label="KH/Lượng"><CardNumberInput value={row.pricingQuantity} onChange={change("pricingQuantity")} step="0.0001" /></CardField>
+            <CardField label="Đơn giá"><CardSelectShell><GridPriceInput value={row.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, row.productCode)} /></CardSelectShell></CardField>
+            <CardField label="Ghi chú"><CardInput value={row.note} onChange={change("note")} placeholder="Nhập ghi chú..." /></CardField>
           </div>
-        </details>
-      </div>
-    </details>
+
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+            <details className="group min-w-0 flex-1 rounded-lg border border-dashed border-slate-200 bg-slate-50/70">
+              <summary className="cursor-pointer list-none px-3 py-1.5 text-[11px] font-semibold text-cyan-700 marker:hidden">Thông số thêm <span className="inline-block transition-transform group-open:rotate-180">⌄</span></summary>
+              <div className="grid gap-2 border-t border-slate-200 bg-white p-3 sm:grid-cols-2 lg:grid-cols-4">
+                <CardField label="Tên sản phẩm" className="sm:col-span-2">
+                  <div className="min-h-10 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] font-medium text-slate-700">
+                    {row.productName || <span className="font-normal text-slate-400">Tự điền theo danh mục</span>}
+                  </div>
+                </CardField>
+                <CardField label="SL"><CardNumberInput value={row.quantity} onChange={change("quantity")} /></CardField>
+                <CardField label="Bộ số"><CardInput value={row.setNo} onChange={change("setNo")} /></CardField>
+                <CardField label="Ô thoáng"><CardInput value={row.panelInfo} onChange={change("panelInfo")} listId="panel-options" /></CardField>
+                <CardField label="Hướng mở"><CardInput value={row.openingDirection} onChange={change("openingDirection")} listId="opening-direction-options" /></CardField>
+                <CardField label="Phào"><CardInput value={row.trimDirection} onChange={change("trimDirection")} listId="trim-direction-options" /></CardField>
+                <CardField label="Màu sơn"><CardInput value={row.paintColor} onChange={change("paintColor")} listId="paint-color-options" /></CardField>
+                <CardField label="KT thông thủy - Cao"><CardNumberInput value={row.clearHeightMm} onChange={change("clearHeightMm")} /></CardField>
+                <CardField label="KT thông thủy - Rộng"><CardNumberInput value={row.clearWidthMm} onChange={change("clearWidthMm")} /></CardField>
+                <CardField label="Số thanh phào / bộ"><CardNumberInput value={row.trimBarsPerSet} onChange={change("trimBarsPerSet")} /></CardField>
+                <CardField label="Loại phào"><CardInput value={row.trimType} onChange={change("trimType")} /></CardField>
+                <CardField label="Model khóa"><CardInput value={row.lockModel} onChange={change("lockModel")} /></CardField>
+                <CardField label="Số nan ô thoáng"><CardNumberInput value={row.windowBars} onChange={change("windowBars")} /></CardField>
+                <CardField label="Số cánh / bộ"><CardNumberInput value={row.leavesPerSet} onChange={change("leavesPerSet")} /></CardField>
+                <CardField label="Hình ảnh SP" className="sm:col-span-2 lg:col-span-4">
+                  <div className="rounded-lg border border-slate-200 bg-white"><ImageCell path={row.imagePath} onUpload={(file) => onUpload(file, itemIndex, detailIndex)} /></div>
+                </CardField>
+              </div>
+            </details>
+            <button className="rounded-md px-2 py-1.5 text-[11px] font-semibold text-red-600 hover:bg-red-50" type="button" onClick={() => onRemove(detailIndex)}>Xóa</button>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
+
+function detailDimensionSummary(row: OrderLineForm, orientation: "vertical" | "horizontal" | "free"): string {
+  const height = row.heightMm?.trim();
+  const width = row.widthMm?.trim();
+  const text = normalizeText(`${row.productName} ${row.productCode} ${row.model}`);
+  if (text.includes("khoa")) return "Theo bộ cửa";
+  if (orientation === "vertical") return height ? `C: ${height}` : "C: —";
+  if (orientation === "horizontal") return width ? `R: ${width}` : "R: —";
+  const values = [height ? `C: ${height}` : "", width ? `R: ${width}` : ""].filter(Boolean);
+  return values.length ? values.join(" · ") : "—";
+}
+
+function detailPricingStatus(row: OrderLineForm): { priceNode: React.ReactNode; amountNode: React.ReactNode } {
+  const price = numeric(row.unitPrice);
+  const pricingQuantity = numeric(row.pricingQuantity);
+  const productText = normalizeText(`${row.productName} ${row.productCode} ${row.model}`);
+  const isLockOrCustom = productText.includes("khoa") && price <= 0;
+
+  if (isLockOrCustom) {
+    return {
+      priceNode: <span className="text-[12px] font-semibold text-slate-500">—</span>,
+      amountNode: <span className="inline-flex min-w-[52px] justify-center rounded border border-slate-300 bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-700">TC</span>,
+    };
+  }
+  if (!row.pricingQuantity.trim() || pricingQuantity <= 0) {
+    return {
+      priceNode: price > 0 ? <span className="text-[12px] font-semibold tabular-nums text-slate-700">{formatMoney(price)}</span> : <span className="text-[12px] text-slate-400">—</span>,
+      amountNode: <span className="inline-flex rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">Cần nhập KH/Lượng</span>,
+    };
+  }
+  if (!row.unitPrice.trim() || price <= 0) {
+    return {
+      priceNode: <span className="inline-flex rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">Chưa có giá</span>,
+      amountNode: <span className="text-[12px] font-semibold text-slate-400">—</span>,
+    };
+  }
+  return {
+    priceNode: <span className="text-[12px] font-semibold tabular-nums text-slate-700">{formatMoney(price)}</span>,
+    amountNode: <span className="text-[13px] font-extrabold tabular-nums text-cyan-700">{formatMoney(lineAmount(row))}đ</span>,
+  };
+}
+
 
 function DoorSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
