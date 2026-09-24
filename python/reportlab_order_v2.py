@@ -734,12 +734,13 @@ def _meta(label: str, value: str) -> Paragraph:
 
 def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | None]) -> Table:
     # Hai dòng header để thể hiện đúng nhóm KT THÔNG THỦY: Cao / Rộng.
+    # V63: "KT CỬA (MM)" tách thành 2 cột CAO / RỘNG (giống nhóm KT THÔNG THỦY).
     header_top = [
         "STT", "BỘ SỐ", "TÊN SẢN PHẨM / QUY CÁCH", "MODEL", "Ô TH.", "HƯỚNG", "PHÀO", "MÀU SƠN",
-        "KT CỬA (MM)", "KHUÔN", "KT THÔNG THỦY", "", "SL", "ĐVT", "KHỐI LƯỢNG", "ĐƠN GIÁ (Đ)",
+        "KT CỬA (MM)", "", "KHUÔN", "KT THÔNG THỦY", "", "SL", "ĐVT", "KHỐI LƯỢNG", "ĐƠN GIÁ (Đ)",
         "THÀNH TIỀN (Đ)", "GHI CHÚ KỸ THUẬT", "HÌNH ẢNH SP",
     ]
-    header_sub = ["", "", "", "", "", "", "", "", "", "", "CAO", "RỘNG", "", "", "", "", "", "", ""]
+    header_sub = ["", "", "", "", "", "", "", "", "CAO", "RỘNG", "", "", "CAO", "RỘNG", "", "", "", "", "", ""]
     data: list[list[Any]] = [
         [para(h, "th") for h in header_top],
         [para(h, "th") for h in header_sub],
@@ -754,9 +755,6 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
             row = entry["row"]
             main = bool(entry["main"])
             first = bool(entry["first"])
-            h = integer(row.get("heightMm"))
-            w = integer(row.get("widthMm"))
-            size_text = f"{h} x {w}" if h and w else h or w
             name = clean(row.get("productName"))
             image_url = clean(row.get("imagePath")) or (clean(group.get("imagePath")) if main else "")
             row_values: list[Any] = [
@@ -768,7 +766,8 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
                 para(clean(row.get("openingDirection")), "center" if main else "detail"),
                 para(clean(row.get("trimDirection")), "center" if main else "detail"),
                 para(clean(row.get("paintColor")), "center" if main else "detail"),
-                para(size_text, "center" if main else "detail"),
+                para(integer(row.get("heightMm")), "center" if main else "detail"),
+                para(integer(row.get("widthMm")), "center" if main else "detail"),
                 para(integer(row.get("frameMm")), "center" if main else "detail"),
                 para(integer(row.get("clearHeightMm")), "center" if main else "detail"),
                 para(integer(row.get("clearWidthMm")), "center" if main else "detail"),
@@ -791,11 +790,11 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
             group_ranges.append((group_start, group_end))
 
     if len(data) == 2:
-        data.append([para("Không có dòng hàng hóa có KH/Lượng để xuất.", "body")] + [""] * 18)
+        data.append([para("Không có dòng hàng hóa có KH/Lượng để xuất.", "body")] + [""] * 19)
 
     # Giữ tỷ lệ cột hiện tại nhưng scale đúng CONTENT_W để tận dụng gần hết A4 landscape.
     # Nhờ vậy tăng font vẫn không làm bảng tràn khỏi lề trái/phải.
-    base_widths_mm = [5.5, 10.5, 27, 21, 9, 9, 9, 9, 19, 9, 9, 9, 7, 8, 13, 20, 22, 39, 18]
+    base_widths_mm = [5.5, 10.5, 27, 21, 9, 9, 9, 9, 9.5, 9.5, 9, 9, 9, 7, 8, 13, 20, 22, 39, 18]
     base_total = sum(base_widths_mm)
     # LongTable tối ưu cho bảng dài. splitInRow cho phép một dòng rất cao
     # (ví dụ ghi chú kỹ thuật dài) được tách an toàn khi vượt chiều cao trang.
@@ -820,13 +819,14 @@ def _data_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | Non
         ("BOTTOMPADDING", (0, 0), (-1, 1), 3.2),
         ("TOPPADDING", (0, 2), (-1, -1), 2.4),
         ("BOTTOMPADDING", (0, 2), (-1, -1), 2.4),
-        ("LEFTPADDING", (17, 2), (17, -1), 3.0),
-        ("RIGHTPADDING", (17, 2), (17, -1), 3.0),
-        ("TOPPADDING", (17, 2), (18, -1), 3.0),
-        ("BOTTOMPADDING", (17, 2), (18, -1), 3.0),
-        ("SPAN", (10, 0), (11, 0)),
+        ("LEFTPADDING", (18, 2), (18, -1), 3.0),
+        ("RIGHTPADDING", (18, 2), (18, -1), 3.0),
+        ("TOPPADDING", (18, 2), (19, -1), 3.0),
+        ("BOTTOMPADDING", (18, 2), (19, -1), 3.0),
+        ("SPAN", (8, 0), (9, 0)),
+        ("SPAN", (11, 0), (12, 0)),
     ]
-    for col in list(range(0, 10)) + list(range(12, 19)):
+    for col in list(range(0, 8)) + [10] + list(range(13, 20)):
         commands.append(("SPAN", (col, 0), (col, 1)))
     for idx, row_no in enumerate(main_row_numbers):
         commands.append(("BACKGROUND", (0, row_no), (-1, row_no), LIGHT if idx % 2 else WHITE))

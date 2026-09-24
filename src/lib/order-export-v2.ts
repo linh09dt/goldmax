@@ -82,7 +82,7 @@ export async function buildOrderExcelV2(order: ExportableOrderV2, exportNote = "
   }
 
   if (!groups.length) {
-    ws.mergeCells(`A${rowNo}:S${rowNo + 1}`);
+    ws.mergeCells(`A${rowNo}:T${rowNo + 1}`);
     const cell = ws.getCell(`A${rowNo}`);
     cell.value = "Không có dòng hàng hóa nào có KH/Lượng để xuất.";
     cell.alignment = { horizontal: "center", vertical: "middle" };
@@ -97,7 +97,7 @@ export async function buildOrderExcelV2(order: ExportableOrderV2, exportNote = "
   rowNo += 1;
 
   ws.pageSetup.printTitlesRow = "12:13";
-  ws.pageSetup.printArea = `A1:S${rowNo}`;
+  ws.pageSetup.printArea = `A1:T${rowNo}`;
   ws.views = [{ state: "frozen", ySplit: 13, showGridLines: false }];
   ws.headerFooter.oddFooter = `&L Công ty TNHH SXTM GoldMax Việt Nam - Thông tin Đơn hàng #${order.orderCode}&R Trang &P / &N`;
 
@@ -106,17 +106,17 @@ export async function buildOrderExcelV2(order: ExportableOrderV2, exportNote = "
 }
 
 function setupColumns(ws: Worksheet) {
-  // 19 cột, bổ sung KT thông thủy Cao/Rộng; Excel tự fit 1 trang theo chiều ngang.
-  const widths = [4.5, 8.5, 19.5, 15.5, 7.5, 7.5, 7.5, 7.5, 14.5, 7.5, 7.5, 7.5, 5.5, 6.5, 9.5, 11.5, 13, 28, 13.5];
+  // 20 cột (V63): tách "KT CỬA (MM)" thành Cao/Rộng; Excel tự fit 1 trang theo chiều ngang.
+  const widths = [4.5, 8.5, 19.5, 15.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 5.5, 6.5, 9.5, 11.5, 13, 28, 13.5];
   widths.forEach((width, index) => { ws.getColumn(index + 1).width = width; });
 }
 
 async function writeTopBanner(ws: Worksheet, workbook: ExcelJS.Workbook, order: ExportableOrderV2) {
   // Bố cục V2: Logo | thông tin công ty từng dòng | THÔNG TIN ĐƠN HÀNG.
   ws.mergeCells("A1:C6");
-  ws.mergeCells("D1:K1");
-  ws.mergeCells("L1:S2");
-  ws.mergeCells("L3:S3");
+  ws.mergeCells("D1:L1");
+  ws.mergeCells("M1:T2");
+  ws.mergeCells("M3:T3");
 
   ws.getCell("D1").value = "CÔNG TY TNHH SXTM GOLDMAX VIỆT NAM";
   ws.getCell("D1").font = { ...BASE_FONT, bold: true, size: 14, color: { argb: NAVY } };
@@ -132,7 +132,7 @@ async function writeTopBanner(ws: Worksheet, workbook: ExcelJS.Workbook, order: 
   ];
   companyLines.forEach((line, index) => {
     const row = index + 2;
-    ws.mergeCells(`D${row}:K${row}`);
+    ws.mergeCells(`D${row}:L${row}`);
     const cell = ws.getCell(`D${row}`);
     cell.value = line;
     cell.font = { ...BASE_FONT, size: 9.8, color: { argb: MUTED } };
@@ -164,11 +164,11 @@ async function writeTopBanner(ws: Worksheet, workbook: ExcelJS.Workbook, order: 
 
   const infoRows: Array<[string, string, string]> = [
     ["A9:H9", "Tên khách hàng", order.customerName || order.receiverName || order.customerCode || ""],
-    ["I9:N9", "Địa chỉ", order.receiverAddress || ""],
-    ["O9:S9", "Ngày đặt hàng", formatDate(order.orderDate)],
+    ["I9:O9", "Địa chỉ", order.receiverAddress || ""],
+    ["P9:T9", "Ngày đặt hàng", formatDate(order.orderDate)],
     ["A10:H10", "Mã đại lý", order.customerCode || ""],
-    ["I10:N10", "Mã nhân viên", order.salesEmployeeCode || ""],
-    ["O10:S10", "Ngày trả dự kiến", formatDate(order.requiredDeliveryDate)],
+    ["I10:O10", "Mã nhân viên", order.salesEmployeeCode || ""],
+    ["P10:T10", "Ngày trả dự kiến", formatDate(order.requiredDeliveryDate)],
   ];
 
   for (const [range, label, value] of infoRows) {
@@ -180,7 +180,7 @@ async function writeTopBanner(ws: Worksheet, workbook: ExcelJS.Workbook, order: 
     ] };
     cell.alignment = { horizontal: "left", vertical: "middle", wrapText: false, shrinkToFit: true };
   }
-  styleRange(ws, "A9:S10", "FFF8FAFC", true);
+  styleRange(ws, "A9:T10", "FFF8FAFC", true);
 
   ws.getRow(1).height = 30;
   for (let row = 2; row <= 7; row += 1) ws.getRow(row).height = 18;
@@ -200,27 +200,29 @@ function writeDataHeader(ws: Worksheet) {
     ["F12:F13", "HƯỚNG"],
     ["G12:G13", "PHÀO"],
     ["H12:H13", "MÀU SƠN"],
-    ["I12:I13", "KT CỬA (CAO x RỘNG)"],
-    ["J12:J13", "KHUÔN"],
-    ["K12:L12", "KT THÔNG THỦY"],
-    ["M12:M13", "SL"],
-    ["N12:N13", "ĐVT"],
-    ["O12:O13", "KHỐI LƯỢNG"],
-    ["P12:P13", "ĐƠN GIÁ (Đ)"],
-    ["Q12:Q13", "THÀNH TIỀN (Đ)"],
-    ["R12:R13", "GHI CHÚ KỸ THUẬT"],
-    ["S12:S13", "HÌNH ẢNH SP"],
+    ["I12:J12", "KT CỬA (MM)"],
+    ["K12:K13", "KHUÔN"],
+    ["L12:M12", "KT THÔNG THỦY"],
+    ["N12:N13", "SL"],
+    ["O12:O13", "ĐVT"],
+    ["P12:P13", "KHỐI LƯỢNG"],
+    ["Q12:Q13", "ĐƠN GIÁ (Đ)"],
+    ["R12:R13", "THÀNH TIỀN (Đ)"],
+    ["S12:S13", "GHI CHÚ KỸ THUẬT"],
+    ["T12:T13", "HÌNH ẢNH SP"],
   ];
   for (const [range, value] of mergedHeaders) {
     ws.mergeCells(range);
     const cell = ws.getCell(range.split(":")[0]);
     cell.value = value;
   }
-  ws.getCell("K13").value = "CAO";
-  ws.getCell("L13").value = "RỘNG";
-  styleRange(ws, "A12:S13", NAVY, true);
+  ws.getCell("I13").value = "CAO";
+  ws.getCell("J13").value = "RỘNG";
+  ws.getCell("L13").value = "CAO";
+  ws.getCell("M13").value = "RỘNG";
+  styleRange(ws, "A12:T13", NAVY, true);
   for (let row = 12; row <= 13; row += 1) {
-    for (let col = 1; col <= 19; col += 1) {
+    for (let col = 1; col <= 20; col += 1) {
       const cell = ws.getCell(row, col);
       cell.fill = solid(NAVY);
       cell.font = { ...BASE_FONT, size: 9.2, bold: true, color: { argb: WHITE } };
@@ -242,8 +244,6 @@ async function writeDataRow(
   firstInGroup: boolean,
   stripe: number,
 ) {
-  const dims = [toNumber(row.heightMm), toNumber(row.widthMm)].filter((v): v is number => v !== null && v !== 0);
-  const sizeText = dims.length ? dims.map((v) => formatInteger(v)).join(" x ") : "";
   const productName = cleanText(row.productName) || "";
   const values: Array<string | number | null> = [
     firstInGroup ? group.lineNo : null,
@@ -254,7 +254,8 @@ async function writeDataRow(
     cleanText(row.openingDirection) || "",
     cleanText(row.trimDirection) || "",
     cleanText(row.paintColor) || "",
-    sizeText,
+    toNumber(row.heightMm),
+    toNumber(row.widthMm),
     toNumber(row.frameMm),
     toNumber(row.clearHeightMm),
     toNumber(row.clearWidthMm),
@@ -269,29 +270,29 @@ async function writeDataRow(
   values.forEach((value, index) => { ws.getCell(rowNo, index + 1).value = value as any; });
 
   const fill = main ? (stripe % 2 === 0 ? WHITE : LIGHT) : "FFFBFDFF";
-  for (let col = 1; col <= 19; col += 1) {
+  for (let col = 1; col <= 20; col += 1) {
     const cell = ws.getCell(rowNo, col);
     cell.fill = solid(fill);
     cell.border = ALL_BORDERS;
     cell.font = main
-      ? { ...BASE_FONT, size: 10.5, bold: col <= 4 || col >= 13 }
+      ? { ...BASE_FONT, size: 10.5, bold: col <= 4 || col >= 14 }
       : { ...BASE_FONT, size: 10, italic: true, color: { argb: MUTED } };
     cell.alignment = {
       // Từ ĐVT đến Thành tiền căn phải đồng bộ theo yêu cầu hiển thị số.
-      horizontal: col >= 14 && col <= 17 ? "right" : [3, 4, 18].includes(col) ? "left" : "center",
+      horizontal: col >= 15 && col <= 18 ? "right" : [3, 4, 19].includes(col) ? "left" : "center",
       vertical: "top",
       wrapText: true,
     };
   }
 
-  ws.getCell(`O${rowNo}`).numFmt = "#,##0.0000";
-  ws.getCell(`P${rowNo}`).numFmt = "#,##0";
+  ws.getCell(`P${rowNo}`).numFmt = "#,##0.0000";
   ws.getCell(`Q${rowNo}`).numFmt = "#,##0";
-  if (cleanText(row.note)) ws.getCell(`R${rowNo}`).font = { ...ws.getCell(`R${rowNo}`).font, color: { argb: main ? TEXT : MUTED } };
+  ws.getCell(`R${rowNo}`).numFmt = "#,##0";
+  if (cleanText(row.note)) ws.getCell(`S${rowNo}`).font = { ...ws.getCell(`S${rowNo}`).font, color: { argb: main ? TEXT : MUTED } };
 
   const imageUrl = cleanText(row.imagePath) || (main ? cleanText(group.imagePath) : null);
   if (imageUrl) {
-    const imageCell = ws.getCell(`S${rowNo}`);
+    const imageCell = ws.getCell(`T${rowNo}`);
     imageCell.value = { text: "Xem ảnh", hyperlink: imageUrl, tooltip: "Mở hình ảnh sản phẩm" };
     imageCell.font = { ...BASE_FONT, size: 9.5, color: { argb: "FF2563EB" }, underline: true };
     imageCell.alignment = { horizontal: "center", vertical: "middle" };
@@ -332,7 +333,7 @@ function estimateWrappedLines(value: string, charsPerLine: number) {
 function writeOptionalNote(ws: Worksheet, row: number, exportNote: string) {
   const note = exportNote.replace(/\r\n?/g, "\n").trim();
   if (!note) return row;
-  ws.mergeCells(`A${row}:S${row}`);
+  ws.mergeCells(`A${row}:T${row}`);
   const cell = ws.getCell(`A${row}`);
   cell.value = note;
   cell.font = { ...BASE_FONT, bold: true, size: 12, color: { argb: AMBER } };
@@ -369,31 +370,31 @@ function writeSummary(
 
   let r = startRow;
   for (const [label, amount, mode] of summary) {
-    ws.mergeCells(`A${r}:P${r}`);
-    ws.mergeCells(`Q${r}:S${r}`);
+    ws.mergeCells(`A${r}:Q${r}`);
+    ws.mergeCells(`R${r}:T${r}`);
     ws.getCell(`A${r}`).value = label;
-    ws.getCell(`Q${r}`).value = amount;
-    ws.getCell(`Q${r}`).numFmt = "#,##0 \"VNĐ\"";
-    styleRange(ws, `A${r}:S${r}`, mode === "total" ? NAVY : mode === "accent" ? PALE_AMBER : WHITE, true);
+    ws.getCell(`R${r}`).value = amount;
+    ws.getCell(`R${r}`).numFmt = "#,##0 \"VNĐ\"";
+    styleRange(ws, `A${r}:T${r}`, mode === "total" ? NAVY : mode === "accent" ? PALE_AMBER : WHITE, true);
     // Bỏ vạch dọc giữa nhãn và số tiền cho giống bản vẽ.
-    const labelCell = ws.getCell(`P${r}`);
+    const labelCell = ws.getCell(`Q${r}`);
     labelCell.border = { ...labelCell.border, right: undefined };
-    const amountCell = ws.getCell(`Q${r}`);
+    const amountCell = ws.getCell(`R${r}`);
     amountCell.border = { ...amountCell.border, left: undefined };
     ws.getCell(`A${r}`).font = { ...BASE_FONT, bold: mode !== "normal", size: 10.5, color: { argb: mode === "total" ? WHITE : TEXT } };
-    ws.getCell(`Q${r}`).font = { ...BASE_FONT, bold: true, size: 10.5, color: { argb: mode === "total" ? WHITE : mode === "accent" ? "FFDC2626" : NAVY } };
+    ws.getCell(`R${r}`).font = { ...BASE_FONT, bold: true, size: 10.5, color: { argb: mode === "total" ? WHITE : mode === "accent" ? "FFDC2626" : NAVY } };
     ws.getCell(`A${r}`).alignment = { horizontal: "left", vertical: "middle" };
-    ws.getCell(`Q${r}`).alignment = { horizontal: "right", vertical: "middle" };
+    ws.getCell(`R${r}`).alignment = { horizontal: "right", vertical: "middle" };
     r += 1;
   }
 
   // Dòng "Bằng chữ" chiếm 2 hàng để câu tiếng Việt dài vẫn xuống dòng gọn gàng.
   const wordsEnd = r + 1;
-  ws.mergeCells(`A${r}:S${wordsEnd}`);
+  ws.mergeCells(`A${r}:T${wordsEnd}`);
   ws.getCell(`A${r}`).value = `(Bằng chữ: ${numberToVietnameseWords(Math.round(totals.paymentDue))})`;
   ws.getCell(`A${r}`).font = { ...BASE_FONT, size: 9.5, italic: true, color: { argb: MUTED } };
   ws.getCell(`A${r}`).alignment = { horizontal: "right", vertical: "top", wrapText: true };
-  styleRange(ws, `A${r}:S${wordsEnd}`, WHITE, true);
+  styleRange(ws, `A${r}:T${wordsEnd}`, WHITE, true);
 
   // V53→V57: hộp ghi chú ở dưới box tiền, trải hết chiều ngang bản in (cột A→S), chữ 8pt xám.
   const noteStart = wordsEnd + 2;
@@ -405,7 +406,7 @@ function writeSummary(
     ...FOOTNOTE_LINES.map((text) => ({ text, font: {} })),
   ];
   for (const line of noteLines) {
-    ws.mergeCells(`A${noteRow}:S${noteRow}`);
+    ws.mergeCells(`A${noteRow}:T${noteRow}`);
     const cell = ws.getCell(`A${noteRow}`);
     cell.value = line.text;
     cell.font = { ...BASE_FONT, size: 8, color: { argb: MUTED }, ...line.font };
@@ -414,7 +415,7 @@ function writeSummary(
     ws.getRow(noteRow).height = 13 * Math.max(1, Math.ceil(line.text.length / 200));
     noteRow += 1;
   }
-  styleRange(ws, `A${noteStart}:S${noteRow - 1}`, FOOTNOTE_FILL, true);
+  styleRange(ws, `A${noteStart}:T${noteRow - 1}`, FOOTNOTE_FILL, true);
   return noteRow - 1;
 }
 
@@ -439,10 +440,6 @@ function solid(argb: string): ExcelJS.Fill {
 function formatDate(value: Date | null) {
   return value ? new Intl.DateTimeFormat("vi-VN").format(value) : "";
 }
-function formatInteger(value: number) {
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value);
-}
-
 function numberToVietnameseWords(value: number) {
   if (!Number.isFinite(value) || value === 0) return "Không đồng";
   const digits = ["không", "một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín"];
