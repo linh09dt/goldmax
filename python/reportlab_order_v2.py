@@ -66,7 +66,7 @@ COMPANY_LINES = [
     "VP Miền Nam: A34 Shophouse Phú Mỹ Hiệp - TP. Hồ Chí Minh",
     "NHÀ MÁY SẢN XUẤT: Cụm CN Non Sáo, Xã Tân Dĩnh, Bắc Ninh",
     "Hotline: 1900 8135",
-    "Email: Goldmaxdoor@gmail.com",
+    "Website: goldmaxdoor.vn",
 ]
 COMPANY_LINE = "\n".join(COMPANY_LINES)
 # V64: tỷ lệ bề rộng cột thông tin công ty trong header (dùng chung cho bảng + auto-fit).

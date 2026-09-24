@@ -150,7 +150,7 @@ async function writeTopBanner(ws: Worksheet, workbook: ExcelJS.Workbook, order: 
     ["VP Miền Nam:", "A34 Shophouse Phú Mỹ Hiệp - TP. Hồ Chí Minh"],
     ["NHÀ MÁY SẢN XUẤT:", "Cụm CN Non Sáo, Xã Tân Dĩnh, Bắc Ninh"],
     ["Hotline:", "1900 8135"],
-    ["Email:", "Goldmaxdoor@gmail.com"],
+    ["Website:", "goldmaxdoor.vn"],
   ];
   companyLines.forEach(([label, value], index) => {
     const row = index + 2;

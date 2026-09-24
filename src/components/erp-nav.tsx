@@ -33,6 +33,13 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
         isActive: (pathname) => pathname.startsWith("/orders"),
       },
       {
+        href: "/customers",
+        label: "Thông tin khách hàng",
+        hint: "Tự động tổng hợp từ đơn hàng",
+        icon: <IconUsers />,
+        isActive: (pathname) => pathname.startsWith("/customers"),
+      },
+      {
         href: "/revenue",
         label: "Theo dõi doanh thu",
         icon: <IconChart />,
@@ -165,6 +172,16 @@ function IconTruck() {
       <path d="M3 7h10v9H3zM13 10h4l3 3v3h-7z" />
       <circle cx="7" cy="18" r="1.8" />
       <circle cx="17" cy="18" r="1.8" />
+    </svg>
+  );
+}
+
+function IconUsers() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="9" cy="8" r="3.2" />
+      <path d="M3.5 20c0-3.1 2.5-5.3 5.5-5.3s5.5 2.2 5.5 5.3" />
+      <path d="M16 5.5a3 3 0 0 1 0 5.6M17.5 14.9c1.9.6 3.2 2.3 3.2 4.4" />
     </svg>
   );
 }

@@ -1,23 +1,28 @@
 # BẢN ZIP THAY ĐỔI — áp cho project door-production
 
 Chỉ chứa **file đã thay đổi/mới**, giữ nguyên đường dẫn trong project.
-Không có `node_modules`, `.next`, `src/generated`, `.env`, `next-env.d.ts`, dữ liệu database.
+Không có `node_modules`, `.next`, `src/generated`, `.env`, `next-env.d.ts`, `__pycache__`, dữ liệu database.
 
-Gói này gồm toàn bộ thay đổi kể từ file zip gốc:
-- **V75** — Bộ số tự động (tạo khi đơn Đã xác nhận, số bắt đầu cấu hình được)
+Gồm toàn bộ thay đổi kể từ file zip gốc:
+- **V75** — Bộ số tự động (tạo khi đơn Đã xác nhận; cấu hình số bắt đầu)
 - **V76** — Gộp 3 tab Danh mục hàng hóa / Danh mục cấu hình / Cấu hình tính toán thành tab **CẤU HÌNH**
-- **V77** — Sửa UI view Tạo đơn hàng (thông tin 2 hàng, thu gọn bộ cửa, bỏ cuộn ngang dòng phụ kiện, thanh lưu có tổng tiền, nút Xóa an toàn, ngày theo giờ máy)
-- **V78** — UI view Tạo đơn hàng giống mockup: bộ cửa tách 2 nhóm có tiêu đề, **khung nhãn trải đúng bằng khung input**, ô nhập đồng bộ 11.5px
-
-Đã áp V76/V77 trước đó thì lần này chỉ cần: `src/components/order-form.tsx`.
+- **V77** — Sửa UI view Tạo đơn hàng (thông tin đơn 2 hàng, thu gọn bộ cửa, bỏ cuộn ngang, thanh lưu có tổng tiền, nút Xóa an toàn, ngày theo giờ máy)
+- **V78** — UI giống mockup: khung nhãn trải đúng bằng khung input, ô nhập 11.5px
+- **V79** — Bộ cửa về **17 ô / 1 hàng**; **Email → Website: goldmaxdoor.vn** trong Excel V2 + PDF V2 + PDF preview;
+  **tab mới “Thông tin khách hàng”** (`/customers`) tự động tổng hợp tên KH / SĐT / địa chỉ từ đơn hàng, có tìm kiếm, sắp xếp và **Xuất Excel**
 
 ## Cách áp
 
 ```
-unzip -o door-production-changes-v78.zip -d <thư-mục-project>
+unzip -o door-production-changes-v79.zip -d <thư-mục-project>
 npm run db:generate
 npm run build
 npm run dev
 ```
 
 Không cần `npm run db:migrate` (không đổi schema Prisma).
+
+## File mới cần lưu ý
+- `src/app/customers/page.tsx`, `src/app/api/customers/route.ts`, `src/app/api/customers/export/route.ts`,
+  `src/lib/customers.ts`, `src/components/customer-directory.tsx` — tab Thông tin khách hàng.
+- `python/reportlab_order_v2.py`, `python/reportlab_order_preview.py` — nếu deploy Vercel có Python function thì nhớ deploy lại 2 file này để header PDF hiện Website.

@@ -66,7 +66,21 @@ export default function GuidePage() {
           ]} />
         </GuideSection>
 
-        <GuideSection title="4. Theo dõi doanh thu" href="/revenue" linkLabel="Mở Theo dõi doanh thu">
+        <GuideSection title="4. Thông tin khách hàng" href="/customers" linkLabel="Mở Thông tin khách hàng">
+          <p className="text-sm text-slate-600">
+            Danh bạ khách hàng được <b>tự động tổng hợp từ các đơn hàng đã lưu</b> — không phải nhập tay.
+            Mỗi khách hàng gồm tên khách hàng, số điện thoại và địa chỉ nhận hàng, kèm số đơn và tổng tiền.
+          </p>
+          <ActionTable rows={[
+            ["Tìm kiếm", "Tìm theo tên, số điện thoại, địa chỉ, mã đại lý hoặc mã đơn (không phân biệt dấu)."],
+            ["Sắp xếp", "Đơn gần nhất / Nhiều đơn nhất / Doanh thu cao nhất."],
+            ["Xem N đơn", "Mở danh sách đơn hàng của khách đó, bấm mã đơn để mở chi tiết đơn."],
+            ["Xuất Excel", "Xuất danh sách khách hàng đang xem (theo từ khóa tìm kiếm) ra file Excel."],
+          ]} />
+          <GuideSubTitle code="GHI CHÚ" title="Nguồn dữ liệu" text="Khách hàng xuất hiện ngay sau khi lưu đơn hàng (Tên khách hàng + Số điện thoại + Địa chỉ nhận hàng trên đơn)." />
+        </GuideSection>
+
+        <GuideSection title="5. Theo dõi doanh thu" href="/revenue" linkLabel="Mở Theo dõi doanh thu">
           <p className="text-sm text-slate-600">Dùng bộ lọc để xem doanh thu theo ngày, tháng, năm, khoảng ngày, đại lý hoặc khách hàng.</p>
           <ActionTable rows={[
             ["Lọc", "Tính và hiển thị doanh thu theo điều kiện đã chọn."],
@@ -85,7 +99,7 @@ export default function GuidePage() {
           </div>
         </GuideSection>
 
-        <GuideSection title="5. Cấu hình" href="/settings" linkLabel="Mở Cấu hình">
+        <GuideSection title="6. Cấu hình" href="/settings" linkLabel="Mở Cấu hình">
           <p className="text-sm text-slate-600">
             Tab <b>Cấu hình</b> gộp ba khu vực làm việc theo thứ tự nghiệp vụ: khai báo dữ liệu nền trước, rồi mới gán quy tắc tính toán.
             Dùng menu phụ bên trái (mã <b>A1</b>, <b>A2</b>, <b>B1</b>) để chuyển khu vực; trên màn hình nhỏ thì dùng dải nút phía trên.
@@ -129,7 +143,7 @@ export default function GuidePage() {
           ]} />
         </GuideSection>
 
-        <GuideSection title="6. Tính cước vận chuyển" href="/shipping" linkLabel="Mở Tính cước vận chuyển">
+        <GuideSection title="7. Tính cước vận chuyển" href="/shipping" linkLabel="Mở Tính cước vận chuyển">
           <div className="grid gap-4 xl:grid-cols-3">
             <MiniCard title="Tính cước theo đơn hàng" items={[
               "Chọn đơn hàng.",

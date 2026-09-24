@@ -75,7 +75,7 @@ COMPANY_LINES = [
     "VP Miền Bắc: Số 670 Toàn Thắng - Xã Thuận An - TP. Hà Nội",
     "VP Miền Nam: A34 Shophouse Phú Mỹ Hưng - TP. Hồ Chí Minh",
     "NHÀ MÁY SẢN XUẤT: Cụm CN Non Sáo, Xã Tân Dĩnh, Bắc Ninh",
-    "Hotline: 1900 8135    Email: Goldmaxdoor@gmail.com",
+    "Hotline: 1900 8135    Website: goldmaxdoor.vn",
 ]
 
 

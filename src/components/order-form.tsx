@@ -706,70 +706,55 @@ function DoorSetCard({
       <>
       <div className="p-2.5">
         {/* Full-view UI: 17 trường Bộ cửa trên 1 dòng; ẩn riêng Tên sản phẩm; không cuộn ngang. */}
-        {/* V78: theo đúng mockup — Bộ cửa chia 2 nhóm có tiêu đề, ô nhập rộng rãi. */}
-        <div className="space-y-2">
-          <div>
-            <div className="mb-1.5 flex items-center gap-2">
-              <span className="text-[9px] font-bold uppercase leading-3 tracking-[0.06em] text-slate-500">Nhận diện sản phẩm &amp; số lượng</span>
-              <span className="h-px flex-1 bg-slate-200" />
-            </div>
-            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9">
-              <CardField label="Bộ số">
-                {/* V75: Bộ số tự tăng dần, không nhập tay. Chỉ hiển thị số đã được tạo. */}
-                <CardReadonlyValue
-                  value={showSetNumber ? item.setNo : ""}
-                  placeholder="Tự động"
-                  title={showSetNumber
-                    ? (item.setNo ? `Bộ số ${item.setNo} do hệ thống cấp tự động` : "Bộ số sẽ được tạo tự động khi lưu đơn ở trạng thái Đã xác nhận")
-                    : "Bộ số chưa được tạo ở trạng thái Nháp / Chờ khách hàng xác nhận — sẽ tự cấp khi đơn chuyển sang Đã xác nhận"}
+        {/* V79: 17 ô Bộ cửa trên 1 hàng (theo yêu cầu), giữ style nhãn/ô nhập như mockup. */}
+        <div>
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-[0.66fr_0.94fr_1fr_0.54fr_0.72fr_0.6fr_0.6fr_0.5fr_0.5fr_0.5fr_0.56fr_0.56fr_0.42fr_0.38fr_0.6fr_0.62fr_0.68fr]">
+            <CardField label="Bộ số">
+              {/* V75: Bộ số tự tăng dần, không nhập tay. Chỉ hiển thị số đã được tạo. */}
+              <CardReadonlyValue
+                value={showSetNumber ? item.setNo : ""}
+                placeholder="Tự động"
+                title={showSetNumber
+                  ? (item.setNo ? `Bộ số ${item.setNo} do hệ thống cấp tự động` : "Bộ số sẽ được tạo tự động khi lưu đơn ở trạng thái Đã xác nhận")
+                  : "Bộ số chưa được tạo ở trạng thái Nháp / Chờ khách hàng xác nhận — sẽ tự cấp khi đơn chuyển sang Đã xác nhận"}
+              />
+            </CardField>
+            <CardField label="Nhóm cửa">
+              <CardSelectShell><GridGroupSelect value={selectedGroup} groups={doorGroups} placeholder="Chọn nhóm cửa" onChange={changeGroup} /></CardSelectShell>
+            </CardField>
+            <CardField label="Model">
+              <CardSelectShell>
+                <GridCatalogSelect
+                  value={item.productCode}
+                  currentLabel={item.productCode}
+                  items={groupItems}
+                  display="model"
+                  placeholder={selectedGroup ? "Chọn Model" : "Chọn nhóm cửa trước"}
+                  disabled={!selectedGroup}
+                  onCatalogSelect={selectCatalog}
                 />
-              </CardField>
-              <CardField label="Nhóm cửa">
-                <CardSelectShell><GridGroupSelect value={selectedGroup} groups={doorGroups} placeholder="Chọn nhóm cửa" onChange={changeGroup} /></CardSelectShell>
-              </CardField>
-              <CardField label="Model">
-                <CardSelectShell>
-                  <GridCatalogSelect
-                    value={item.productCode}
-                    currentLabel={item.productCode}
-                    items={groupItems}
-                    display="model"
-                    placeholder={selectedGroup ? "Chọn Model" : "Chọn nhóm cửa trước"}
-                    disabled={!selectedGroup}
-                    onCatalogSelect={selectCatalog}
-                  />
-                </CardSelectShell>
-              </CardField>
-              <CardField label="Ô thoáng"><CardSuggestionInput value={item.panelInfo} onChange={change("panelInfo")} items={optionValues.panel} /></CardField>
-              <CardField label="Hướng mở"><CardSuggestionInput value={item.openingDirection} onChange={change("openingDirection")} items={optionValues.opening} /></CardField>
-              <CardField label="Phào"><CardSuggestionInput value={item.trimDirection} onChange={change("trimDirection")} items={optionValues.trim} /></CardField>
-              <CardField label="Màu sơn"><CardSuggestionInput value={item.paintColor} onChange={change("paintColor")} items={optionValues.color} /></CardField>
-              <CardField label="SL bộ"><CardNumberInput value={item.quantity} onChange={change("quantity")} /></CardField>
-              <CardField label="ĐVT"><CardInput value={item.unit} onChange={change("unit")} /></CardField>
-            </div>
-          </div>
-
-          <div className="border-t border-dashed border-slate-200 pt-2">
-            <div className="mb-1.5 flex items-center gap-2">
-              <span className="text-[9px] font-bold uppercase leading-3 tracking-[0.06em] text-slate-500">Kích thước &amp; tính giá</span>
-              <span className="h-px flex-1 bg-slate-200" />
-            </div>
-            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
-              <CardField label="Cao"><CardNumberInput value={item.heightMm} onChange={change("heightMm")} /></CardField>
-              <CardField label="Rộng"><CardNumberInput value={item.widthMm} onChange={change("widthMm")} /></CardField>
-              <CardField label="Khuôn"><CardNumberInput value={item.frameMm} onChange={change("frameMm")} /></CardField>
-              <CardField label="TT Cao" title="Kích thước thông thủy - Cao"><CardNumberInput value={item.clearHeightMm} onChange={change("clearHeightMm")} /></CardField>
-              <CardField label="TT Rộng" title="Kích thước thông thủy - Rộng"><CardNumberInput value={item.clearWidthMm} onChange={change("clearWidthMm")} /></CardField>
-              <CardField label="KH/Lượng"><CardNumberInput value={item.pricingQuantity} onChange={change("pricingQuantity")} step="0.01" /></CardField>
-              <CardField label="Đơn giá">
-                <CardSelectShell><GridPriceInput value={item.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, item.productCode)} /></CardSelectShell>
-              </CardField>
-              <CardField label="Thành tiền">
-                <div className="flex h-8 min-w-0 items-center justify-end rounded-md border border-slate-200 bg-slate-50 px-1.5 text-[11px] font-semibold tabular-nums text-sky-900" title={`${formatMoney(lineAmount(item))}đ`}>
-                  {formatMoney(lineAmount(item))}đ
-                </div>
-              </CardField>
-            </div>
+              </CardSelectShell>
+            </CardField>
+            <CardField label="Ô thoáng"><CardSuggestionInput value={item.panelInfo} onChange={change("panelInfo")} items={optionValues.panel} /></CardField>
+            <CardField label="Hướng mở"><CardSuggestionInput value={item.openingDirection} onChange={change("openingDirection")} items={optionValues.opening} /></CardField>
+            <CardField label="Phào"><CardSuggestionInput value={item.trimDirection} onChange={change("trimDirection")} items={optionValues.trim} /></CardField>
+            <CardField label="Màu sơn"><CardSuggestionInput value={item.paintColor} onChange={change("paintColor")} items={optionValues.color} /></CardField>
+            <CardField label="Cao"><CardNumberInput value={item.heightMm} onChange={change("heightMm")} /></CardField>
+            <CardField label="Rộng"><CardNumberInput value={item.widthMm} onChange={change("widthMm")} /></CardField>
+            <CardField label="Khuôn"><CardNumberInput value={item.frameMm} onChange={change("frameMm")} /></CardField>
+            <CardField label="TT Cao" title="Kích thước thông thủy - Cao"><CardNumberInput value={item.clearHeightMm} onChange={change("clearHeightMm")} /></CardField>
+            <CardField label="TT Rộng" title="Kích thước thông thủy - Rộng"><CardNumberInput value={item.clearWidthMm} onChange={change("clearWidthMm")} /></CardField>
+            <CardField label="SL bộ"><CardNumberInput value={item.quantity} onChange={change("quantity")} /></CardField>
+            <CardField label="ĐVT"><CardInput value={item.unit} onChange={change("unit")} /></CardField>
+            <CardField label="KH/Lượng"><CardNumberInput value={item.pricingQuantity} onChange={change("pricingQuantity")} step="0.01" /></CardField>
+            <CardField label="Đơn giá">
+              <CardSelectShell><GridPriceInput value={item.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, item.productCode)} /></CardSelectShell>
+            </CardField>
+            <CardField label="Thành tiền">
+              <div className="flex h-8 min-w-0 items-center justify-end rounded-md border border-slate-200 bg-slate-50 px-1.5 text-[11.5px] font-semibold tabular-nums text-sky-900" title={`${formatMoney(lineAmount(item))}đ`}>
+                {formatMoney(lineAmount(item))}đ
+              </div>
+            </CardField>
           </div>
         </div>
 
@@ -931,10 +916,10 @@ function CardField({ label, title, children, className = "", emphasized = false 
     <label className={`flex min-w-0 flex-col ${className}`}>
       {/* V78: khung nhãn trải đúng bằng bề ngang khung input bên dưới (theo mockup). */}
       <span
-        className={`mb-1 flex h-[18px] w-full min-w-0 items-center rounded border px-1.5 text-[9px] font-semibold uppercase leading-[10px] tracking-[0.015em] ${emphasized ? "border-cyan-200 bg-cyan-50 text-cyan-700" : "border-slate-200 bg-slate-100 text-slate-600"}`}
+        className={`mb-1 flex h-[18px] w-full min-w-0 items-center rounded border px-1.5 text-[8px] font-semibold uppercase leading-[9px] ${emphasized ? "border-cyan-200 bg-cyan-50 text-cyan-700" : "border-slate-200 bg-slate-100 text-slate-600"}`}
         title={title ?? label}
       >
-        <span className="min-w-0 truncate">{label}</span>
+        <span className="min-w-0 whitespace-normal break-words">{label}</span>
       </span>
       <div className={emphasized ? "rounded-md ring-1 ring-cyan-300" : ""}>{children}</div>
     </label>
