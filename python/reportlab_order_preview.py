@@ -5,6 +5,8 @@
 - Cột HÌNH ẢNH nằm cuối bảng.
 - Hình ảnh của một bộ cửa được gom từ ảnh bộ cửa chính + ảnh chi tiết/phụ kiện.
 - Không thay đổi pipeline PDF V2 hiện tại.
+- Không có khu vực chữ ký; giữ checklist + tổng hợp thanh toán theo form cũ.
+- Toàn bộ font tăng thêm 4pt để in dễ đọc hơn.
 """
 
 from __future__ import annotations
@@ -58,6 +60,9 @@ MUTED = colors.HexColor("#526579")
 WHITE = colors.white
 ORANGE = colors.HexColor("#EA6A11")
 
+# Yêu cầu preview test: tăng toàn bộ font thêm 4pt so với bản mẫu trước.
+FONT_DELTA = 4.0
+
 COMPANY_LINES = [
     "GPKD: 2401031714",
     "VP Miền Bắc: Số 670 Toàn Thắng - Xã Thuận An - TP. Hà Nội",
@@ -69,12 +74,14 @@ COMPANY_LINES = [
 
 def pstyle(name: str, *, size: float = 7.7, leading: float | None = None, bold: bool = False,
            color: colors.Color = TEXT, align: int = TA_LEFT) -> ParagraphStyle:
+    actual_size = size + FONT_DELTA
+    actual_leading = (leading + FONT_DELTA) if leading is not None else actual_size * 1.18
     return ParagraphStyle(
         name,
         parent=getSampleStyleSheet()["BodyText"],
         fontName=FONTS["bold"] if bold else FONTS["regular"],
-        fontSize=size,
-        leading=leading or size * 1.18,
+        fontSize=actual_size,
+        leading=actual_leading,
         textColor=color,
         alignment=align,
         spaceBefore=0,
@@ -102,7 +109,13 @@ STYLES = {
     "grand_label": pstyle("preview_grand_label", size=9.3, leading=10.4, bold=True, color=WHITE),
     "grand_value": pstyle("preview_grand_value", size=10.4, leading=11.4, bold=True, color=WHITE, align=TA_RIGHT),
     "words": pstyle("preview_words", size=6.8, leading=7.8, color=MUTED, align=TA_RIGHT),
-    "sign": pstyle("preview_sign", size=7.3, leading=8.3, bold=True, align=TA_CENTER),
+    "check_title": pstyle("preview_check_title", size=7.8, leading=8.8, bold=True, color=NAVY_DARK),
+    "check": pstyle("preview_check", size=7.3, leading=8.5, color=TEXT),
+    "summary": pstyle("preview_summary", size=7.5, leading=8.6, color=TEXT),
+    "summary_bold": pstyle("preview_summary_bold", size=7.5, leading=8.6, bold=True, color=TEXT),
+    "summary_amount": pstyle("preview_summary_amount", size=7.5, leading=8.6, color=TEXT, align=TA_RIGHT),
+    "summary_total": pstyle("preview_summary_total", size=7.8, leading=8.9, bold=True, color=WHITE),
+    "summary_total_amount": pstyle("preview_summary_total_amount", size=8.0, leading=9.1, bold=True, color=WHITE, align=TA_RIGHT),
 }
 
 
@@ -272,24 +285,12 @@ def _header(order: dict[str, Any], order_code: str) -> list[Any]:
         Spacer(1, 0.6 * mm),
         para("\n".join(COMPANY_LINES), "company_line"),
     ]
+    # Giữ form mẫu, nhưng phần đầu theo form hiện tại: THÔNG TIN ĐƠN HÀNG + Mã ĐH.
     quote_box = Table([
-        [para("BẢNG BÁO GIÁ CHI TIẾT", "title")],
-        [para(f"MÃ BÁO GIÁ: {order_code}", "order_code")],
-        [Table([
-            [para("Ngày lập", "small"), para(fmt_date(order.get("excelUpdateDate")) or datetime.now().strftime("%d/%m/%Y"), "body_bold")],
-            [para("Ngày đặt hàng", "small"), para(fmt_date(order.get("orderDate")), "body_bold")],
-            [para("Ngày cần giao", "small"), para(fmt_date(order.get("requiredDeliveryDate")), "body_bold")],
-        ], colWidths=[28 * mm, 34 * mm], style=[
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 2),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 2),
-            ("TOPPADDING", (0, 0), (-1, -1), 1.5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 1.5),
-        ])],
-    ], colWidths=[68 * mm])
+        [para("THÔNG TIN ĐƠN HÀNG", "title")],
+        [para(f"Mã ĐH: {order_code}", "order_code")],
+    ], colWidths=[100 * mm])
     quote_box.setStyle(TableStyle([
-        ("BOX", (0, 0), (-1, -1), 0.8, BORDER),
-        ("BACKGROUND", (0, 0), (-1, 1), colors.HexColor("#F8FBFD")),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("LEFTPADDING", (0, 0), (-1, -1), 4),
         ("RIGHTPADDING", (0, 0), (-1, -1), 4),
@@ -299,7 +300,7 @@ def _header(order: dict[str, Any], order_code: str) -> list[Any]:
 
     top = Table(
         [[_logo_flowable(), company, quote_box]],
-        colWidths=[31 * mm, CONTENT_W - 31 * mm - 70 * mm, 70 * mm],
+        colWidths=[31 * mm, CONTENT_W - 31 * mm - 102 * mm, 102 * mm],
         hAlign="LEFT",
     )
     top.setStyle(TableStyle([
@@ -316,12 +317,16 @@ def _header(order: dict[str, Any], order_code: str) -> list[Any]:
         ("NVKD", clean(order.get("salesEmployeeCode"))),
         ("Người nhận", clean(order.get("receiverName"))),
         ("Địa chỉ", clean(order.get("receiverAddress"))),
-        ("Vùng miền", clean(order.get("region"))),
         ("Số điện thoại", clean(order.get("receiverPhone"))),
+        ("Ngày đặt hàng", fmt_date(order.get("orderDate"))),
+        ("Ngày cần giao", fmt_date(order.get("requiredDeliveryDate"))),
+        ("Vùng miền", clean(order.get("region"))),
         ("Số Km giao hàng", clean(order.get("deliveryKm"))),
+        ("Ngày cập nhật", fmt_date(order.get("excelUpdateDate")) or datetime.now().strftime("%d/%m/%Y")),
+        ("Trạng thái", clean(order.get("status")) or "Nháp"),
     ]
     meta_data = []
-    for r in range(2):
+    for r in range(3):
         row = []
         for c in range(4):
             label, value = meta_values[r * 4 + c]
@@ -416,52 +421,91 @@ def _items_table(groups: list[dict[str, Any]], image_cache: dict[str, bytes | No
     return table
 
 
-def _summary(order: dict[str, Any]) -> Table:
+def _bottom_section(order: dict[str, Any]) -> Table:
+    """Checklist + tổng hợp thanh toán giống form mẫu hiện tại (hình 3)."""
     calc = totals(order, build_groups(order))
-    rows: list[list[Any]] = [
-        [para("Tổng cộng tiền hàng", "total_label"), para(f"{money(calc['goods'])} đ", "total_value")],
-    ]
-    if calc["shipping"] > 0:
-        rows.append([para("Cước vận chuyển", "total_label"), para(f"{money(calc['shipping'])} đ", "total_value")])
-    if calc["discountAmount"] > 0:
-        rows.append([
-            para(f"Chiết khấu ({calc['discountPercent']:g}%)", "total_label"),
-            para(f"- {money(calc['discountAmount'])} đ", "total_value"),
-        ])
-    rows.append([para("TỔNG THANH TOÁN", "grand_label"), para(f"{money(calc['afterDiscount'])} đ", "grand_value")])
-    rows.append([para(f"Bằng chữ: {number_to_vietnamese_words(int(round(calc['afterDiscount'])))}", "words"), ""])
+    reqs = order.get("requirements") or []
 
-    table = Table(rows, colWidths=[58 * mm, 50 * mm], hAlign="RIGHT")
-    last_total = len(rows) - 2
-    last_words = len(rows) - 1
-    styles: list[tuple[Any, ...]] = [
-        ("BOX", (0, 0), (-1, last_total), 0.7, BORDER),
-        ("INNERGRID", (0, 0), (-1, last_total - 1), 0.35, BORDER),
+    check_lines: list[Paragraph] = []
+    for idx, item in enumerate(reqs, 1):
+        if not isinstance(item, dict):
+            continue
+        answer = " - ".join(filter(None, [clean(item.get("answer")), clean(item.get("note"))]))
+        text = f"{idx}. {clean(item.get('questionText'))}"
+        if answer:
+            text += f": {answer}"
+        check_lines.append(para(text, "check"))
+
+    # Giữ form checklist mẫu ngay cả khi đơn chưa có câu trả lời.
+    if not check_lines:
+        default_questions = [
+            "Nền có giật cấp hay không?",
+            "Kích thước đã trừ chưa?",
+            "Mép tường có đắp phào xi măng hay không?",
+            "Lắp phào LUX: hỏi mép tường lên trần?",
+            "Có thuộc tường chữ T hoặc I không?",
+            "Cửa 4 cánh xác nhận chiều rộng và cao",
+        ]
+        check_lines = [para(f"{idx}. {text}", "check") for idx, text in enumerate(default_questions, 1)]
+
+    checklist = Table(
+        [[para("BẢNG CHECKLIST XÁC NHẬN KỸ THUẬT VỚI ĐẠI LÝ", "check_title")]] + [[x] for x in check_lines],
+        colWidths=[CONTENT_W * 0.66],
+    )
+    checklist.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 0.8, BORDER),
+        ("LINEBELOW", (0, 0), (-1, 0), 0.55, colors.HexColor("#CBD5E1")),
         ("LEFTPADDING", (0, 0), (-1, -1), 5),
         ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-        ("TOPPADDING", (0, 0), (-1, -1), 3.3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3.3),
-        ("BACKGROUND", (0, last_total), (-1, last_total), NAVY),
-        ("TEXTCOLOR", (0, last_total), (-1, last_total), WHITE),
-        ("SPAN", (0, last_words), (1, last_words)),
-    ]
-    table.setStyle(TableStyle(styles))
-    return table
-
-
-def _signatures() -> Table:
-    rows = [[
-        para("ĐẠI LÝ / KHÁCH HÀNG\n(Ký, ghi rõ họ tên)", "sign"),
-        para("NHÂN VIÊN KINH DOANH\n(Ký, ghi rõ họ tên)", "sign"),
-        para("XÁC NHẬN CỦA CÔNG TY\n(Ký, đóng dấu)", "sign"),
-    ]]
-    table = Table(rows, colWidths=[CONTENT_W / 3] * 3)
-    table.setStyle(TableStyle([
+        ("TOPPADDING", (0, 0), (-1, -1), 3.0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3.0),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("TOPPADDING", (0, 0), (-1, -1), 1),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 17 * mm),
     ]))
-    return table
+
+    summary_rows: list[list[Any]] = [
+        [para("Tổng giá trị đơn hàng:", "summary"), para(f"{money(calc['orderTotal'])} VNĐ", "summary_amount")],
+    ]
+    if calc["discountPercent"] > 0 and calc["discountAmount"] > 0:
+        summary_rows.append([
+            para(f"Chiết khấu thương mại ({calc['discountPercent']:g}%):", "summary"),
+            para(f"- {money(calc['discountAmount'])} VNĐ", "summary_amount"),
+        ])
+
+    after_index = len(summary_rows)
+    summary_rows.append([para("Tổng tiền sau chiết khấu:", "summary_bold"), para(f"{money(calc['afterDiscount'])} VNĐ", "summary_amount")])
+    summary_rows.append([para("Đã đặt cọc:", "summary"), para(f"{money(calc['deposit'])} VNĐ", "summary_amount")])
+    if calc["warehouse"] > 0:
+        summary_rows.append([para("Trừ tiền nhận hàng tại kho:", "summary"), para(f"{money(calc['warehouse'])} VNĐ", "summary_amount")])
+    due_index = len(summary_rows)
+    summary_rows.append([para("CÒN LẠI CẦN THANH TOÁN:", "summary_total"), para(f"{money(calc['paymentDue'])} VNĐ", "summary_total_amount")])
+    words_index = len(summary_rows)
+    summary_rows.append([para(f"(Bằng chữ: {number_to_vietnamese_words(int(round(calc['paymentDue'])))} )", "words"), ""])
+
+    summary = Table(summary_rows, colWidths=[CONTENT_W * 0.22, CONTENT_W * 0.12])
+    commands: list[tuple[Any, ...]] = [
+        ("BOX", (0, 0), (-1, due_index), 0.8, BORDER),
+        ("INNERGRID", (0, 0), (-1, due_index), 0.45, BORDER),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 3.0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3.0),
+        ("BACKGROUND", (0, after_index), (-1, after_index), colors.HexColor("#EEF2FF")),
+        ("BACKGROUND", (0, due_index), (-1, due_index), NAVY),
+        ("TEXTCOLOR", (0, due_index), (-1, due_index), WHITE),
+        ("SPAN", (0, words_index), (1, words_index)),
+    ]
+    summary.setStyle(TableStyle(commands))
+
+    outer = Table([[checklist, summary]], colWidths=[CONTENT_W * 0.66, CONTENT_W * 0.34], hAlign="LEFT")
+    outer.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    return outer
 
 
 def _footer(canvas: pdfcanvas.Canvas, doc: SimpleDocTemplate, order_code: str) -> None:
@@ -470,7 +514,7 @@ def _footer(canvas: pdfcanvas.Canvas, doc: SimpleDocTemplate, order_code: str) -
     canvas.setStrokeColor(colors.HexColor("#CBD5E1"))
     canvas.setLineWidth(0.55)
     canvas.line(LEFT, y + 3.4 * mm, PAGE_W - RIGHT, y + 3.4 * mm)
-    canvas.setFont(FONTS["regular"], 7)
+    canvas.setFont(FONTS["regular"], 7 + FONT_DELTA)
     canvas.setFillColor(MUTED)
     canvas.drawString(LEFT, y, f"GOLDMAX VIỆT NAM  |  Mã đơn hàng: {order_code}")
     canvas.drawRightString(PAGE_W - RIGHT, y, f"Trang {canvas.getPageNumber()}")
@@ -519,9 +563,8 @@ def build_order_pdf_preview(
         story.append(note)
 
     story.append(Spacer(1, 2.3 * mm))
-    story.append(_summary(order))
-    story.append(Spacer(1, 3 * mm))
-    story.append(_signatures())
+    story.append(_bottom_section(order))
+    # Không hiển thị khu vực chữ ký trong PDF mẫu test.
 
     footer = lambda canvas, doc_obj: _footer(canvas, doc_obj, order_code)
     doc.build(story, onFirstPage=footer, onLaterPages=footer)

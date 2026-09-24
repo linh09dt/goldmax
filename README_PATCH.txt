@@ -1,20 +1,13 @@
-GOLDMAX - PDF Mẫu Mới (test song song)
+PDF MẪU MỚI - PATCH TEST
 
-File mới:
-- src/components/order-pdf-preview-button.tsx
-- api/order_pdf_preview.py
-- python/reportlab_order_preview.py
+Chỉ thay file:
+  python/reportlab_order_preview.py
 
-File thay đổi:
-- src/app/orders/[id]/page.tsx: chỉ thêm nút "PDF Mẫu Mới" riêng, không thay nút PDF hiện tại.
-- vercel.json: chỉ thêm maxDuration cho api/order_pdf_preview.py.
-
-Logic test:
-- Nút PDF hiện tại vẫn giữ nguyên.
-- Nút "PDF Mẫu Mới" gọi /api/order_pdf_preview?orderId=...
-- PDF mới A4 ngang, vector text/bảng.
-- Cột HÌNH ẢNH nằm phía cuối.
-- Hình ảnh trong cột được gom theo từng Bộ cửa: ảnh dòng bộ cửa chính + ảnh tất cả chi tiết/phụ kiện của bộ.
-- Nếu tải ảnh lỗi, nút tự thử lại chế độ noImages để vẫn xem được layout.
-
-Không thay DB schema, không thay API PDF V2 cũ, không thay Excel export.
+Thay đổi:
+- Bỏ toàn bộ khu vực chữ ký.
+- Tăng toàn bộ font trong PDF mẫu mới thêm 4pt.
+- Giữ template PDF mẫu mới hiện tại (cột hình ảnh ở cuối, gom ảnh theo bộ cửa).
+- Header đổi về dạng THÔNG TIN ĐƠN HÀNG + Mã ĐH và thông tin công ty/khách hàng.
+- Giữ/khôi phục BẢNG CHECKLIST XÁC NHẬN KỸ THUẬT VỚI ĐẠI LÝ.
+- Giữ/khôi phục bảng tổng giá trị / sau chiết khấu / đặt cọc / còn lại cần thanh toán / bằng chữ.
+- Không sửa PDF V2 cũ, DB, API dữ liệu, Excel export.
