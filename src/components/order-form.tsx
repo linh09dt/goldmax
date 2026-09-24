@@ -779,7 +779,7 @@ function DetailMasterRow({
     <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
       <div>
           <div className="erp-scrollbar overflow-x-auto pb-1">
-            <div className="grid min-w-[1120px] grid-cols-[1.25fr_1.25fr_0.7fr_0.7fr_0.7fr_0.72fr_0.82fr_0.9fr_1.65fr] gap-1.5">
+            <div className="grid min-w-[1240px] grid-cols-[1.25fr_1.25fr_0.7fr_0.7fr_0.7fr_0.72fr_0.82fr_0.9fr_0.95fr_1.45fr] gap-1.5">
             <CardField label="Nhóm hàng">
               <CardSelectShell><GridGroupSelect value={selectedGroup} groups={accessoryGroups} placeholder="Chọn nhóm hàng" onChange={changeGroup} /></CardSelectShell>
             </CardField>
@@ -802,6 +802,11 @@ function DetailMasterRow({
             <CardField label="ĐVT"><CardInput value={row.unit} onChange={change("unit")} /></CardField>
             <CardField label="KH/Lượng"><CardNumberInput value={row.pricingQuantity} onChange={change("pricingQuantity")} step="0.01" readOnly={automaticPricing} autoCalculated={automaticPricing} /></CardField>
             <CardField label="Đơn giá"><CardSelectShell><GridPriceInput value={row.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, row.productCode)} /></CardSelectShell></CardField>
+            <CardField label="Thành tiền">
+              <div className="flex h-8 min-w-0 items-center justify-end rounded-md border border-slate-200 bg-slate-50 px-1.5 text-[10px] font-semibold tabular-nums text-sky-900" title={`${formatMoney(lineAmount(row))}đ`}>
+                {formatMoney(lineAmount(row))}đ
+              </div>
+            </CardField>
             <CardField label="Ghi chú"><CardInput value={row.note} onChange={change("note")} placeholder="Nhập ghi chú..." /></CardField>
             </div>
           </div>
