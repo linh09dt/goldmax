@@ -595,14 +595,31 @@ function DoorSetCard({
       </header>
 
       <div className="p-3 md:p-4">
-        <div className="grid grid-cols-2 gap-x-2 gap-y-2 md:grid-cols-4 xl:grid-cols-[0.82fr_1.08fr_1.12fr_1.28fr_0.78fr_0.82fr_0.9fr_0.9fr_0.74fr_0.74fr_0.74fr]">
-          <CardField label="Bộ số">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2 md:grid-cols-3 xl:grid-cols-6">
+          <CardField label="Cao"><CardNumberInput value={item.heightMm} onChange={change("heightMm")} /></CardField>
+          <CardField label="Rộng"><CardNumberInput value={item.widthMm} onChange={change("widthMm")} /></CardField>
+          <CardField label="Khuôn"><CardNumberInput value={item.frameMm} onChange={change("frameMm")} /></CardField>
+          <CardField label="SL bộ"><CardNumberInput value={item.quantity} onChange={change("quantity")} /></CardField>
+          <CardField label="Ô thoáng"><CardInput value={item.panelInfo} onChange={change("panelInfo")} listId="panel-options" /></CardField>
+          <CardField label="Hướng mở"><CardInput value={item.openingDirection} onChange={change("openingDirection")} listId="opening-direction-options" /></CardField>
+
+          <CardField label="Phào"><CardInput value={item.trimDirection} onChange={change("trimDirection")} listId="trim-direction-options" /></CardField>
+          <CardField label="Màu sơn"><CardInput value={item.paintColor} onChange={change("paintColor")} listId="paint-color-options" /></CardField>
+          <CardField label="ĐVT"><CardInput value={item.unit} onChange={change("unit")} /></CardField>
+          <CardField label="KH/Lượng"><CardNumberInput value={item.pricingQuantity} onChange={change("pricingQuantity")} step="0.0001" /></CardField>
+          <CardField label="Đơn giá" className="xl:col-span-2">
+            <CardSelectShell><GridPriceInput value={item.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, item.productCode)} /></CardSelectShell>
+          </CardField>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-slate-200 pt-3 md:grid-cols-4 xl:grid-cols-12">
+          <CardField label="Bộ số" className="xl:col-span-2">
             <CardInput value={item.setNo} onChange={change("setNo")} placeholder="VD: 12097" />
           </CardField>
-          <CardField label="Nhóm cửa">
+          <CardField label="Nhóm cửa" className="xl:col-span-2">
             <CardSelectShell><GridGroupSelect value={selectedGroup} groups={doorGroups} placeholder="Chọn nhóm cửa" onChange={changeGroup} /></CardSelectShell>
           </CardField>
-          <CardField label="Model">
+          <CardField label="Model" className="xl:col-span-3">
             <CardSelectShell>
               <GridCatalogSelect
                 value={item.productCode}
@@ -615,39 +632,38 @@ function DoorSetCard({
               />
             </CardSelectShell>
           </CardField>
-          <CardField label="Tên sản phẩm">
-            <div className="flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-2 text-[12px] font-medium text-slate-700" title={item.productName || "Tự điền theo danh mục"}>
-              <span className="truncate">{item.productName || <span className="font-normal text-slate-400">Tự điền theo danh mục</span>}</span>
+          <CardField label="Tên sản phẩm" className="col-span-2 md:col-span-4 xl:col-span-5">
+            <div className="min-h-9 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-[12px] font-medium text-slate-700">
+              {item.productName || <span className="font-normal text-slate-400">Tự điền theo danh mục</span>}
             </div>
           </CardField>
-          <CardField label="Ô thoáng"><CardInput value={item.panelInfo} onChange={change("panelInfo")} listId="panel-options" /></CardField>
-          <CardField label="Hướng mở"><CardInput value={item.openingDirection} onChange={change("openingDirection")} listId="opening-direction-options" /></CardField>
-          <CardField label="Phào"><CardInput value={item.trimDirection} onChange={change("trimDirection")} listId="trim-direction-options" /></CardField>
-          <CardField label="Màu sơn"><CardInput value={item.paintColor} onChange={change("paintColor")} listId="paint-color-options" /></CardField>
-          <CardField label="Cao"><CardNumberInput value={item.heightMm} onChange={change("heightMm")} /></CardField>
-          <CardField label="Rộng"><CardNumberInput value={item.widthMm} onChange={change("widthMm")} /></CardField>
-          <CardField label="Khuôn"><CardNumberInput value={item.frameMm} onChange={change("frameMm")} /></CardField>
 
-          <CardField label="KT thông thủy - Cao"><CardNumberInput value={item.clearHeightMm} onChange={change("clearHeightMm")} /></CardField>
-          <CardField label="KT thông thủy - Rộng"><CardNumberInput value={item.clearWidthMm} onChange={change("clearWidthMm")} /></CardField>
-          <CardField label="SL bộ"><CardNumberInput value={item.quantity} onChange={change("quantity")} /></CardField>
-          <CardField label="ĐVT"><CardInput value={item.unit} onChange={change("unit")} /></CardField>
-          <CardField label="KH/Lượng"><CardNumberInput value={item.pricingQuantity} onChange={change("pricingQuantity")} step="0.0001" /></CardField>
-          <CardField label="Đơn giá">
-            <CardSelectShell><GridPriceInput value={item.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, item.productCode)} /></CardSelectShell>
+          <CardField label="KT thông thủy - Cao" className="xl:col-span-2">
+            <CardNumberInput value={item.clearHeightMm} onChange={change("clearHeightMm")} />
           </CardField>
-          <CardField label="Model khóa"><CardInput value={item.lockModel} onChange={change("lockModel")} /></CardField>
-          <CardField label="Loại phào"><CardInput value={item.trimType} onChange={change("trimType")} /></CardField>
-          <CardField label="Thanh phào / bộ"><CardNumberInput value={item.trimBarsPerSet} onChange={change("trimBarsPerSet")} /></CardField>
-          <CardField label="Nan ô thoáng"><CardNumberInput value={item.windowBars} onChange={change("windowBars")} /></CardField>
-          <CardField label="Cánh / bộ"><CardNumberInput value={item.leavesPerSet} onChange={change("leavesPerSet")} /></CardField>
-        </div>
+          <CardField label="KT thông thủy - Rộng" className="xl:col-span-2">
+            <CardNumberInput value={item.clearWidthMm} onChange={change("clearWidthMm")} />
+          </CardField>
+          <CardField label="Model khóa" className="xl:col-span-3">
+            <CardInput value={item.lockModel} onChange={change("lockModel")} />
+          </CardField>
+          <CardField label="Loại phào" className="xl:col-span-2">
+            <CardInput value={item.trimType} onChange={change("trimType")} />
+          </CardField>
+          <CardField label="Thanh phào / bộ" className="xl:col-span-1">
+            <CardNumberInput value={item.trimBarsPerSet} onChange={change("trimBarsPerSet")} />
+          </CardField>
+          <CardField label="Nan ô thoáng" className="xl:col-span-1">
+            <CardNumberInput value={item.windowBars} onChange={change("windowBars")} />
+          </CardField>
+          <CardField label="Cánh / bộ" className="xl:col-span-1">
+            <CardNumberInput value={item.leavesPerSet} onChange={change("leavesPerSet")} />
+          </CardField>
 
-        <div className="mt-3 grid grid-cols-1 gap-3 border-t border-slate-200 pt-3 lg:grid-cols-[minmax(0,1fr)_260px]">
-          <CardField label="Ghi chú">
+          <CardField label="Ghi chú" className="col-span-2 md:col-span-3 xl:col-span-8">
             <CardInput value={item.note} onChange={change("note")} placeholder="Nhập ghi chú kỹ thuật" />
           </CardField>
-          <CardField label="Hình ảnh SP">
+          <CardField label="Hình ảnh SP" className="col-span-2 md:col-span-1 xl:col-span-4">
             <div className="rounded-lg border border-slate-200 bg-white">
               <ImageCell path={item.imagePath} onUpload={(file) => onUpload(file, itemIndex)} />
             </div>
@@ -817,7 +833,7 @@ function DetailMasterRow({
               <summary className="cursor-pointer list-none px-3 py-1.5 text-[11px] font-semibold text-cyan-700 marker:hidden">Thông số thêm <span className="inline-block transition-transform group-open:rotate-180">⌄</span></summary>
               <div className="grid gap-2 border-t border-slate-200 bg-white p-3 sm:grid-cols-2 lg:grid-cols-4">
                 <CardField label="Tên sản phẩm" className="sm:col-span-2">
-                  <div className="min-h-10 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] font-medium text-slate-700">
+                  <div className="min-h-9 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-[12px] font-medium text-slate-700">
                     {row.productName || <span className="font-normal text-slate-400">Tự điền theo danh mục</span>}
                   </div>
                 </CardField>
@@ -904,22 +920,27 @@ function DoorSection({ title, children }: { title: string; children: React.React
 function CardField({ label, children, className = "", emphasized = false }: { label: string; children: React.ReactNode; className?: string; emphasized?: boolean }) {
   return (
     <label className={`block min-w-0 ${className}`}>
-      <span className={`mb-1 block text-[11px] font-semibold ${emphasized ? "text-cyan-700" : "text-slate-600"}`}>{label}</span>
+      <span
+        className={`mb-1 inline-flex max-w-full items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold leading-4 ${emphasized ? "border-cyan-200 bg-cyan-50 text-cyan-700" : "border-slate-200 bg-slate-100 text-slate-600"}`}
+        title={label}
+      >
+        <span className="truncate">{label}</span>
+      </span>
       <div className={emphasized ? "rounded-lg ring-1 ring-cyan-300" : ""}>{children}</div>
     </label>
   );
 }
 
 function CardSelectShell({ children }: { children: React.ReactNode }) {
-  return <div className="min-h-10 overflow-hidden rounded-lg border border-slate-300 bg-white focus-within:border-cyan-400 focus-within:ring-2 focus-within:ring-cyan-100">{children}</div>;
+  return <div className="min-h-9 overflow-hidden rounded-lg border border-slate-300 bg-white focus-within:border-cyan-400 focus-within:ring-2 focus-within:ring-cyan-100">{children}</div>;
 }
 
 function CardInput({ value, onChange, placeholder, listId }: { value: string; onChange: (value: string) => void; placeholder?: string; listId?: string }) {
-  return <input className="h-10 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-900 outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100" value={value} placeholder={placeholder} list={listId} onChange={(event) => onChange(event.target.value)} />;
+  return <input className="h-9 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2.5 text-[12px] font-medium text-slate-900 outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100" value={value} placeholder={placeholder} list={listId} onChange={(event) => onChange(event.target.value)} />;
 }
 
 function CardNumberInput({ value, onChange, step = "1" }: { value: string; onChange: (value: string) => void; step?: string }) {
-  return <input className="h-10 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 text-right text-[13px] font-semibold tabular-nums text-slate-900 outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100" type="number" step={step} value={value} onChange={(event) => onChange(event.target.value)} />;
+  return <input className="h-9 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2.5 text-right text-[12px] font-semibold tabular-nums text-slate-900 outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100" type="number" step={step} value={value} onChange={(event) => onChange(event.target.value)} />;
 }
 
 function detailOrientation(row: OrderLineForm): "vertical" | "horizontal" | "free" {
@@ -1174,15 +1195,15 @@ function Button({ children, onClick, variant = "primary" }: { children: React.Re
 function Th({ children, rowSpan, colSpan, center = false }: { children: React.ReactNode; w: string; rowSpan?: number; colSpan?: number; center?: boolean }) { return <th rowSpan={rowSpan} colSpan={colSpan} className={`break-words border border-slate-300 px-2 py-2 align-middle font-semibold ${center ? "text-center" : "text-left"}`}>{children}</th>; }
 function Cell({ children }: { children: React.ReactNode }) { return <td className="min-w-0 border border-slate-200 p-0 align-middle">{children}</td>; }
 function CellStatic({ children }: { children?: React.ReactNode }) { return <td className="min-w-0 break-words border border-slate-200 px-2 py-2.5 align-middle text-[13px] text-slate-700">{children}</td>; }
-function GridInput({ value, onChange, listId }: { value: string; onChange: (value: string) => void; listId?: string }) { return <input className="h-10 w-full min-w-0 border-0 bg-transparent px-2 text-[13px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" list={listId} value={value} onChange={(e) => onChange(e.target.value)} />; }
+function GridInput({ value, onChange, listId }: { value: string; onChange: (value: string) => void; listId?: string }) { return <input className="h-9 w-full min-w-0 border-0 bg-transparent px-2.5 text-[12px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" list={listId} value={value} onChange={(e) => onChange(e.target.value)} />; }
 
 function GridReadOnly({ value, placeholder }: { value: string; placeholder?: string }) {
-  return <div className="min-h-10 w-full bg-slate-50 px-2 py-2.5 text-[13px] text-slate-700">{value || <span className="text-slate-400">{placeholder ?? "—"}</span>}</div>;
+  return <div className="min-h-9 w-full bg-slate-50 px-2.5 py-2 text-[12px] text-slate-700">{value || <span className="text-slate-400">{placeholder ?? "—"}</span>}</div>;
 }
 
 function GridGroupSelect({ value, groups, placeholder, onChange }: { value: string; groups: string[]; placeholder: string; onChange: (value: string) => void }) {
   return (
-    <select className="h-10 w-full min-w-0 border-0 bg-transparent px-2 text-[13px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" value={value} onChange={(e) => onChange(e.target.value)}>
+    <select className="h-9 w-full min-w-0 border-0 bg-transparent px-2.5 text-[12px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">{placeholder}</option>
       {groups.map((group) => <option key={group} value={group}>{group}</option>)}
     </select>
@@ -1193,7 +1214,7 @@ function GridCatalogSelect({ value, currentLabel, items, display, placeholder, d
   const hasCurrent = items.some((item) => sameText(item.code, value));
   return (
     <select
-      className="h-10 w-full min-w-0 border-0 bg-transparent px-2 text-[13px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300 disabled:bg-slate-100 disabled:text-slate-400"
+      className="h-9 w-full min-w-0 border-0 bg-transparent px-2.5 text-[12px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300 disabled:bg-slate-100 disabled:text-slate-400"
       value={value}
       disabled={disabled}
       onChange={(e) => {
@@ -1364,9 +1385,9 @@ function GridCatalogInput({ value, onChange, listId, mode, catalogItems, onCatal
     });
     if (matches.length === 1) onCatalogSelect(matches[0]);
   }
-  return <input className="h-10 w-full min-w-0 border-0 bg-transparent px-2 text-[13px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" list={listId} value={value} onChange={(e) => { onChange(e.target.value); resolve(e.target.value); }} onBlur={(e) => resolve(e.target.value)} />;
+  return <input className="h-9 w-full min-w-0 border-0 bg-transparent px-2.5 text-[12px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" list={listId} value={value} onChange={(e) => { onChange(e.target.value); resolve(e.target.value); }} onBlur={(e) => resolve(e.target.value)} />;
 }
-function GridNumber({ value, onChange, step = "1" }: { value: string; onChange: (value: string) => void; step?: string }) { return <input className="h-10 w-full min-w-0 border-0 bg-transparent px-2 text-right text-[13px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" type="number" step={step} value={value} onChange={(e) => onChange(e.target.value)} />; }
+function GridNumber({ value, onChange, step = "1" }: { value: string; onChange: (value: string) => void; step?: string }) { return <input className="h-9 w-full min-w-0 border-0 bg-transparent px-2.5 text-right text-[12px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" type="number" step={step} value={value} onChange={(e) => onChange(e.target.value)} />; }
 function GridPriceInput({ value, onChange, catalog }: { value: string; onChange: (value: string) => void; catalog?: CatalogItem }) {
   const dealer = catalog?.dealerPrice;
   const retail = catalog?.retailPrice;
@@ -1374,7 +1395,7 @@ function GridPriceInput({ value, onChange, catalog }: { value: string; onChange:
   const hasRetail = retail !== null && retail !== undefined && String(retail).trim() !== "";
   return (
     <div className="w-full min-w-0">
-      <input className="h-10 w-full min-w-0 border-0 bg-transparent px-2 text-right text-[13px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" type="number" step="1" value={value} onChange={(e) => onChange(e.target.value)} />
+      <input className="h-9 w-full min-w-0 border-0 bg-transparent px-2.5 text-right text-[12px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" type="number" step="1" value={value} onChange={(e) => onChange(e.target.value)} />
       {hasDealer || hasRetail ? (
         <div className="flex flex-wrap gap-0.5 border-t border-slate-100 px-0.5 py-0.5">
           {hasDealer ? <button className="rounded bg-cyan-50 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-800 hover:bg-cyan-100" type="button" title={`Giá đại lý: ${formatCatalogPrice(dealer as string | number)} đ`} onClick={() => onChange(String(dealer))}>Đại lý</button> : null}
