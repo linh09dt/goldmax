@@ -664,26 +664,24 @@ function DoorSetCard({
   return (
     <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <header className="flex flex-col gap-1.5 bg-slate-900 px-3 py-2 text-white lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex min-w-0 items-start gap-2">
-          <button
-            type="button"
-            onClick={onToggleCollapse}
-            title={collapsed ? "Mở rộng bộ cửa" : "Thu gọn bộ cửa"}
-            aria-expanded={!collapsed}
-            className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-slate-600 bg-slate-800 text-[11px] font-bold text-slate-200 hover:bg-slate-700"
-          >
-            {collapsed ? "▸" : "▾"}
-          </button>
-          <div className="min-w-0">
-            <h3 className="text-[14px] font-semibold tracking-normal">Bộ cửa #{itemIndex + 1}{showSetNumber && item.setNo ? ` · Bộ số ${item.setNo}` : ""}</h3>
-            <p className="mt-0.5 truncate text-[10px] font-normal text-slate-300">
-              {item.productName || selectedGroup || "Chưa chọn sản phẩm"}{item.model || item.productCode ? ` · ${item.model || item.productCode}` : ""}
-              {item.quantity ? ` · SL bộ ${item.quantity}` : ""}{collapsed && item.details.length ? ` · ${item.details.length} phụ kiện (đang thu gọn)` : ""}
-            </p>
-          </div>
+        <div className="min-w-0">
+          <h3 className="text-[14px] font-semibold tracking-normal">Bộ cửa #{itemIndex + 1}{showSetNumber && item.setNo ? ` · Bộ số ${item.setNo}` : ""}</h3>
+          <p className="mt-0.5 truncate text-[10px] font-normal text-slate-300">
+            {item.productName || selectedGroup || "Chưa chọn sản phẩm"}{item.model || item.productCode ? ` · ${item.model || item.productCode}` : ""}
+            {item.quantity ? ` · SL bộ ${item.quantity}` : ""}{collapsed && item.details.length ? ` · ${item.details.length} phụ kiện (đang thu gọn)` : ""}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-1.5 lg:justify-end">
           <div className="mr-1 text-[17px] font-semibold tabular-nums text-white">{formatMoney(itemTotal)}đ</div>
+          <button
+            className="rounded-md border border-slate-600 bg-slate-800 px-2.5 py-1 text-[11px] font-medium hover:bg-slate-700"
+            type="button"
+            onClick={onToggleCollapse}
+            aria-expanded={!collapsed}
+            title={collapsed ? "Mở rộng bộ cửa" : "Thu gọn bộ cửa"}
+          >
+            {collapsed ? "▸ Mở rộng" : "▾ Thu gọn"}
+          </button>
           <button className="rounded-md border border-slate-600 bg-slate-800 px-2.5 py-1 text-[11px] font-medium hover:bg-slate-700" type="button" onClick={() => onDuplicate(itemIndex)}>Nhân bản bộ</button>
           <button
             className="rounded-md border border-red-500/70 bg-red-900/60 px-2.5 py-1 text-[11px] font-medium text-red-50 hover:bg-red-800 disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800/60 disabled:text-slate-500"
@@ -708,56 +706,70 @@ function DoorSetCard({
       <>
       <div className="p-2.5">
         {/* Full-view UI: 17 trường Bộ cửa trên 1 dòng; ẩn riêng Tên sản phẩm; không cuộn ngang. */}
-        <div>
-          {/* V77 (C): giữ 17 trường trên 1 hàng; cân lại tỷ lệ cột để ô nhập rộng hơn và không bị cắt chữ. */}
-          <div className="grid grid-cols-[0.68fr_1fr_1.05fr_0.54fr_0.72fr_0.6fr_0.6fr_0.5fr_0.5fr_0.5fr_0.56fr_0.56fr_0.42fr_0.36fr_0.56fr_0.62fr_0.68fr] gap-x-1 gap-y-1.5">
-          <CardField label="Bộ số">
-            {/* V75: Bộ số tự tăng dần, không nhập tay. Chỉ hiển thị số đã được tạo. */}
-            <CardReadonlyValue
-              value={showSetNumber ? item.setNo : ""}
-              placeholder="Tự động"
-              title={showSetNumber
-                ? (item.setNo ? `Bộ số ${item.setNo} do hệ thống cấp tự động` : "Bộ số sẽ được tạo tự động khi lưu đơn ở trạng thái Đã xác nhận")
-                : "Bộ số chưa được tạo ở trạng thái Nháp / Chờ khách hàng xác nhận — sẽ tự cấp khi đơn chuyển sang Đã xác nhận"}
-            />
-          </CardField>
-          <CardField label="Nhóm cửa">
-            <CardSelectShell><GridGroupSelect value={selectedGroup} groups={doorGroups} placeholder="Chọn nhóm cửa" onChange={changeGroup} /></CardSelectShell>
-          </CardField>
-          <CardField label="Model">
-            <CardSelectShell>
-              <GridCatalogSelect
-                value={item.productCode}
-                currentLabel={item.productCode}
-                items={groupItems}
-                display="model"
-                placeholder={selectedGroup ? "Chọn Model" : "Chọn nhóm cửa trước"}
-                disabled={!selectedGroup}
-                onCatalogSelect={selectCatalog}
-              />
-            </CardSelectShell>
-          </CardField>
-          <CardField label="Ô thoáng"><CardSuggestionInput value={item.panelInfo} onChange={change("panelInfo")} items={optionValues.panel} /></CardField>
-          <CardField label="Hướng mở"><CardSuggestionInput value={item.openingDirection} onChange={change("openingDirection")} items={optionValues.opening} /></CardField>
-          <CardField label="Phào"><CardSuggestionInput value={item.trimDirection} onChange={change("trimDirection")} items={optionValues.trim} /></CardField>
-          <CardField label="Màu sơn"><CardSuggestionInput value={item.paintColor} onChange={change("paintColor")} items={optionValues.color} /></CardField>
-          <CardField label="Cao"><CardNumberInput value={item.heightMm} onChange={change("heightMm")} /></CardField>
-          <CardField label="Rộng"><CardNumberInput value={item.widthMm} onChange={change("widthMm")} /></CardField>
-          <CardField label="Khuôn"><CardNumberInput value={item.frameMm} onChange={change("frameMm")} /></CardField>
-
-          <CardField label="TT Cao" title="Kích thước thông thủy - Cao"><CardNumberInput value={item.clearHeightMm} onChange={change("clearHeightMm")} /></CardField>
-          <CardField label="TT Rộng" title="Kích thước thông thủy - Rộng"><CardNumberInput value={item.clearWidthMm} onChange={change("clearWidthMm")} /></CardField>
-          <CardField label="SL bộ"><CardNumberInput value={item.quantity} onChange={change("quantity")} /></CardField>
-          <CardField label="ĐVT"><CardInput value={item.unit} onChange={change("unit")} /></CardField>
-          <CardField label="KH/Lượng"><CardNumberInput value={item.pricingQuantity} onChange={change("pricingQuantity")} step="0.01" /></CardField>
-          <CardField label="Đơn giá">
-            <CardSelectShell><GridPriceInput value={item.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, item.productCode)} /></CardSelectShell>
-          </CardField>
-          <CardField label="Thành tiền">
-            <div className="flex h-8 min-w-0 items-center justify-end rounded-md border border-slate-200 bg-slate-50 px-1.5 text-[10px] font-semibold tabular-nums text-sky-900" title={`${formatMoney(lineAmount(item))}đ`}>
-              {formatMoney(lineAmount(item))}đ
+        {/* V78: theo đúng mockup — Bộ cửa chia 2 nhóm có tiêu đề, ô nhập rộng rãi. */}
+        <div className="space-y-2">
+          <div>
+            <div className="mb-1.5 flex items-center gap-2">
+              <span className="text-[9px] font-bold uppercase leading-3 tracking-[0.06em] text-slate-500">Nhận diện sản phẩm &amp; số lượng</span>
+              <span className="h-px flex-1 bg-slate-200" />
             </div>
-          </CardField>
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9">
+              <CardField label="Bộ số">
+                {/* V75: Bộ số tự tăng dần, không nhập tay. Chỉ hiển thị số đã được tạo. */}
+                <CardReadonlyValue
+                  value={showSetNumber ? item.setNo : ""}
+                  placeholder="Tự động"
+                  title={showSetNumber
+                    ? (item.setNo ? `Bộ số ${item.setNo} do hệ thống cấp tự động` : "Bộ số sẽ được tạo tự động khi lưu đơn ở trạng thái Đã xác nhận")
+                    : "Bộ số chưa được tạo ở trạng thái Nháp / Chờ khách hàng xác nhận — sẽ tự cấp khi đơn chuyển sang Đã xác nhận"}
+                />
+              </CardField>
+              <CardField label="Nhóm cửa">
+                <CardSelectShell><GridGroupSelect value={selectedGroup} groups={doorGroups} placeholder="Chọn nhóm cửa" onChange={changeGroup} /></CardSelectShell>
+              </CardField>
+              <CardField label="Model">
+                <CardSelectShell>
+                  <GridCatalogSelect
+                    value={item.productCode}
+                    currentLabel={item.productCode}
+                    items={groupItems}
+                    display="model"
+                    placeholder={selectedGroup ? "Chọn Model" : "Chọn nhóm cửa trước"}
+                    disabled={!selectedGroup}
+                    onCatalogSelect={selectCatalog}
+                  />
+                </CardSelectShell>
+              </CardField>
+              <CardField label="Ô thoáng"><CardSuggestionInput value={item.panelInfo} onChange={change("panelInfo")} items={optionValues.panel} /></CardField>
+              <CardField label="Hướng mở"><CardSuggestionInput value={item.openingDirection} onChange={change("openingDirection")} items={optionValues.opening} /></CardField>
+              <CardField label="Phào"><CardSuggestionInput value={item.trimDirection} onChange={change("trimDirection")} items={optionValues.trim} /></CardField>
+              <CardField label="Màu sơn"><CardSuggestionInput value={item.paintColor} onChange={change("paintColor")} items={optionValues.color} /></CardField>
+              <CardField label="SL bộ"><CardNumberInput value={item.quantity} onChange={change("quantity")} /></CardField>
+              <CardField label="ĐVT"><CardInput value={item.unit} onChange={change("unit")} /></CardField>
+            </div>
+          </div>
+
+          <div className="border-t border-dashed border-slate-200 pt-2">
+            <div className="mb-1.5 flex items-center gap-2">
+              <span className="text-[9px] font-bold uppercase leading-3 tracking-[0.06em] text-slate-500">Kích thước &amp; tính giá</span>
+              <span className="h-px flex-1 bg-slate-200" />
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
+              <CardField label="Cao"><CardNumberInput value={item.heightMm} onChange={change("heightMm")} /></CardField>
+              <CardField label="Rộng"><CardNumberInput value={item.widthMm} onChange={change("widthMm")} /></CardField>
+              <CardField label="Khuôn"><CardNumberInput value={item.frameMm} onChange={change("frameMm")} /></CardField>
+              <CardField label="TT Cao" title="Kích thước thông thủy - Cao"><CardNumberInput value={item.clearHeightMm} onChange={change("clearHeightMm")} /></CardField>
+              <CardField label="TT Rộng" title="Kích thước thông thủy - Rộng"><CardNumberInput value={item.clearWidthMm} onChange={change("clearWidthMm")} /></CardField>
+              <CardField label="KH/Lượng"><CardNumberInput value={item.pricingQuantity} onChange={change("pricingQuantity")} step="0.01" /></CardField>
+              <CardField label="Đơn giá">
+                <CardSelectShell><GridPriceInput value={item.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, item.productCode)} /></CardSelectShell>
+              </CardField>
+              <CardField label="Thành tiền">
+                <div className="flex h-8 min-w-0 items-center justify-end rounded-md border border-slate-200 bg-slate-50 px-1.5 text-[11px] font-semibold tabular-nums text-sky-900" title={`${formatMoney(lineAmount(item))}đ`}>
+                  {formatMoney(lineAmount(item))}đ
+                </div>
+              </CardField>
+            </div>
           </div>
         </div>
 
@@ -917,14 +929,13 @@ function DoorSection({ title, children }: { title: string; children: React.React
 function CardField({ label, title, children, className = "", emphasized = false }: { label: string; title?: string; children: React.ReactNode; className?: string; emphasized?: boolean }) {
   return (
     <label className={`flex min-w-0 flex-col ${className}`}>
-      <div className="mb-0.5 flex h-7 shrink-0 min-w-0 items-end">
-        <span
-          className={`inline-flex max-h-7 max-w-full items-center rounded border px-1 py-0.5 text-[9px] font-semibold leading-[10px] ${emphasized ? "border-cyan-200 bg-cyan-50 text-cyan-700" : "border-slate-200 bg-slate-100 text-slate-600"}`}
-          title={title ?? label}
-        >
-          <span className="whitespace-normal break-words">{label}</span>
-        </span>
-      </div>
+      {/* V78: khung nhãn trải đúng bằng bề ngang khung input bên dưới (theo mockup). */}
+      <span
+        className={`mb-1 flex h-[18px] w-full min-w-0 items-center rounded border px-1.5 text-[9px] font-semibold uppercase leading-[10px] tracking-[0.015em] ${emphasized ? "border-cyan-200 bg-cyan-50 text-cyan-700" : "border-slate-200 bg-slate-100 text-slate-600"}`}
+        title={title ?? label}
+      >
+        <span className="min-w-0 truncate">{label}</span>
+      </span>
       <div className={emphasized ? "rounded-md ring-1 ring-cyan-300" : ""}>{children}</div>
     </label>
   );
@@ -935,14 +946,14 @@ function CardSelectShell({ children }: { children: React.ReactNode }) {
 }
 
 function CardInput({ value, onChange, placeholder, listId }: { value: string; onChange: (value: string) => void; placeholder?: string; listId?: string }) {
-  return <input className="h-8 w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 text-[11px] font-medium text-sky-900 placeholder:text-slate-400 outline-none transition focus:border-cyan-400 focus:ring-1 focus:ring-cyan-100" value={value} placeholder={placeholder} list={listId} onChange={(event) => onChange(event.target.value)} />;
+  return <input className="h-8 w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 text-[11.5px] font-medium text-sky-900 placeholder:text-slate-400 outline-none transition focus:border-cyan-400 focus:ring-1 focus:ring-cyan-100" value={value} placeholder={placeholder} list={listId} onChange={(event) => onChange(event.target.value)} />;
 }
 
 /** V75: ô chỉ đọc cho Bộ số — hệ thống tự cấp, người dùng không nhập tay. */
 function CardReadonlyValue({ value, title, placeholder = "—" }: { value: string; title?: string; placeholder?: string }) {
   return (
     <div
-      className={`flex h-8 w-full min-w-0 items-center rounded-md border px-2 text-[11px] font-semibold tabular-nums ${value ? "border-sky-200 bg-sky-50 text-sky-900" : "border-dashed border-slate-300 bg-slate-100 text-slate-400"}`}
+      className={`flex h-8 w-full min-w-0 items-center rounded-md border px-2 text-[11.5px] font-semibold tabular-nums ${value ? "border-sky-200 bg-sky-50 text-sky-900" : "border-dashed border-slate-300 bg-slate-100 text-slate-400"}`}
       title={title}
     >
       <span className={`truncate ${value ? "" : "text-[10px] font-normal italic"}`}>{value || placeholder}</span>
@@ -1006,7 +1017,7 @@ function CardNumberInput({ value, onChange, step = "1", readOnly = false, autoCa
   const displayValue = autoCalculated && readOnly ? formatPricingQuantityDisplay(value, 2) : value;
   return (
     <input
-      className={`h-8 w-full min-w-0 rounded-md border px-2 text-right text-[11px] font-semibold tabular-nums text-sky-900 outline-none transition ${readOnly ? "cursor-default border-sky-200 bg-sky-50" : "border-slate-300 bg-white focus:border-cyan-400 focus:ring-1 focus:ring-cyan-100"}`}
+      className={`h-8 w-full min-w-0 rounded-md border px-2 text-right text-[11.5px] font-semibold tabular-nums text-sky-900 outline-none transition ${readOnly ? "cursor-default border-sky-200 bg-sky-50" : "border-slate-300 bg-white focus:border-cyan-400 focus:ring-1 focus:ring-cyan-100"}`}
       type={autoCalculated && readOnly ? "text" : "number"}
       step={step}
       value={displayValue}
@@ -1401,8 +1412,11 @@ function Field({ label, children, required, invalid }: { label: string; children
     : "";
   return (
     <label className={`flex min-w-0 flex-col${invalidClass} [&_.erp-input]:h-8 [&_.erp-input]:w-full [&_.erp-input]:rounded-md [&_.erp-input]:px-2 [&_.erp-input]:py-1 [&_.erp-input]:text-[12px] [&_.erp-input]:font-medium [&_.erp-input]:text-sky-900`}>
-      <span className={`mb-0.5 flex h-7 shrink-0 items-end whitespace-normal break-words text-[9px] font-semibold uppercase leading-[11px] tracking-[0.015em] xl:text-[10px] ${invalid ? "text-red-600" : "text-slate-500"}`} title={label}>
-        {label}{required ? " *" : ""}
+      <span
+        className={`mb-1 flex h-[18px] w-full min-w-0 items-center rounded border px-1.5 text-[9px] font-semibold uppercase leading-[10px] ${invalid ? "border-red-200 bg-red-50 text-red-600" : "border-slate-200 bg-slate-100 text-slate-600"}`}
+        title={label}
+      >
+        <span className="min-w-0 truncate">{label}{required ? " *" : ""}</span>
       </span>
       {children}
       {invalid ? <span className="mt-0.5 block text-[9px] font-medium text-red-600">Bắt buộc nhập</span> : null}
