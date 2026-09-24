@@ -120,7 +120,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
   const accessoryGroups = useMemo(() => catalogGroups(accessoryCatalogItems), [accessoryCatalogItems]);
 
   // Khi tạo đơn mới, các dòng mẫu có MODEL trùng Master Data sẽ tự lấy
-  // Tên sản phẩm diễn giải + MODEL + ĐVT + giá từ Danh mục hàng hóa.
+  // Tên sản phẩm diễn giải + MODEL + ĐVT + giá Đại lý từ Danh mục hàng hóa.
   // Không tự ghi đè đơn cũ ở chế độ chỉnh sửa để giữ snapshot lịch sử.
   useEffect(() => {
     if (mode !== "create" || !catalogItems.length || importedFromExcelRef.current) return;
@@ -607,7 +607,7 @@ function DoorSetCard({
           </CardField>
           <CardField label="Tên sản phẩm">
             <div
-              className="flex h-8 min-w-0 items-center rounded-md border border-slate-200 bg-slate-50 px-2 text-[11px] font-medium text-slate-700"
+              className="flex h-8 min-w-0 items-center rounded-md border border-slate-200 bg-slate-50 px-2 text-[11px] font-medium text-sky-900"
               title={item.productName || "Tự điền theo danh mục"}
             >
               <span className={`block min-w-0 truncate ${item.productName ? "" : "font-normal text-slate-400"}`}>
@@ -632,7 +632,7 @@ function DoorSetCard({
             <CardSelectShell><GridPriceInput value={item.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, item.productCode)} /></CardSelectShell>
           </CardField>
           <CardField label="Thành tiền">
-            <div className="flex h-8 min-w-0 items-center justify-end rounded-md border border-slate-200 bg-slate-50 px-1.5 text-[10px] font-semibold tabular-nums text-slate-800" title={`${formatMoney(lineAmount(item))}đ`}>
+            <div className="flex h-8 min-w-0 items-center justify-end rounded-md border border-slate-200 bg-slate-50 px-1.5 text-[10px] font-semibold tabular-nums text-sky-900" title={`${formatMoney(lineAmount(item))}đ`}>
               {formatMoney(lineAmount(item))}đ
             </div>
           </CardField>
@@ -777,7 +777,7 @@ function DetailMasterRow({
               <summary className="cursor-pointer list-none px-2.5 py-1 text-[10px] font-semibold text-cyan-700 marker:hidden">Thông số thêm <span className="inline-block transition-transform group-open:rotate-180">⌄</span></summary>
               <div className="grid gap-1.5 border-t border-slate-200 bg-white p-2.5 sm:grid-cols-2 lg:grid-cols-4">
                 <CardField label="Tên sản phẩm" className="sm:col-span-2">
-                  <div className="min-h-8 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] font-medium text-slate-700">
+                  <div className="min-h-8 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] font-medium text-sky-900">
                     {row.productName || <span className="font-normal text-slate-400">Tự điền theo danh mục</span>}
                   </div>
                 </CardField>
@@ -823,13 +823,15 @@ function DoorSection({ title, children }: { title: string; children: React.React
 
 function CardField({ label, children, className = "", emphasized = false }: { label: string; children: React.ReactNode; className?: string; emphasized?: boolean }) {
   return (
-    <label className={`block min-w-0 ${className}`}>
-      <span
-        className={`mb-0.5 inline-flex min-h-6 max-w-full items-end rounded border px-1.5 py-0.5 text-[9px] font-semibold leading-[11px] ${emphasized ? "border-cyan-200 bg-cyan-50 text-cyan-700" : "border-slate-200 bg-slate-100 text-slate-600"}`}
-        title={label}
-      >
-        <span className="whitespace-normal break-words">{label}</span>
-      </span>
+    <label className={`flex min-w-0 flex-col ${className}`}>
+      <div className="mb-0.5 flex h-7 shrink-0 min-w-0 items-end">
+        <span
+          className={`inline-flex max-h-7 max-w-full items-center rounded border px-1.5 py-0.5 text-[9px] font-semibold leading-[10px] ${emphasized ? "border-cyan-200 bg-cyan-50 text-cyan-700" : "border-slate-200 bg-slate-100 text-slate-600"}`}
+          title={label}
+        >
+          <span className="whitespace-normal break-words">{label}</span>
+        </span>
+      </div>
       <div className={emphasized ? "rounded-md ring-1 ring-cyan-300" : ""}>{children}</div>
     </label>
   );
@@ -840,11 +842,11 @@ function CardSelectShell({ children }: { children: React.ReactNode }) {
 }
 
 function CardInput({ value, onChange, placeholder, listId }: { value: string; onChange: (value: string) => void; placeholder?: string; listId?: string }) {
-  return <input className="h-8 w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 text-[11px] font-medium text-slate-900 outline-none transition focus:border-cyan-400 focus:ring-1 focus:ring-cyan-100" value={value} placeholder={placeholder} list={listId} onChange={(event) => onChange(event.target.value)} />;
+  return <input className="h-8 w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 text-[11px] font-medium text-sky-900 placeholder:text-slate-400 outline-none transition focus:border-cyan-400 focus:ring-1 focus:ring-cyan-100" value={value} placeholder={placeholder} list={listId} onChange={(event) => onChange(event.target.value)} />;
 }
 
 function CardNumberInput({ value, onChange, step = "1" }: { value: string; onChange: (value: string) => void; step?: string }) {
-  return <input className="h-8 w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 text-right text-[11px] font-semibold tabular-nums text-slate-900 outline-none transition focus:border-cyan-400 focus:ring-1 focus:ring-cyan-100" type="number" step={step} value={value} onChange={(event) => onChange(event.target.value)} />;
+  return <input className="h-8 w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 text-right text-[11px] font-semibold tabular-nums text-sky-900 outline-none transition focus:border-cyan-400 focus:ring-1 focus:ring-cyan-100" type="number" step={step} value={value} onChange={(event) => onChange(event.target.value)} />;
 }
 
 function detailOrientation(row: OrderLineForm): "vertical" | "horizontal" | "free" {
@@ -1073,8 +1075,8 @@ function Field({ label, children, required, invalid }: { label: string; children
     ? " [&_input]:border-red-500 [&_select]:border-red-500 [&_textarea]:border-red-500 [&_input]:ring-1 [&_select]:ring-1 [&_textarea]:ring-1 [&_input]:ring-red-200 [&_select]:ring-red-200 [&_textarea]:ring-red-200"
     : "";
   return (
-    <label className={`flex min-w-0 flex-col${invalidClass} [&_.erp-input]:h-8 [&_.erp-input]:w-full [&_.erp-input]:rounded-md [&_.erp-input]:px-2 [&_.erp-input]:py-1 [&_.erp-input]:text-[12px]`}>
-      <span className={`mb-0.5 flex min-h-7 items-end whitespace-normal break-words text-[9px] font-semibold uppercase leading-[11px] tracking-[0.015em] xl:text-[10px] ${invalid ? "text-red-600" : "text-slate-500"}`} title={label}>
+    <label className={`flex min-w-0 flex-col${invalidClass} [&_.erp-input]:h-8 [&_.erp-input]:w-full [&_.erp-input]:rounded-md [&_.erp-input]:px-2 [&_.erp-input]:py-1 [&_.erp-input]:text-[12px] [&_.erp-input]:font-medium [&_.erp-input]:text-sky-900`}>
+      <span className={`mb-0.5 flex h-7 shrink-0 items-end whitespace-normal break-words text-[9px] font-semibold uppercase leading-[11px] tracking-[0.015em] xl:text-[10px] ${invalid ? "text-red-600" : "text-slate-500"}`} title={label}>
         {label}{required ? " *" : ""}
       </span>
       {children}
@@ -1099,7 +1101,7 @@ function Button({ children, onClick, variant = "primary" }: { children: React.Re
 function Th({ children, rowSpan, colSpan, center = false }: { children: React.ReactNode; w: string; rowSpan?: number; colSpan?: number; center?: boolean }) { return <th rowSpan={rowSpan} colSpan={colSpan} className={`break-words border border-slate-300 px-2 py-2 align-middle font-semibold ${center ? "text-center" : "text-left"}`}>{children}</th>; }
 function Cell({ children }: { children: React.ReactNode }) { return <td className="min-w-0 border border-slate-200 p-0 align-middle">{children}</td>; }
 function CellStatic({ children }: { children?: React.ReactNode }) { return <td className="min-w-0 break-words border border-slate-200 px-2 py-2.5 align-middle text-[13px] text-slate-700">{children}</td>; }
-function GridInput({ value, onChange, listId }: { value: string; onChange: (value: string) => void; listId?: string }) { return <input className="h-9 w-full min-w-0 border-0 bg-transparent px-2.5 text-[12px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" list={listId} value={value} onChange={(e) => onChange(e.target.value)} />; }
+function GridInput({ value, onChange, listId }: { value: string; onChange: (value: string) => void; listId?: string }) { return <input className="h-9 w-full min-w-0 border-0 bg-transparent px-2.5 text-[12px] font-medium text-sky-900 outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" list={listId} value={value} onChange={(e) => onChange(e.target.value)} />; }
 
 function GridReadOnly({ value, placeholder }: { value: string; placeholder?: string }) {
   return <div className="min-h-9 w-full bg-slate-50 px-2.5 py-2 text-[12px] text-slate-700">{value || <span className="text-slate-400">{placeholder ?? "—"}</span>}</div>;
@@ -1107,7 +1109,7 @@ function GridReadOnly({ value, placeholder }: { value: string; placeholder?: str
 
 function GridGroupSelect({ value, groups, placeholder, onChange }: { value: string; groups: string[]; placeholder: string; onChange: (value: string) => void }) {
   return (
-    <select className="h-8 w-full min-w-0 border-0 bg-transparent px-2 text-[11px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" value={value} onChange={(e) => onChange(e.target.value)}>
+    <select className="h-8 w-full min-w-0 border-0 bg-transparent px-2 text-[11px] font-medium text-sky-900 outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">{placeholder}</option>
       {groups.map((group) => <option key={group} value={group}>{group}</option>)}
     </select>
@@ -1118,7 +1120,7 @@ function GridCatalogSelect({ value, currentLabel, items, display, placeholder, d
   const hasCurrent = items.some((item) => sameText(item.code, value));
   return (
     <select
-      className="h-8 w-full min-w-0 border-0 bg-transparent px-2 text-[11px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300 disabled:bg-slate-100 disabled:text-slate-400"
+      className="h-8 w-full min-w-0 border-0 bg-transparent px-2 text-[11px] font-medium text-sky-900 outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300 disabled:bg-slate-100 disabled:text-slate-400"
       value={value}
       disabled={disabled}
       onChange={(e) => {
@@ -1249,8 +1251,8 @@ function catalogGroupFromText(groups: string[], value: string) {
 }
 
 function catalogDefaultPrice(item: CatalogItem, fallback: string) {
+  // Đơn hàng chỉ dùng giá Đại lý từ Master Data. Không fallback sang giá Bán lẻ.
   if (item.dealerPrice !== null && item.dealerPrice !== undefined && String(item.dealerPrice).trim() !== "") return String(item.dealerPrice);
-  if (item.retailPrice !== null && item.retailPrice !== undefined && String(item.retailPrice).trim() !== "") return String(item.retailPrice);
   return fallback;
 }
 
@@ -1271,7 +1273,6 @@ function catalogOptionLabel(item: CatalogItem) {
   parts.push(`MODEL ${item.code}`);
   if (item.unit) parts.push(`ĐVT ${item.unit}`);
   if (item.dealerPrice !== null && item.dealerPrice !== undefined) parts.push(`ĐL ${formatCatalogPrice(item.dealerPrice)}`);
-  if (item.retailPrice !== null && item.retailPrice !== undefined) parts.push(`BL ${formatCatalogPrice(item.retailPrice)}`);
   return parts.join(" · ");
 }
 
@@ -1289,26 +1290,13 @@ function GridCatalogInput({ value, onChange, listId, mode, catalogItems, onCatal
     });
     if (matches.length === 1) onCatalogSelect(matches[0]);
   }
-  return <input className="h-8 w-full min-w-0 border-0 bg-transparent px-2 text-[11px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" list={listId} value={value} onChange={(e) => { onChange(e.target.value); resolve(e.target.value); }} onBlur={(e) => resolve(e.target.value)} />;
+  return <input className="h-8 w-full min-w-0 border-0 bg-transparent px-2 text-[11px] font-medium text-sky-900 outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" list={listId} value={value} onChange={(e) => { onChange(e.target.value); resolve(e.target.value); }} onBlur={(e) => resolve(e.target.value)} />;
 }
-function GridNumber({ value, onChange, step = "1" }: { value: string; onChange: (value: string) => void; step?: string }) { return <input className="h-8 w-full min-w-0 border-0 bg-transparent px-2 text-right text-[11px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" type="number" step={step} value={value} onChange={(e) => onChange(e.target.value)} />; }
-function GridPriceInput({ value, onChange, catalog }: { value: string; onChange: (value: string) => void; catalog?: CatalogItem }) {
-  const dealer = catalog?.dealerPrice;
-  const retail = catalog?.retailPrice;
-  const hasDealer = dealer !== null && dealer !== undefined && String(dealer).trim() !== "";
-  const hasRetail = retail !== null && retail !== undefined && String(retail).trim() !== "";
-  return (
-    <div className="w-full min-w-0">
-      <input className="h-8 w-full min-w-0 border-0 bg-transparent px-2 text-right text-[11px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" type="number" step="1" value={value} onChange={(e) => onChange(e.target.value)} />
-      {hasDealer || hasRetail ? (
-        <div className="flex flex-wrap gap-0.5 border-t border-slate-100 px-0.5 py-0.5">
-          {hasDealer ? <button className="rounded bg-cyan-50 px-1 py-0.5 text-[9px] font-semibold text-cyan-800 hover:bg-cyan-100" type="button" title={`Giá đại lý: ${formatCatalogPrice(dealer as string | number)} đ`} onClick={() => onChange(String(dealer))}>Đại lý</button> : null}
-          {hasRetail ? <button className="rounded bg-amber-50 px-1 py-0.5 text-[9px] font-semibold text-amber-800 hover:bg-amber-100" type="button" title={`Giá bán lẻ: ${formatCatalogPrice(retail as string | number)} đ`} onClick={() => onChange(String(retail))}>Bán lẻ</button> : null}
-        </div>
-      ) : null}
-    </div>
-  );
+function GridNumber({ value, onChange, step = "1" }: { value: string; onChange: (value: string) => void; step?: string }) { return <input className="h-8 w-full min-w-0 border-0 bg-transparent px-2 text-right text-[11px] font-semibold tabular-nums text-sky-900 outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" type="number" step={step} value={value} onChange={(e) => onChange(e.target.value)} />; }
+function GridPriceInput({ value, onChange }: { value: string; onChange: (value: string) => void; catalog?: CatalogItem }) {
+  return <input className="h-8 w-full min-w-0 border-0 bg-transparent px-2 text-right text-[11px] font-semibold tabular-nums text-sky-900 outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" type="number" step="1" value={value} onChange={(e) => onChange(e.target.value)} />;
 }
+
 function ImageCell({ path, onUpload }: { path: string; onUpload: (file: File) => Promise<void> }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
