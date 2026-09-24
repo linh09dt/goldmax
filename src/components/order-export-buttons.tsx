@@ -13,7 +13,7 @@ type Props = {
 
 type ExportType = "excel" | "pdf" | "excelV2" | "pdfV2" | null;
 
-// V41.26: tạm ẩn các nút export cũ. Giữ nguyên code/route để có thể bật lại khi cần.
+// V41.31: vẫn ẩn Excel/PDF cũ; hiện lại Excel V2 với nhãn người dùng "Xuất Excel".
 const SHOW_LEGACY_EXPORT_BUTTONS = false;
 
 export function OrderExportButtons({
@@ -136,7 +136,7 @@ export function OrderExportButtons({
 
   const actionLabel = exportType === "excel" ? "Xuất Excel"
     : exportType === "pdf" ? "Xuất PDF"
-      : exportType === "excelV2" ? "Xuất Excel V2"
+      : exportType === "excelV2" ? "Xuất Excel"
         : "Xuất PDF";
 
   return (
@@ -145,9 +145,9 @@ export function OrderExportButtons({
         <>
           <button type="button" className={excelClass} onClick={() => openDialog("excel")}>{excelLabel}</button>
           <button type="button" className={pdfClass} onClick={() => openDialog("pdf")}>{pdfLabel}</button>
-          <button type="button" className={excelV2Class} onClick={() => openDialog("excelV2")}>Xuất Excel V2</button>
         </>
       ) : null}
+      <button type="button" className={excelV2Class} onClick={() => openDialog("excelV2")}>Xuất Excel</button>
       <button type="button" className={pdfV2Class} onClick={() => openDialog("pdfV2")}>Xuất PDF</button>
 
       {exportType ? (

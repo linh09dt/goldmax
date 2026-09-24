@@ -35,7 +35,8 @@ export default function GuidePage() {
             ["Xuất Excel danh sách", "Xuất danh sách đơn theo bộ lọc hiện tại, gồm toàn bộ hàng hóa theo từng đơn."],
             ["Sửa", "Mở đơn để chỉnh sửa thông tin và hàng hóa."],
             ["Xóa đơn", "Xóa đơn hàng sau khi xác nhận."],
-            ["Xuất PDF", "Xuất PDF V2 của đơn hàng. Các nút Excel/PDF cũ và Excel V2 hiện đang tạm ẩn."],
+            ["Xuất Excel", "Xuất Excel V2 của đơn hàng. Nút được hiển thị với tên Xuất Excel; các nút Excel/PDF cũ vẫn tạm ẩn."],
+            ["Xuất PDF", "Xuất PDF V2 của đơn hàng. Các nút PDF cũ vẫn tạm ẩn."],
             ["Số đơn hàng", "Bấm vào số đơn để xem chi tiết đơn hàng."],
           ]} />
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
