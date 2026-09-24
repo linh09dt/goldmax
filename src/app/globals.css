@@ -290,3 +290,19 @@ textarea {
   .order-print-notes { min-height: 64px; padding: 4px 46px 5px; font-size: 8.8px; }
   .order-print-notes .note-indent { margin-left: 38px; }
 }
+
+/* Compact order entry UI: scoped to OrderForm only so other ERP screens stay unchanged. */
+.order-entry-compact .erp-input {
+  min-height: 2rem;
+  border-radius: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+.order-entry-compact .erp-button,
+.order-entry-compact .erp-button-secondary {
+  border-radius: 0.375rem;
+  padding: 0.375rem 0.625rem;
+  font-size: 0.6875rem;
+  line-height: 1rem;
+}

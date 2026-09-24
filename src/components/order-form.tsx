@@ -338,11 +338,11 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="order-entry-compact space-y-3 text-[12px]" style={{ fontFamily: '"Segoe UI", Tahoma, Arial, sans-serif' }}>
       <section className="erp-card">
-        <div className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-2 p-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="font-bold text-slate-900">Nhập dữ liệu từ mẫu Excel đơn hàng</h2>
+            <h2 className="text-[13px] font-semibold text-slate-900">Nhập dữ liệu từ mẫu Excel đơn hàng</h2>
           </div>
           <label className="erp-button-secondary inline-flex cursor-pointer items-center justify-center whitespace-nowrap">
             {excelImportBusy ? "Đang đọc Excel..." : "Nhập Excel mẫu đơn"}
@@ -357,17 +357,16 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
           </label>
         </div>
         {excelImportMessage ? (
-          <div className={`border-t px-5 py-3 text-sm ${excelImportMessage.type === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800"}`}>{excelImportMessage.text}</div>
+          <div className={`border-t px-3 py-2 text-[11px] ${excelImportMessage.type === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800"}`}>{excelImportMessage.text}</div>
         ) : null}
       </section>
 
       <section id="order-information" className="erp-card scroll-mt-4 overflow-hidden">
-        <div className="p-3 md:p-4">
-          <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-            <div className="flex min-h-[57px] items-center rounded-lg border border-slate-200 bg-slate-50 px-4 shadow-sm">
-              <h2 className="text-[15px] font-bold tracking-[-0.01em] text-slate-900">Thông tin đơn hàng</h2>
-            </div>
-
+        <div className="border-b border-slate-200 bg-slate-50 px-3 py-1.5">
+          <h2 className="text-[12px] font-semibold tracking-normal text-slate-900">Thông tin đơn hàng</h2>
+        </div>
+        <div className="erp-scrollbar overflow-x-auto p-2.5">
+          <div className="grid min-w-[1900px] grid-cols-[160px_120px_130px_150px_150px_180px_135px_135px_140px_120px_220px_100px_100px] gap-1.5">
             <Field label="Mã đơn hàng" required invalid={invalidOrderInfoFields.has("orderCode")}><TextInput value={form.orderCode} onChange={(v) => setField("orderCode", v)} /></Field>
             <Field label="Trạng thái" required invalid={invalidOrderInfoFields.has("status")}>
               <select className="erp-input" value={form.status} onChange={(e) => setField("status", e.target.value)}>
@@ -375,34 +374,30 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
               </select>
             </Field>
             <Field label="Ngày cập nhật" required invalid={invalidOrderInfoFields.has("excelUpdateDate")}><DateInput value={form.excelUpdateDate} onChange={(v) => setField("excelUpdateDate", v)} /></Field>
-            <div className="hidden lg:block" aria-hidden="true" />
-
             <Field label="NVKD phụ trách" required invalid={invalidOrderInfoFields.has("salesEmployeeCode")}><TextInput value={form.salesEmployeeCode} onChange={(v) => setField("salesEmployeeCode", v)} /></Field>
             <Field label="Mã Đại Lý" required invalid={invalidOrderInfoFields.has("customerCode")}><DealerCodeSelect value={form.customerCode} options={optionValues.dealer} onChange={(v) => setField("customerCode", v)} /></Field>
             <Field label="Tên khách hàng" required invalid={invalidOrderInfoFields.has("customerName")}><TextInput value={form.customerName} onChange={(v) => setField("customerName", v)} /></Field>
             <Field label="Ngày đặt hàng" required invalid={invalidOrderInfoFields.has("orderDate")}><DateInput value={form.orderDate} onChange={(v) => setField("orderDate", v)} /></Field>
             <Field label="Ngày cần giao hàng" required invalid={invalidOrderInfoFields.has("requiredDeliveryDate")}><DateInput value={form.requiredDeliveryDate} onChange={(v) => setField("requiredDeliveryDate", v)} /></Field>
-
             <Field label="Người nhận" required invalid={invalidOrderInfoFields.has("receiverName")}><TextInput value={form.receiverName} onChange={(v) => setField("receiverName", v)} /></Field>
             <Field label="Số điện thoại" required invalid={invalidOrderInfoFields.has("receiverPhone")}><TextInput value={form.receiverPhone} onChange={(v) => setField("receiverPhone", v)} /></Field>
             <Field label="Địa chỉ nhận hàng" required invalid={invalidOrderInfoFields.has("receiverAddress")}><TextInput value={form.receiverAddress} onChange={(v) => setField("receiverAddress", v)} /></Field>
             <Field label="Vùng miền" required invalid={invalidOrderInfoFields.has("region")}><TextInput value={form.region} onChange={(v) => setField("region", v)} /></Field>
             <Field label="Số Km giao hàng" required invalid={invalidOrderInfoFields.has("deliveryKm")}><NumberInput value={form.deliveryKm} onChange={(v) => setField("deliveryKm", v)} /></Field>
-
           </div>
         </div>
       </section>
 
       <section className="erp-card overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-slate-200 bg-white p-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-2 border-b border-slate-200 bg-white px-3 py-2 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-[17px] font-bold text-slate-900">Chi tiết đơn hàng theo từng bộ cửa</h2>
-            <p className="mt-0.5 text-[12px] text-slate-500">Master-detail: xem nhanh toàn bộ, chỉ mở một dòng phụ kiện để chỉnh sửa.</p>
+            <h2 className="text-[14px] font-semibold text-slate-900">Chi tiết đơn hàng theo từng bộ cửa</h2>
+            <p className="mt-0.5 text-[10px] text-slate-500">Master-detail: xem nhanh toàn bộ, chỉ mở một dòng phụ kiện để chỉnh sửa.</p>
           </div>
           <Button onClick={addItem}>+ Thêm bộ cửa</Button>
         </div>
 
-        <div className="space-y-5 bg-slate-50 p-3 md:p-4">
+        <div className="space-y-3 bg-slate-50 p-2.5">
           {form.items.map((item, itemIndex) => (
             <DoorSetCard
               key={item.clientId}
@@ -428,7 +423,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+      <section className="grid gap-3 xl:grid-cols-[1.2fr_0.8fr]">
         <div className="erp-card">
           <SectionTitle title="Câu hỏi thêm / Xác nhận" />
           <div className="divide-y divide-slate-200">
@@ -477,11 +472,11 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
       <MasterDatalist id="paint-color-options" items={optionValues.color} />
       <MasterDatalist id="panel-options" items={optionValues.panel} />
 
-      <section className="sticky bottom-3 z-20 flex flex-col gap-3 rounded-xl border border-slate-300 bg-white/95 p-4 shadow-xl backdrop-blur md:flex-row md:items-center md:justify-between">
-        <div className="text-sm">
+      <section className="sticky bottom-2 z-20 flex flex-col gap-2 rounded-lg border border-slate-300 bg-white/95 px-3 py-2 shadow-lg backdrop-blur md:flex-row md:items-center md:justify-between">
+        <div className="text-[11px]">
           {message ? <span className={message.type === "ok" ? "text-emerald-700" : "text-red-700"}>{message.text}</span> : null}
         </div>
-        <button className="rounded-lg bg-cyan-600 px-5 py-2.5 font-semibold text-white hover:bg-cyan-500 disabled:opacity-50" type="button" disabled={busy} onClick={() => void save()}>
+        <button className="rounded-md bg-cyan-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-cyan-500 disabled:opacity-50" type="button" disabled={busy} onClick={() => void save()}>
           {busy ? "Đang lưu..." : mode === "create" ? "Lưu đơn hàng" : "Lưu thay đổi"}
         </button>
       </section>
@@ -579,25 +574,26 @@ function DoorSetCard({
   }
 
   return (
-    <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <header className="flex flex-col gap-2 bg-slate-900 px-4 py-3 text-white lg:flex-row lg:items-center lg:justify-between">
+    <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <header className="flex flex-col gap-1.5 bg-slate-900 px-3 py-2 text-white lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
-          <h3 className="text-[17px] font-extrabold tracking-[-0.01em]">Bộ cửa #{itemIndex + 1}{item.setNo ? ` · Bộ số ${item.setNo}` : ""}</h3>
-          <p className="mt-0.5 truncate text-[12px] font-medium text-slate-300">
+          <h3 className="text-[14px] font-semibold tracking-normal">Bộ cửa #{itemIndex + 1}{item.setNo ? ` · Bộ số ${item.setNo}` : ""}</h3>
+          <p className="mt-0.5 truncate text-[10px] font-normal text-slate-300">
             {item.productName || selectedGroup || "Chưa chọn sản phẩm"}{item.model || item.productCode ? ` · ${item.model || item.productCode}` : ""}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-          <div className="mr-1 text-[21px] font-extrabold tabular-nums text-white">{formatMoney(itemTotal)}đ</div>
-          <button className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-[12px] font-semibold hover:bg-slate-700" type="button" onClick={() => onDuplicate(itemIndex)}>Nhân bản bộ</button>
-          <button className="rounded-lg border border-red-500/70 bg-red-900/60 px-3 py-1.5 text-[12px] font-semibold text-red-50 hover:bg-red-800" type="button" onClick={() => onRemoveItem(itemIndex)}>Xóa</button>
+        <div className="flex flex-wrap items-center gap-1.5 lg:justify-end">
+          <div className="mr-1 text-[17px] font-semibold tabular-nums text-white">{formatMoney(itemTotal)}đ</div>
+          <button className="rounded-md border border-slate-600 bg-slate-800 px-2.5 py-1 text-[11px] font-medium hover:bg-slate-700" type="button" onClick={() => onDuplicate(itemIndex)}>Nhân bản bộ</button>
+          <button className="rounded-md border border-red-500/70 bg-red-900/60 px-2.5 py-1 text-[11px] font-medium text-red-50 hover:bg-red-800" type="button" onClick={() => onRemoveItem(itemIndex)}>Xóa</button>
         </div>
       </header>
 
-      <div className="p-3 md:p-4">
-        {/* V41.42: 22 trường Bộ cửa = 11 cột × 2 dòng, đúng thứ tự trái → phải. */}
-        <div className="grid grid-cols-2 gap-x-2 gap-y-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-11">
-          {/* Dòng 1: 1 → 11 */}
+      <div className="p-2.5">
+        {/* Compact UI: 22 trường Bộ cửa hiển thị trên một dòng ngang; cuộn ngang khi màn hình không đủ rộng. */}
+        <div className="erp-scrollbar overflow-x-auto pb-1">
+          <div className="grid min-w-[2260px] grid-cols-[repeat(22,minmax(92px,1fr))] gap-1.5">
+          {/* 1 → 11 */}
           <CardField label="Bộ số">
             <CardInput value={item.setNo} onChange={change("setNo")} placeholder="VD: 12097" />
           </CardField>
@@ -619,7 +615,7 @@ function DoorSetCard({
           </CardField>
           <CardField label="Tên sản phẩm">
             <div
-              className="flex h-9 min-w-0 items-center rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-[12px] font-medium text-slate-700"
+              className="flex h-8 min-w-0 items-center rounded-md border border-slate-200 bg-slate-50 px-2 text-[11px] font-medium text-slate-700"
               title={item.productName || "Tự điền theo danh mục"}
             >
               <span className={`block min-w-0 truncate ${item.productName ? "" : "font-normal text-slate-400"}`}>
@@ -635,7 +631,7 @@ function DoorSetCard({
           <CardField label="Rộng"><CardNumberInput value={item.widthMm} onChange={change("widthMm")} /></CardField>
           <CardField label="Khuôn"><CardNumberInput value={item.frameMm} onChange={change("frameMm")} /></CardField>
 
-          {/* Dòng 2: 12 → 22 */}
+          {/* 12 → 22 */}
           <CardField label="KT thông thủy - Cao"><CardNumberInput value={item.clearHeightMm} onChange={change("clearHeightMm")} /></CardField>
           <CardField label="KT thông thủy - Rộng"><CardNumberInput value={item.clearWidthMm} onChange={change("clearWidthMm")} /></CardField>
           <CardField label="SL bộ"><CardNumberInput value={item.quantity} onChange={change("quantity")} /></CardField>
@@ -649,30 +645,31 @@ function DoorSetCard({
           <CardField label="Thanh phào / bộ"><CardNumberInput value={item.trimBarsPerSet} onChange={change("trimBarsPerSet")} /></CardField>
           <CardField label="Nan ô thoáng"><CardNumberInput value={item.windowBars} onChange={change("windowBars")} /></CardField>
           <CardField label="Cánh / bộ"><CardNumberInput value={item.leavesPerSet} onChange={change("leavesPerSet")} /></CardField>
+          </div>
         </div>
 
-        {/* Ghi chú + ảnh tách riêng, không làm vỡ lưới 11 × 2. */}
-        <div className="mt-3 grid grid-cols-1 gap-2 border-t border-slate-200 pt-3 lg:grid-cols-[minmax(0,1fr)_260px]">
+        {/* Ghi chú + ảnh tách riêng để hàng 22 trường chính luôn giữ một dòng. */}
+        <div className="mt-2 grid grid-cols-1 gap-1.5 border-t border-slate-200 pt-2 lg:grid-cols-[minmax(0,1fr)_190px]">
           <CardField label="Ghi chú">
             <CardInput value={item.note} onChange={change("note")} placeholder="Nhập ghi chú kỹ thuật" />
           </CardField>
           <CardField label="Hình ảnh SP">
-            <div className="rounded-lg border border-slate-200 bg-white">
+            <div className="rounded-md border border-slate-200 bg-white">
               <ImageCell path={item.imagePath} onUpload={(file) => onUpload(file, itemIndex)} />
             </div>
           </CardField>
         </div>
       </div>
 
-      <section className="border-t border-slate-200 bg-slate-50/60 p-3 md:p-4">
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <h4 className="text-[15px] font-extrabold tracking-[-0.01em] text-slate-900">PHỤ KIỆN / CHI TIẾT CỦA BỘ CỬA ({item.details.length})</h4>
-          <button className="rounded-lg bg-cyan-600 px-3.5 py-2 text-[12px] font-bold text-white shadow-sm hover:bg-cyan-500" type="button" onClick={() => onAddDetail(itemIndex)}>+ Thêm phụ kiện</button>
+      <section className="border-t border-slate-200 bg-slate-50/60 p-2.5">
+        <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1.5">
+          <h4 className="text-[13px] font-semibold tracking-normal text-slate-900">PHỤ KIỆN / CHI TIẾT CỦA BỘ CỬA ({item.details.length})</h4>
+          <button className="rounded-md bg-cyan-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-cyan-500" type="button" onClick={() => onAddDetail(itemIndex)}>+ Thêm phụ kiện</button>
         </div>
 
         {item.details.length ? (
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-            <div className="hidden grid-cols-[2.4fr_1.35fr_0.45fr_0.55fr_0.75fr_0.85fr_1fr] gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-600 lg:grid">
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+            <div className="hidden grid-cols-[2.4fr_1.35fr_0.45fr_0.55fr_0.75fr_0.85fr_1fr] gap-1.5 border-b border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[10px] font-semibold text-slate-600 lg:grid">
               <div>Chi tiết / Model</div>
               <div>KT dùng tính</div>
               <div className="text-center">SL</div>
@@ -703,7 +700,7 @@ function DoorSetCard({
             </div>
           </div>
         ) : (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-5 text-center text-[12px] text-slate-500">Chưa có phụ kiện / chi tiết. Bấm “+ Thêm phụ kiện” để thêm dòng.</div>
+          <div className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-3 text-center text-[11px] text-slate-500">Chưa có phụ kiện / chi tiết. Bấm “+ Thêm phụ kiện” để thêm dòng.</div>
         )}
       </section>
     </article>
@@ -777,25 +774,26 @@ function DetailMasterRow({
   return (
     <div className={isOpen ? "bg-cyan-50/30" : "bg-white"}>
       <button
-        className={`grid w-full grid-cols-1 gap-1 px-3 py-2.5 text-left transition hover:bg-slate-50 lg:grid-cols-[2.4fr_1.35fr_0.45fr_0.55fr_0.75fr_0.85fr_1fr] lg:items-center lg:gap-2 ${isOpen ? "bg-cyan-50/60 ring-1 ring-inset ring-cyan-300" : ""}`}
+        className={`grid w-full grid-cols-1 gap-1 px-2.5 py-2 text-left transition hover:bg-slate-50 lg:grid-cols-[2.4fr_1.35fr_0.45fr_0.55fr_0.75fr_0.85fr_1fr] lg:items-center lg:gap-1.5 ${isOpen ? "bg-cyan-50/60 ring-1 ring-inset ring-cyan-300" : ""}`}
         type="button"
         onClick={onToggle}
       >
-        <div className="min-w-0 text-[13px] font-bold text-slate-900">
+        <div className="min-w-0 text-[12px] font-semibold text-slate-900">
           <span className="mr-2 inline-block w-3 text-slate-500">{isOpen ? "▾" : "▸"}</span>
           <span className="align-middle">{title}{code ? ` · ${code}` : ""}</span>
         </div>
-        <div className="text-[12px] font-medium text-slate-600"><span className="lg:hidden">KT: </span>{summaryDimensions}</div>
-        <div className="text-[12px] font-medium text-slate-700 lg:text-center"><span className="lg:hidden">SL: </span>{row.quantity || "—"}</div>
-        <div className="text-[12px] font-medium text-slate-700 lg:text-center"><span className="lg:hidden">ĐVT: </span>{row.unit || "—"}</div>
-        <div className="text-[12px] font-semibold tabular-nums text-slate-700 lg:text-right"><span className="lg:hidden">KH/Lượng: </span>{row.pricingQuantity || "—"}</div>
+        <div className="text-[11px] font-medium text-slate-600"><span className="lg:hidden">KT: </span>{summaryDimensions}</div>
+        <div className="text-[11px] font-medium text-slate-700 lg:text-center"><span className="lg:hidden">SL: </span>{row.quantity || "—"}</div>
+        <div className="text-[11px] font-medium text-slate-700 lg:text-center"><span className="lg:hidden">ĐVT: </span>{row.unit || "—"}</div>
+        <div className="text-[11px] font-semibold tabular-nums text-slate-700 lg:text-right"><span className="lg:hidden">KH/Lượng: </span>{row.pricingQuantity || "—"}</div>
         <div className="lg:text-right">{pricingStatus.priceNode}</div>
         <div className="lg:text-right">{pricingStatus.amountNode}</div>
       </button>
 
       {isOpen ? (
-        <div className="border-t border-cyan-200 bg-white px-3 py-3">
-          <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-[1.25fr_1.25fr_0.7fr_0.7fr_0.7fr_0.72fr_0.82fr_0.9fr_1.65fr]">
+        <div className="border-t border-cyan-200 bg-white px-2.5 py-2">
+          <div className="erp-scrollbar overflow-x-auto pb-1">
+            <div className="grid min-w-[1120px] grid-cols-[1.25fr_1.25fr_0.7fr_0.7fr_0.7fr_0.72fr_0.82fr_0.9fr_1.65fr] gap-1.5">
             <CardField label="Nhóm hàng">
               <CardSelectShell><GridGroupSelect value={selectedGroup} groups={accessoryGroups} placeholder="Chọn nhóm hàng" onChange={changeGroup} /></CardSelectShell>
             </CardField>
@@ -819,14 +817,15 @@ function DetailMasterRow({
             <CardField label="KH/Lượng"><CardNumberInput value={row.pricingQuantity} onChange={change("pricingQuantity")} step="0.0001" /></CardField>
             <CardField label="Đơn giá"><CardSelectShell><GridPriceInput value={row.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, row.productCode)} /></CardSelectShell></CardField>
             <CardField label="Ghi chú"><CardInput value={row.note} onChange={change("note")} placeholder="Nhập ghi chú..." /></CardField>
+            </div>
           </div>
 
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-            <details className="group min-w-0 flex-1 rounded-lg border border-dashed border-slate-200 bg-slate-50/70">
-              <summary className="cursor-pointer list-none px-3 py-1.5 text-[11px] font-semibold text-cyan-700 marker:hidden">Thông số thêm <span className="inline-block transition-transform group-open:rotate-180">⌄</span></summary>
-              <div className="grid gap-2 border-t border-slate-200 bg-white p-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1.5">
+            <details className="group min-w-0 flex-1 rounded-md border border-dashed border-slate-200 bg-slate-50/70">
+              <summary className="cursor-pointer list-none px-2.5 py-1 text-[10px] font-semibold text-cyan-700 marker:hidden">Thông số thêm <span className="inline-block transition-transform group-open:rotate-180">⌄</span></summary>
+              <div className="grid gap-1.5 border-t border-slate-200 bg-white p-2.5 sm:grid-cols-2 lg:grid-cols-4">
                 <CardField label="Tên sản phẩm" className="sm:col-span-2">
-                  <div className="min-h-9 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-[12px] font-medium text-slate-700">
+                  <div className="min-h-8 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] font-medium text-slate-700">
                     {row.productName || <span className="font-normal text-slate-400">Tự điền theo danh mục</span>}
                   </div>
                 </CardField>
@@ -844,11 +843,11 @@ function DetailMasterRow({
                 <CardField label="Số nan ô thoáng"><CardNumberInput value={row.windowBars} onChange={change("windowBars")} /></CardField>
                 <CardField label="Số cánh / bộ"><CardNumberInput value={row.leavesPerSet} onChange={change("leavesPerSet")} /></CardField>
                 <CardField label="Hình ảnh SP" className="sm:col-span-2 lg:col-span-4">
-                  <div className="rounded-lg border border-slate-200 bg-white"><ImageCell path={row.imagePath} onUpload={(file) => onUpload(file, itemIndex, detailIndex)} /></div>
+                  <div className="rounded-md border border-slate-200 bg-white"><ImageCell path={row.imagePath} onUpload={(file) => onUpload(file, itemIndex, detailIndex)} /></div>
                 </CardField>
               </div>
             </details>
-            <button className="rounded-md px-2 py-1.5 text-[11px] font-semibold text-red-600 hover:bg-red-50" type="button" onClick={() => onRemove(detailIndex)}>Xóa</button>
+            <button className="rounded-md px-2 py-1 text-[10px] font-semibold text-red-600 hover:bg-red-50" type="button" onClick={() => onRemove(detailIndex)}>Xóa</button>
           </div>
         </div>
       ) : null}
@@ -914,26 +913,26 @@ function CardField({ label, children, className = "", emphasized = false }: { la
   return (
     <label className={`block min-w-0 ${className}`}>
       <span
-        className={`mb-1 inline-flex max-w-full items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold leading-4 ${emphasized ? "border-cyan-200 bg-cyan-50 text-cyan-700" : "border-slate-200 bg-slate-100 text-slate-600"}`}
+        className={`mb-0.5 inline-flex max-w-full items-center rounded border px-1.5 py-0 text-[9px] font-semibold leading-4 ${emphasized ? "border-cyan-200 bg-cyan-50 text-cyan-700" : "border-slate-200 bg-slate-100 text-slate-600"}`}
         title={label}
       >
         <span className="truncate">{label}</span>
       </span>
-      <div className={emphasized ? "rounded-lg ring-1 ring-cyan-300" : ""}>{children}</div>
+      <div className={emphasized ? "rounded-md ring-1 ring-cyan-300" : ""}>{children}</div>
     </label>
   );
 }
 
 function CardSelectShell({ children }: { children: React.ReactNode }) {
-  return <div className="min-h-9 overflow-hidden rounded-lg border border-slate-300 bg-white focus-within:border-cyan-400 focus-within:ring-2 focus-within:ring-cyan-100">{children}</div>;
+  return <div className="min-h-8 overflow-hidden rounded-md border border-slate-300 bg-white focus-within:border-cyan-400 focus-within:ring-1 focus-within:ring-cyan-100">{children}</div>;
 }
 
 function CardInput({ value, onChange, placeholder, listId }: { value: string; onChange: (value: string) => void; placeholder?: string; listId?: string }) {
-  return <input className="h-9 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2.5 text-[12px] font-medium text-slate-900 outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100" value={value} placeholder={placeholder} list={listId} onChange={(event) => onChange(event.target.value)} />;
+  return <input className="h-8 w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 text-[11px] font-medium text-slate-900 outline-none transition focus:border-cyan-400 focus:ring-1 focus:ring-cyan-100" value={value} placeholder={placeholder} list={listId} onChange={(event) => onChange(event.target.value)} />;
 }
 
 function CardNumberInput({ value, onChange, step = "1" }: { value: string; onChange: (value: string) => void; step?: string }) {
-  return <input className="h-9 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2.5 text-right text-[12px] font-semibold tabular-nums text-slate-900 outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100" type="number" step={step} value={value} onChange={(event) => onChange(event.target.value)} />;
+  return <input className="h-8 w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 text-right text-[11px] font-semibold tabular-nums text-slate-900 outline-none transition focus:border-cyan-400 focus:ring-1 focus:ring-cyan-100" type="number" step={step} value={value} onChange={(event) => onChange(event.target.value)} />;
 }
 
 function detailOrientation(row: OrderLineForm): "vertical" | "horizontal" | "free" {
@@ -1156,18 +1155,18 @@ function numericOrNull(value: string) { if (!String(value || "").trim()) return 
 function percent(value: string) { return Math.min(100, Math.max(0, numeric(value))); }
 function formatMoney(value: number) { return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(value); }
 
-function SectionTitle({ title }: { title: string }) { return <div className="border-b border-slate-200 bg-slate-50 px-4 py-2"><h2 className="text-[12px] font-bold leading-5 text-slate-900">{title}</h2></div>; }
+function SectionTitle({ title }: { title: string }) { return <div className="border-b border-slate-200 bg-slate-50 px-3 py-1.5"><h2 className="text-[11px] font-semibold leading-4 text-slate-900">{title}</h2></div>; }
 function Field({ label, children, required, invalid }: { label: string; children: React.ReactNode; required?: boolean; invalid?: boolean }) {
   const invalidClass = invalid
     ? " [&_input]:border-red-500 [&_select]:border-red-500 [&_textarea]:border-red-500 [&_input]:ring-1 [&_select]:ring-1 [&_textarea]:ring-1 [&_input]:ring-red-200 [&_select]:ring-red-200 [&_textarea]:ring-red-200"
     : "";
   return (
-    <label className={`flex min-w-0 flex-col${invalidClass} [&_.erp-input]:h-9 [&_.erp-input]:w-full [&_.erp-input]:rounded-md [&_.erp-input]:px-2.5 [&_.erp-input]:py-1.5 [&_.erp-input]:text-[13px]`}>
-      <span className={`mb-1 block min-h-4 truncate text-[10px] font-semibold uppercase leading-4 tracking-[0.035em] xl:text-[11px] ${invalid ? "text-red-600" : "text-slate-500"}`} title={label}>
+    <label className={`flex min-w-0 flex-col${invalidClass} [&_.erp-input]:h-8 [&_.erp-input]:w-full [&_.erp-input]:rounded-md [&_.erp-input]:px-2 [&_.erp-input]:py-1 [&_.erp-input]:text-[12px]`}>
+      <span className={`mb-0.5 block min-h-3.5 truncate text-[9px] font-semibold uppercase leading-3.5 tracking-[0.025em] xl:text-[10px] ${invalid ? "text-red-600" : "text-slate-500"}`} title={label}>
         {label}{required ? " *" : ""}
       </span>
       {children}
-      {invalid ? <span className="mt-1 block text-[10px] font-medium text-red-600">Bắt buộc nhập</span> : null}
+      {invalid ? <span className="mt-0.5 block text-[9px] font-medium text-red-600">Bắt buộc nhập</span> : null}
     </label>
   );
 }
@@ -1196,7 +1195,7 @@ function GridReadOnly({ value, placeholder }: { value: string; placeholder?: str
 
 function GridGroupSelect({ value, groups, placeholder, onChange }: { value: string; groups: string[]; placeholder: string; onChange: (value: string) => void }) {
   return (
-    <select className="h-9 w-full min-w-0 border-0 bg-transparent px-2.5 text-[12px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" value={value} onChange={(e) => onChange(e.target.value)}>
+    <select className="h-8 w-full min-w-0 border-0 bg-transparent px-2 text-[11px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">{placeholder}</option>
       {groups.map((group) => <option key={group} value={group}>{group}</option>)}
     </select>
@@ -1207,7 +1206,7 @@ function GridCatalogSelect({ value, currentLabel, items, display, placeholder, d
   const hasCurrent = items.some((item) => sameText(item.code, value));
   return (
     <select
-      className="h-9 w-full min-w-0 border-0 bg-transparent px-2.5 text-[12px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300 disabled:bg-slate-100 disabled:text-slate-400"
+      className="h-8 w-full min-w-0 border-0 bg-transparent px-2 text-[11px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300 disabled:bg-slate-100 disabled:text-slate-400"
       value={value}
       disabled={disabled}
       onChange={(e) => {
@@ -1378,9 +1377,9 @@ function GridCatalogInput({ value, onChange, listId, mode, catalogItems, onCatal
     });
     if (matches.length === 1) onCatalogSelect(matches[0]);
   }
-  return <input className="h-9 w-full min-w-0 border-0 bg-transparent px-2.5 text-[12px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" list={listId} value={value} onChange={(e) => { onChange(e.target.value); resolve(e.target.value); }} onBlur={(e) => resolve(e.target.value)} />;
+  return <input className="h-8 w-full min-w-0 border-0 bg-transparent px-2 text-[11px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" list={listId} value={value} onChange={(e) => { onChange(e.target.value); resolve(e.target.value); }} onBlur={(e) => resolve(e.target.value)} />;
 }
-function GridNumber({ value, onChange, step = "1" }: { value: string; onChange: (value: string) => void; step?: string }) { return <input className="h-9 w-full min-w-0 border-0 bg-transparent px-2.5 text-right text-[12px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" type="number" step={step} value={value} onChange={(e) => onChange(e.target.value)} />; }
+function GridNumber({ value, onChange, step = "1" }: { value: string; onChange: (value: string) => void; step?: string }) { return <input className="h-8 w-full min-w-0 border-0 bg-transparent px-2 text-right text-[11px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" type="number" step={step} value={value} onChange={(e) => onChange(e.target.value)} />; }
 function GridPriceInput({ value, onChange, catalog }: { value: string; onChange: (value: string) => void; catalog?: CatalogItem }) {
   const dealer = catalog?.dealerPrice;
   const retail = catalog?.retailPrice;
@@ -1388,11 +1387,11 @@ function GridPriceInput({ value, onChange, catalog }: { value: string; onChange:
   const hasRetail = retail !== null && retail !== undefined && String(retail).trim() !== "";
   return (
     <div className="w-full min-w-0">
-      <input className="h-9 w-full min-w-0 border-0 bg-transparent px-2.5 text-right text-[12px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" type="number" step="1" value={value} onChange={(e) => onChange(e.target.value)} />
+      <input className="h-8 w-full min-w-0 border-0 bg-transparent px-2 text-right text-[11px] outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" type="number" step="1" value={value} onChange={(e) => onChange(e.target.value)} />
       {hasDealer || hasRetail ? (
         <div className="flex flex-wrap gap-0.5 border-t border-slate-100 px-0.5 py-0.5">
-          {hasDealer ? <button className="rounded bg-cyan-50 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-800 hover:bg-cyan-100" type="button" title={`Giá đại lý: ${formatCatalogPrice(dealer as string | number)} đ`} onClick={() => onChange(String(dealer))}>Đại lý</button> : null}
-          {hasRetail ? <button className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 hover:bg-amber-100" type="button" title={`Giá bán lẻ: ${formatCatalogPrice(retail as string | number)} đ`} onClick={() => onChange(String(retail))}>Bán lẻ</button> : null}
+          {hasDealer ? <button className="rounded bg-cyan-50 px-1 py-0.5 text-[9px] font-semibold text-cyan-800 hover:bg-cyan-100" type="button" title={`Giá đại lý: ${formatCatalogPrice(dealer as string | number)} đ`} onClick={() => onChange(String(dealer))}>Đại lý</button> : null}
+          {hasRetail ? <button className="rounded bg-amber-50 px-1 py-0.5 text-[9px] font-semibold text-amber-800 hover:bg-amber-100" type="button" title={`Giá bán lẻ: ${formatCatalogPrice(retail as string | number)} đ`} onClick={() => onChange(String(retail))}>Bán lẻ</button> : null}
         </div>
       ) : null}
     </div>
@@ -1426,7 +1425,7 @@ function ImageCell({ path, onUpload }: { path: string; onUpload: (file: File) =>
 
   return (
     <div
-      className="flex min-h-[82px] cursor-default flex-col items-center justify-center gap-1.5 rounded-md px-1 py-2 text-center text-[11px] leading-tight outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-400"
+      className="flex min-h-[58px] cursor-default flex-col items-center justify-center gap-1 rounded-md px-1 py-1.5 text-center text-[10px] leading-tight outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-400"
       tabIndex={0}
       title="Bấm vào ô rồi nhấn Ctrl+V để dán ảnh"
       aria-label="Hình ảnh sản phẩm. Bấm vào ô rồi nhấn Ctrl+V để dán ảnh, hoặc chọn Tải ảnh."
