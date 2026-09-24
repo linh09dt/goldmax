@@ -168,18 +168,15 @@ function normalizeRequiredOrderInfo(input: UnknownRecord) {
     ["receiverName", "Người nhận"],
     ["receiverPhone", "Số điện thoại"],
     ["region", "Vùng miền"],
-    ["formCode", "Mã biểu mẫu"],
     ["receiverAddress", "Địa chỉ nhận hàng"],
   ] as const;
   const dateFields = [
     ["orderDate", "Ngày đặt hàng"],
     ["requiredDeliveryDate", "Ngày cần giao hàng"],
     ["excelUpdateDate", "Ngày cập nhật"],
-    ["formEffectiveDate", "Ngày hiệu lực"],
   ] as const;
   const numberFields = [
     ["deliveryKm", "Số Km giao hàng"],
-    ["groupNo", "Nhóm"],
   ] as const;
 
   const missing = [
@@ -194,9 +191,9 @@ function normalizeRequiredOrderInfo(input: UnknownRecord) {
   const orderDate = requiredDate(input.orderDate, "Ngày đặt hàng");
   const requiredDeliveryDate = requiredDate(input.requiredDeliveryDate, "Ngày cần giao hàng");
   const excelUpdateDate = requiredDate(input.excelUpdateDate, "Ngày cập nhật");
-  const formEffectiveDate = requiredDate(input.formEffectiveDate, "Ngày hiệu lực");
+  const formEffectiveDate = parseDate(input.formEffectiveDate);
   const deliveryKm = requiredNonNegativeNumber(input.deliveryKm, "Số Km giao hàng");
-  const groupNo = requiredInteger(input.groupNo, "Nhóm");
+  const groupNo = integerOrNull(input.groupNo);
 
   return {
     customerCode: requiredText(input.customerCode, "Mã Đại Lý"),
@@ -212,7 +209,7 @@ function normalizeRequiredOrderInfo(input: UnknownRecord) {
     deliveryKm,
     region: requiredText(input.region, "Vùng miền"),
     groupNo,
-    formCode: requiredText(input.formCode, "Mã biểu mẫu"),
+    formCode: optionalText(input.formCode),
     formEffectiveDate,
     receiverAddress: requiredText(input.receiverAddress, "Địa chỉ nhận hàng"),
   };

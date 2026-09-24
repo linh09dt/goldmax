@@ -54,9 +54,6 @@ const REQUIRED_ORDER_INFO_FIELDS = [
   { key: "receiverPhone", label: "Số điện thoại" },
   { key: "deliveryKm", label: "Số Km giao hàng" },
   { key: "region", label: "Vùng miền" },
-  { key: "groupNo", label: "Nhóm" },
-  { key: "formCode", label: "Mã biểu mẫu" },
-  { key: "formEffectiveDate", label: "Ngày hiệu lực" },
   { key: "receiverAddress", label: "Địa chỉ nhận hàng" },
 ] as const satisfies ReadonlyArray<{ key: keyof OrderFormData; label: string }>;
 
@@ -392,9 +389,6 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
             <Field label="Vùng miền" required invalid={invalidOrderInfoFields.has("region")}><TextInput value={form.region} onChange={(v) => setField("region", v)} /></Field>
             <Field label="Số Km giao hàng" required invalid={invalidOrderInfoFields.has("deliveryKm")}><NumberInput value={form.deliveryKm} onChange={(v) => setField("deliveryKm", v)} /></Field>
 
-            <Field label="Nhóm" required invalid={invalidOrderInfoFields.has("groupNo")}><NumberInput value={form.groupNo} onChange={(v) => setField("groupNo", v)} /></Field>
-            <Field label="Mã biểu mẫu" required invalid={invalidOrderInfoFields.has("formCode")}><TextInput value={form.formCode} onChange={(v) => setField("formCode", v)} /></Field>
-            <Field label="Ngày hiệu lực" required invalid={invalidOrderInfoFields.has("formEffectiveDate")}><DateInput value={form.formEffectiveDate} onChange={(v) => setField("formEffectiveDate", v)} /></Field>
           </div>
         </div>
       </section>
