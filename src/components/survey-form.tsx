@@ -4,10 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SURVEY_ITEMS, SURVEY_SECTIONS, SURVEY_TOTAL } from "@/lib/survey-questions";
 
 /**
- * V126 — Phiếu khảo sát nhà máy (bộ câu hỏi V125) điền ngay trên app.
- * - Trả lời được lưu vào DB (bảng survey_answers), tự động lưu sau khi ngừng gõ.
- * - Xuất Excel hoặc file .md để gửi Zentor đọc và lên phương án.
- * - Xuống tới từng tổ/công đoạn; mỗi câu có mức P1 (bắt buộc) / P2.
+ * V127 — Phiếu khảo sát nhà máy (bộ câu hỏi V125) điền ngay trên app.
+ * Bố cục: LIỆT KÊ TẤT CẢ câu hỏi, mỗi câu 1 dòng — câu hỏi bên trái, ô trả lời bên phải.
+ * - Tự động lưu vào DB (bảng survey_answers) sau khi ngừng gõ.
+ * - Xuất Excel / .md để gửi đi; mỗi câu có mức P1 (bắt buộc) / P2.
  */
 
 type SavedAnswer = {
@@ -34,7 +34,6 @@ export function SurveyForm() {
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["id"]>("all");
-  const [sectionId, setSectionId] = useState<string>(SURVEY_SECTIONS[0]?.id ?? "A");
   const [search, setSearch] = useState("");
   const dirty = useRef<Set<string>>(new Set());
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -95,8 +94,7 @@ export function SurveyForm() {
       });
       const data = (await res.json()) as { ok?: boolean; saved?: number; error?: string };
       if (!res.ok || !data.ok) throw new Error(data.error ?? "Lỗi lưu");
-      const now = new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
-      setSavedAt(now);
+      setSavedAt(new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }));
       setAnswers((prev) => {
         const next = { ...prev };
         for (const code of codes) {
@@ -170,11 +168,22 @@ export function SurveyForm() {
   }, [valueOf]);
 
   const keyword = search.trim().toLowerCase();
-  const sections = SURVEY_SECTIONS.filter((s) => s.id === sectionId);
+  const visible = useCallback(
+    (code: string, level: string | undefined, text: string) => {
+      const v = valueOf(code);
+      const done = Boolean(v.answer || v.choice);
+      if (filter === "p1" && level !== "P1") return false;
+      if (filter === "todo" && done) return false;
+      if (keyword && !`${code} ${text}`.toLowerCase().includes(keyword)) return false;
+      return true;
+    },
+    [filter, keyword, valueOf],
+  );
 
   return (
-    <div className="space-y-4">
-      <div className="erp-card space-y-4">
+    <div className="space-y-3">
+      {/* ===== Thanh trên: người trả lời + tiến độ + xuất file ===== */}
+      <div className="erp-card space-y-3">
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[220px] flex-1">
             <div className="erp-field-label">Người trả lời (tên + tổ)</div>
@@ -189,6 +198,11 @@ export function SurveyForm() {
             />
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {respondent.trim() ? null : (
+              <span className="rounded-md bg-amber-50 px-2 py-1 text-[11.5px] font-medium text-amber-700 ring-1 ring-amber-200">
+                Chưa ghi tên người trả lời — ghi vào để biết ai điền câu nào
+              </span>
+            )}
             <a className="erp-button" href="/api/survey/export?format=xlsx">
               Xuất Excel
             </a>
@@ -236,9 +250,6 @@ export function SurveyForm() {
           </div>
         </div>
 
-        {error ? <div className="erp-hint text-red-600">{error}</div> : null}
-        {loading ? <div className="erp-hint">Đang tải câu trả lời…</div> : null}
-
         <div className="flex flex-wrap items-center gap-2">
           {FILTERS.map((item) => (
             <button
@@ -256,93 +267,114 @@ export function SurveyForm() {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
+          {error ? <span className="erp-hint text-red-600">{error}</span> : null}
+          {loading ? <span className="erp-hint">Đang tải…</span> : null}
         </div>
 
         <div className="flex flex-wrap gap-1.5">
           {SURVEY_SECTIONS.map((section) => {
             const total = section.groups.reduce((sum, g) => sum + g.items.length, 0);
             const done = section.groups.reduce(
-              (sum, g) => sum + g.items.filter((i) => {
-                const v = valueOf(i.code);
-                return Boolean(v.answer || v.choice);
-              }).length,
+              (sum, g) =>
+                sum +
+                g.items.filter((i) => {
+                  const v = valueOf(i.code);
+                  return Boolean(v.answer || v.choice);
+                }).length,
               0,
             );
-            const active = sectionId === section.id;
             return (
-              <button
+              <a
                 key={section.id}
-                type="button"
-                onClick={() => setSectionId(section.id)}
-                className={`rounded-full border px-3 py-1 text-[12px] font-medium transition ${
-                  active
-                    ? "border-cyan-500 bg-cyan-50 text-cyan-800"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-cyan-300"
-                }`}
-                title={section.team}
+                href={`#sec-${section.id}`}
+                title={`${section.title} — ${section.team}`}
+                className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[12px] font-medium text-slate-600 hover:border-cyan-400 hover:text-cyan-700"
               >
                 {section.id} · {done}/{total}
-              </button>
+              </a>
             );
           })}
         </div>
       </div>
 
-      {sections.map((section) => (
-        <div key={section.id} className="erp-card space-y-3">
-          <div>
-            <div className="erp-section-title">
-              PHẦN {section.id}. {section.title}
+      {/* ===== Toàn bộ câu hỏi: mỗi câu 1 dòng, câu hỏi trái — trả lời phải ===== */}
+      {SURVEY_SECTIONS.map((section) => {
+        const rows = section.groups.flatMap((group) =>
+          group.items.map((item) => ({ item, group: group.title })),
+        );
+        const shown = rows.filter(({ item }) => visible(item.code, item.level, item.text));
+        if (shown.length === 0) return null;
+        return (
+          <div key={section.id} id={`sec-${section.id}`} className="erp-card">
+            <div className="mb-2 flex flex-wrap items-baseline gap-2 border-b border-slate-200 pb-2">
+              <span className="erp-section-title">
+                PHẦN {section.id}. {section.title}
+              </span>
+              <span className="erp-hint">Người trả lời: {section.team}</span>
             </div>
-            <div className="erp-hint">Người trả lời: {section.team}</div>
-          </div>
 
-          {section.groups.map((group) => {
-            const items = group.items.filter((item) => {
-              if (filter === "p1" && item.level !== "P1") return false;
-              if (filter === "todo") {
+            <div className="divide-y divide-slate-100">
+              {shown.map(({ item, group }) => {
                 const v = valueOf(item.code);
-                if (v.answer || v.choice) return false;
-              }
-              if (keyword && !`${item.code} ${item.text}`.toLowerCase().includes(keyword)) return false;
-              return true;
-            });
-            if (items.length === 0) return null;
-            return (
-              <div key={`${section.id}-${group.title}`} className="space-y-2">
-                {section.groups.length > 1 ? (
-                  <div className="erp-subsection-title">{group.title}</div>
-                ) : null}
-                {items.map((item) => {
-                  const v = valueOf(item.code);
-                  return (
-                    <div
-                      key={item.code}
-                      className="rounded-lg border border-slate-200 bg-white px-3 py-2.5"
-                    >
-                      <div className="flex flex-wrap items-baseline gap-2">
-                        <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px] font-bold text-white">
-                          {item.code}
-                        </span>
-                        {item.level ? (
-                          <span
-                            className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
-                              item.level === "P1"
-                                ? "bg-red-100 text-red-700"
-                                : "bg-slate-100 text-slate-600"
-                            }`}
-                          >
-                            {item.level}
-                          </span>
-                        ) : null}
-                        <span className="text-[13px] font-semibold text-slate-800">{item.text}</span>
-                      </div>
-                      {item.why ? <div className="erp-hint mt-1">{item.why}</div> : null}
+                const saved = answers[item.code];
+                const done = Boolean(v.answer || v.choice);
+                const tooltip = [
+                  item.why ? `Vì sao hỏi: ${item.why}` : "",
+                  saved?.updatedBy ? `Đã trả lời: ${saved.updatedBy}` : "",
+                  saved?.updatedAt ? `Lúc ${new Date(saved.updatedAt).toLocaleString("vi-VN")}` : "",
+                ]
+                  .filter(Boolean)
+                  .join(" · ");
 
+                return (
+                  <div
+                    key={item.code}
+                    className="flex flex-wrap items-start gap-x-3 gap-y-1 py-1.5 hover:bg-slate-50/70"
+                  >
+                    {/* cột trái: mã + mức + câu hỏi (1 dòng) */}
+                    <div className="flex min-w-0 flex-1 items-baseline gap-2">
+                      <span className="shrink-0 rounded bg-slate-800 px-1.5 py-0.5 text-[10.5px] font-bold text-white">
+                        {item.code}
+                      </span>
+                      <span
+                        className={`shrink-0 rounded px-1.5 py-0.5 text-[9.5px] font-bold ${
+                          item.level === "P1"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {item.level ?? "—"}
+                      </span>
+                      <span
+                        className="truncate text-[12.5px] text-slate-800"
+                        title={`${item.text}${tooltip ? `\n(${tooltip})` : ""}`}
+                      >
+                        {item.text}
+                      </span>
+                      {section.groups.length > 1 ? (
+                        <span className="hidden shrink-0 text-[10.5px] text-slate-400 xl:inline">
+                          {group.replace(/^[A-Z]\.\d+\.\s*/, "")}
+                        </span>
+                      ) : null}
+                      {done ? (
+                        <span
+                          className="shrink-0 text-[10px] font-bold text-emerald-600"
+                          title={tooltip}
+                        >
+                          ✓
+                        </span>
+                      ) : null}
+                    </div>
+
+                    {/* cột phải: ô trả lời */}
+                    <div className="w-full shrink-0 sm:w-[380px]">
                       {item.kind === "choice" ? (
-                        <div className="mt-2 flex flex-wrap items-center gap-3">
+                        <div className="flex items-center gap-2">
                           {(item.options ?? []).map((option) => (
-                            <label key={option} className="flex items-center gap-1.5 text-[13px]">
+                            <label
+                              key={option}
+                              className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[12px] text-slate-700"
+                            >
                               <input
                                 type="radio"
                                 name={item.code}
@@ -354,50 +386,30 @@ export function SurveyForm() {
                           ))}
                           {item.note ? (
                             <input
-                              className="erp-input max-w-[320px]"
-                              placeholder="Ghi chú thêm (nếu có)"
+                              className="erp-input h-7 min-w-0 flex-1 text-[12px]"
+                              placeholder="Ghi chú"
                               value={v.answer}
                               onChange={(event) => queue(item.code, { answer: event.target.value })}
                             />
                           ) : null}
                         </div>
                       ) : (
-                        <textarea
-                          className="erp-input mt-2 min-h-[62px] w-full"
+                        <input
+                          className="erp-input h-7 w-full text-[12.5px]"
                           placeholder={item.hint ?? "Trả lời…"}
                           value={v.answer}
+                          title={item.hint ?? ""}
                           onChange={(event) => queue(item.code, { answer: event.target.value })}
                         />
                       )}
-
-                      {answers[item.code]?.updatedBy || answers[item.code]?.updatedAt ? (
-                        <div className="mt-1 text-[11px] text-slate-400">
-                          {answers[item.code]?.updatedBy ? `Đã trả lời: ${answers[item.code].updatedBy}` : "Đã lưu"}
-                          {answers[item.code]?.updatedAt
-                            ? ` · ${new Date(answers[item.code].updatedAt).toLocaleString("vi-VN")}`
-                            : ""}
-                        </div>
-                      ) : null}
                     </div>
-                  );
-                })}
-              </div>
-            );
-          })}
-
-          {section.groups.every((group) =>
-            group.items.every((item) => {
-              if (filter === "p1" && item.level !== "P1") return true;
-              const v = valueOf(item.code);
-              if (filter === "todo" && (v.answer || v.choice)) return true;
-              if (keyword && !`${item.code} ${item.text}`.toLowerCase().includes(keyword)) return true;
-              return false;
-            }),
-          ) ? (
-            <div className="erp-hint">Không có câu nào khớp bộ lọc hiện tại.</div>
-          ) : null}
-        </div>
-      ))}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
 
       <div className="erp-card">
         <div className="erp-hint">
