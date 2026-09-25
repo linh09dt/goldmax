@@ -213,7 +213,9 @@ textarea.erp-cell-input {
 }
 .order-print-brand img {
   display: block;
-  width: 105px;
+  /* V87: logo GOLDMAX mới có thêm dòng tagline và tỉ lệ ~2,7:1 — nới bề rộng để chữ
+     trong logo còn đọc được, chiều cao tự suy theo tỉ lệ ảnh (không kéo giãn). */
+  width: 130px;
   height: auto;
   object-fit: contain;
 }
@@ -349,7 +351,7 @@ textarea.erp-cell-input {
     padding: 2px 5px 5px;
   }
   .order-print-brand { padding-top: 2px; }
-  .order-print-brand img { width: 74px; }
+  .order-print-brand img { width: 95px; }
   .order-print-title h1 { font-size: 14px; }
   .order-print-title h2 { margin-top: 5px; font-size: 13px; }
   .order-print-badge { padding: 3px 7px; font-size: 10px; }

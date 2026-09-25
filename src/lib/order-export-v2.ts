@@ -3,6 +3,7 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 import { resolveOrderItemDetails } from "@/lib/order-detail";
 import { buildOutputGroups, calculateOutputTotals, cleanText, outputLineAmount, toNumber } from "@/lib/order-output";
+import { logoBox } from "@/lib/png-size";
 
 const NAVY = "FF1E3A8A";
 const AMBER = "FFD97706";
@@ -19,6 +20,9 @@ const BORDER_SOFT = { style: "thin" as const, color: { argb: "FFEDEEF1" } };
 const ALL_BORDERS_SOFT = { top: BORDER_SOFT, left: BORDER_SOFT, bottom: BORDER_SOFT, right: BORDER_SOFT };
 const NOTE_RED = "FFDC2626";
 const BASE_FONT = { name: "Arial", size: 11, color: { argb: TEXT } };
+// V87: bề rộng logo trong khối banner (vùng merge A1:C6). Chiều cao suy ra từ tỉ lệ thật
+// của file PNG nên logo GOLDMAX mới không bị kéo giãn dọc.
+const LOGO_WIDTH_PX = 170;
 
 // V53/V54: hộp ghi chú nhỏ in ở góc dưới bên trái (khung + nền nhạt nhạt, chữ nhỏ màu xám, không làm nổi bật).
 const FOOTNOTE_FILL = "FFF8FAFC";
@@ -188,7 +192,11 @@ async function writeTopBanner(ws: Worksheet, workbook: ExcelJS.Workbook, order: 
   try {
     await access(logoPath);
     const imageId = workbook.addImage({ filename: logoPath, extension: "png" });
-    ws.addImage(imageId, { tl: { col: 0.12, row: 0.55 }, ext: { width: 136, height: 52 }, editAs: "oneCell" });
+    ws.addImage(imageId, {
+      tl: { col: 0.12, row: 0.55 },
+      ext: await logoBox(logoPath, LOGO_WIDTH_PX),
+      editAs: "oneCell",
+    });
   } catch {
     // Không chặn xuất nếu thiếu logo.
   }

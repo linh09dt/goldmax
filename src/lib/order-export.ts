@@ -3,6 +3,7 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 import { resolveOrderItemDetails } from "@/lib/order-detail";
 import { buildOutputGroups, calculateOutputTotals, cleanText, outputLineAmount, toNumber } from "@/lib/order-output";
+import { logoBox } from "@/lib/png-size";
 
 const BORDER = { style: "thin" as const, color: { argb: "FF000000" } };
 const ALL_BORDERS = { top: BORDER, left: BORDER, bottom: BORDER, right: BORDER };
@@ -16,6 +17,9 @@ const BADGE_FILL = { type: "pattern" as const, pattern: "solid" as const, fgColo
 const BODY_FONT = { name: "Times New Roman", size: 12, color: { argb: "FF000000" } };
 const CENTER = { horizontal: "center" as const, vertical: "middle" as const, wrapText: true };
 const LEFT = { horizontal: "left" as const, vertical: "middle" as const, wrapText: true };
+// V87: bề rộng logo trong khối header (ô A1:B2). Chiều cao suy ra từ tỉ lệ thật của file PNG
+// để logo mới không bị kéo giãn.
+const LOGO_WIDTH_PX = 92;
 
 export type ExportableOrder = {
   id: number;
@@ -111,7 +115,10 @@ async function writeHeader(ws: Worksheet, workbook: ExcelJS.Workbook, order: Exp
   try {
     await access(logoPath);
     const imageId = workbook.addImage({ filename: logoPath, extension: "png" });
-    ws.addImage(imageId, { tl: { col: 0.35, row: 0.25 }, ext: { width: 92, height: 40 } });
+    ws.addImage(imageId, {
+      tl: { col: 0.35, row: 0.25 },
+      ext: await logoBox(logoPath, LOGO_WIDTH_PX),
+    });
   } catch {
     ws.mergeCells("A1:B2");
     ws.getCell("A1").value = "GOLDMAX";
