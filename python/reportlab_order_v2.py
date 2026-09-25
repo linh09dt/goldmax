@@ -895,16 +895,23 @@ def _order_table_body(
     detail_row_numbers: list[int] = []
     note_rows: list[tuple[int, bool, bool]] = []
     group_ranges: list[tuple[int, int]] = []
+    item_ranges: list[tuple[int, int]] = []   # V109: dải dòng hàng hóa của bộ (để SPAN cột ẢNH SP)
 
     for group in groups:
         group_start = len(body_rows)
         pending_notes: list[tuple[str, bool]] = []
+        # V109: 1 ô ẢNH SP cho cả bộ cửa — ảnh in ở dòng đầu của bộ rồi SPAN xuống hết
+        # các dòng hàng của bộ (dòng sau để trống, không in ảnh riêng).
+        group_image_url = clean(group.get("imagePath")) or next(
+            (clean(entry["row"].get("imagePath")) for entry in group["rows"] if clean(entry["row"].get("imagePath"))),
+            "",
+        )
         for entry in group["rows"]:
             row = entry["row"]
             main = bool(entry["main"])
             first = bool(entry["first"])
             name = clean(row.get("productName"))
-            image_url = clean(row.get("imagePath")) or (clean(group.get("imagePath")) if main else "")
+            image_url = group_image_url if first else ""
             row_values: list[Any] = [
                 para(group.get("lineNo") if first else "", "center"),
                 para(group.get("setNo") if first else "", "center"),
@@ -944,9 +951,12 @@ def _order_table_body(
                 [_item_note_flowable(note_text, note_main, group_set_no)] + [""] * (len(header_top) - 1)
             )
             note_rows.append((len(body_rows) - 1, note_main, group_has_detail))
+        item_end = len(body_rows) - len(pending_notes) - 1  # hết dòng hàng hóa (chưa tính hàng ghi chú)
         group_end = len(body_rows) - 1
         if group_end >= group_start:
             group_ranges.append((group_start, group_end))
+        if item_end >= group_start:
+            item_ranges.append((group_start, item_end))
 
     if not body_rows:
         body_rows.append([para("Không có dòng hàng hóa có KH/Lượng để xuất.", "body")] + [""] * (len(header_top) - 1))
@@ -956,6 +966,7 @@ def _order_table_body(
         "detail": detail_row_numbers,
         "notes": note_rows,
         "groups": group_ranges,
+        "items": item_ranges,
     }
     return header_top, header_rows, body_rows, meta
 
@@ -989,6 +1000,8 @@ def _order_table(
     detail_rows = [local[i] for i in meta["detail"] if i in local]
     note_row_list = [(local[i], is_main, soft) for i, is_main, soft in meta["notes"] if i in local]
     group_ranges = [(local[a], local[b]) for a, b in meta["groups"] if a in local and b in local]
+    # V109: SPAN ô ẢNH SP (cột cuối) cho cả bộ cửa khi bộ có nhiều hơn 1 dòng hàng.
+    image_ranges = [(local[a], local[b]) for a, b in meta.get("items", []) if a in local and b in local]
 
     # LongTable tối ưu cho bảng dài. splitInRow cho phép một dòng rất cao
     # (ví dụ ghi chú kỹ thuật dài) được tách an toàn khi vượt chiều cao trang.
@@ -1010,6 +1023,8 @@ def _order_table(
         ("INNERGRID", (0, 0), (-1, -1), 0.45, BORDER),
         ("VALIGN", (0, 0), (-1, 1), "MIDDLE"),
         ("VALIGN", (0, 2), (-1, -1), "TOP"),
+        # V109: ô ẢNH SP được gộp theo bộ cửa — canh giữa ảnh theo chiều dọc của ô merge.
+        ("VALIGN", (18, 2), (18, -1), "MIDDLE"),
         ("LEFTPADDING", (0, 0), (-1, -1), 2.0),
         ("RIGHTPADDING", (0, 0), (-1, -1), 2.0),
         ("TOPPADDING", (0, 0), (-1, 1), 3.2),
@@ -1039,6 +1054,10 @@ def _order_table(
     for row_no, _main, soft in note_row_list:
         if soft:
             _soften_row_lines(commands, row_no, cols, spanned=True)
+    # V109: gộp ô ảnh theo bộ cửa.
+    for start, end in image_ranges:
+        if end > start:
+            commands.append(("SPAN", (cols - 1, start), (cols - 1, end)))
     # V68: vạch cuối mỗi bộ cửa luôn là vạch thường để ranh giới giữa các bộ rõ ràng.
     for _start, end in group_ranges:
         commands.append(("LINEBELOW", (0, end), (-1, end), 0.45, BORDER))

@@ -794,10 +794,14 @@ function DoorSetCard({
           <CardField label="Ghi chú">
             <CardInput value={item.note} onChange={change("note")} placeholder="Nhập ghi chú kỹ thuật" />
           </CardField>
-          <CardField label="Hình ảnh SP">
+          {/* V109: 1 ô ảnh cho CẢ BỘ CỬA (dòng cửa + mọi dòng phụ kiện) — giống các bảng xem/xuất file.
+              Dòng phụ kiện không có ô ảnh riêng; khi bộ cửa chưa có ảnh, hệ thống lấy ảnh phụ kiện
+              đầu tiên (nếu có) để hiển thị ở bảng chi tiết và bản in. */}
+          <CardField label="Hình ảnh SP (cả bộ cửa)">
             <div className="rounded-md border border-slate-200 bg-white">
               <ImageCell path={item.imagePath} onUpload={(file) => onUpload(file, itemIndex)} />
             </div>
+            <p className="mt-1 text-[10px] leading-snug text-slate-500">Ảnh dùng cho cả bộ cửa này (gồm mọi phụ kiện / chi tiết bên dưới).</p>
           </CardField>
         </div>
       </div>

@@ -292,6 +292,8 @@ textarea.erp-cell-input {
 .order-print-table td.product-image {
   padding: 2px;
   text-align: center;
+  /* V109: ô Ảnh SP được gộp theo bộ cửa (rowspan) — canh giữa ảnh theo chiều dọc của ô merge. */
+  vertical-align: middle;
 }
 .order-print-table td.product-image img {
   display: block;

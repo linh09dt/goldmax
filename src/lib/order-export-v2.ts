@@ -2,6 +2,7 @@ import ExcelJS, { type Worksheet } from "exceljs";
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { resolveOrderItemDetails } from "@/lib/order-detail";
+import type { OutputGroup } from "@/lib/order-output";
 import { buildOutputGroups, calculateOutputTotals, cleanText, outputLineAmount, toNumber } from "@/lib/order-output";
 import { logoBox } from "@/lib/png-size";
 
@@ -88,6 +89,8 @@ export async function buildOrderExcelV2(order: ExportableOrderV2, exportNote = "
     const groupHasDetail = group.rows.some((entry) => !entry.main);
     // Nếu bộ có ghi chú thì hàng cuối bộ là hàng ghi chú (không phải hàng hàng hóa cuối).
     const groupHasNotes = group.rows.some((entry) => Boolean(cleanText(entry.row.note)));
+    // V109: 1 ô ảnh cho cả bộ cửa — merge cột S từ dòng hàng đầu tới dòng hàng cuối của bộ.
+    const firstItemRow = rowNo;
     for (const [index, entry] of group.rows.entries()) {
       const nextIsDetail = Boolean(group.rows[index + 1] && !group.rows[index + 1].main);
       const lastOfGroup = index === group.rows.length - 1 && !groupHasNotes;
@@ -96,6 +99,7 @@ export async function buildOrderExcelV2(order: ExportableOrderV2, exportNote = "
       rowNo += 1;
       if (note) pendingNotes.push({ note, main: entry.main });
     }
+    await writeGroupImage(ws, workbook, firstItemRow, rowNo - 1, group);
     const groupSetNo = cleanText(group.setNo) || "";
     for (const [index, item] of pendingNotes.entries()) {
       rowNo = writeItemNoteRow(ws, rowNo, item.note, item.main, groupHasDetail, index === pendingNotes.length - 1, groupSetNo);
@@ -336,30 +340,6 @@ async function writeDataRow(
   ws.getCell(`P${rowNo}`).numFmt = "#,##0.0000";
   ws.getCell(`Q${rowNo}`).numFmt = "#,##0";
   ws.getCell(`R${rowNo}`).numFmt = "#,##0";
-  const imageUrl = cleanText(row.imagePath) || (main ? cleanText(group.imagePath) : null);
-  if (imageUrl) {
-    const imageCell = ws.getCell(`S${rowNo}`);
-    imageCell.value = { text: "Xem ảnh", hyperlink: imageUrl, tooltip: "Mở hình ảnh sản phẩm" };
-    imageCell.font = { ...BASE_FONT, size: 9.5, color: { argb: "FF2563EB" }, underline: true };
-    imageCell.alignment = { horizontal: "center", vertical: "middle" };
-    try {
-      const response = await fetch(imageUrl, { cache: "no-store" });
-      if (response.ok) {
-        const contentType = response.headers.get("content-type") || "";
-        const extension = contentType.includes("png") ? "png" : contentType.includes("jpeg") || contentType.includes("jpg") ? "jpeg" : null;
-        if (extension) {
-          const imageBuffer = Buffer.from(await response.arrayBuffer());
-          const imageId = workbook.addImage({ buffer: imageBuffer as any, extension });
-          ws.addImage(imageId, { tl: { col: 18.12, row: rowNo - 0.9 }, ext: { width: 58, height: 36 }, editAs: "oneCell" });
-          imageCell.value = null;
-          ws.getRow(rowNo).height = Math.max(ws.getRow(rowNo).height || 0, 34);
-        }
-      }
-    } catch {
-      // Giữ hyperlink nếu không thể tải ảnh.
-    }
-  }
-
   // Không để ghi chú/tên hàng bị cắt như bản Excel V2 cũ.
   // V66: ghi chú không còn nằm trong dòng hàng (đã thành hàng riêng bên dưới).
   const estimatedLines = Math.max(
@@ -371,6 +351,46 @@ async function writeDataRow(
 }
 
 // V66: hàng ghi chú kỹ thuật của 1 dòng hàng — trải hết chiều ngang bảng (A→S).
+/**
+ * V109: gộp ô ẢNH SP của cả bộ cửa (merge S{first}:S{last}) và chỉ gắn MỘT ảnh
+ * đã căn giữa theo chiều dọc của khối. Ảnh ưu tiên của dòng cửa, chưa có thì lấy
+ * ảnh phụ kiện đầu tiên. Nếu không nhúng được ảnh thì để hyperlink "Xem ảnh".
+ */
+async function writeGroupImage(
+  ws: Worksheet,
+  workbook: ExcelJS.Workbook,
+  firstRow: number,
+  lastRow: number,
+  group: OutputGroup,
+) {
+  if (lastRow > firstRow) ws.mergeCells(`S${firstRow}:S${lastRow}`);
+  const cell = ws.getCell(`S${firstRow}`);
+  cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  const own = cleanText(group.imagePath);
+  const imageUrl = own || group.rows.map((entry) => cleanText(entry.row.imagePath)).find(Boolean) || "";
+  if (!imageUrl) return;
+
+  cell.value = { text: "Xem ảnh", hyperlink: imageUrl, tooltip: "Mở hình ảnh sản phẩm" };
+  cell.font = { ...BASE_FONT, size: 9.5, color: { argb: "FF2563EB" }, underline: true };
+  try {
+    const response = await fetch(imageUrl, { cache: "no-store" });
+    if (!response.ok) return;
+    const contentType = response.headers.get("content-type") || "";
+    const extension = contentType.includes("png") ? "png" : contentType.includes("jpeg") || contentType.includes("jpg") ? "jpeg" : null;
+    if (!extension) return;
+    const imageBuffer = Buffer.from(await response.arrayBuffer());
+    const imageId = workbook.addImage({ buffer: imageBuffer as any, extension });
+    const rowsInBlock = Math.max(1, lastRow - firstRow + 1);
+    // Căn giữa theo chiều dọc khối: 1 dòng giữ nguyên như trước, nhiều dòng thì hạ xuống giữa khối.
+    const anchorRow = firstRow - 1 + (rowsInBlock - 1) / 2 + 0.1;
+    ws.addImage(imageId, { tl: { col: 18.12, row: anchorRow }, ext: { width: 58, height: 36 }, editAs: "oneCell" });
+    cell.value = null;
+    ws.getRow(firstRow).height = Math.max(ws.getRow(firstRow).height || 0, 34);
+  } catch {
+    // Giữ hyperlink nếu không thể tải ảnh.
+  }
+}
+
 function writeItemNoteRow(
   ws: Worksheet,
   rowNo: number,

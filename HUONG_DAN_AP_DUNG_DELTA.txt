@@ -1,39 +1,46 @@
-GOLDMAX door-production — GÓI DELTA V106 (đồng bộ UI trang Theo dõi doanh thu)
-=============================================================================
+GOLDMAX door-production — GÓI DELTA V109 (gộp ô Ảnh SP theo BỘ CỬA ở mọi chỗ)
+===========================================================================
 
-!!! ÁP DỤNG SAU GÓI V103. File này chứa cả nội dung V102 + V103 của trang doanh thu.
+!!! ÁP DỤNG SAU các gói V100/V104/V108. Gói này chứa bản đầy đủ của các file đã sửa.
 
 Cách áp dụng: copy đè nội dung gói này vào thư mục gốc dự án (giữ nguyên cây thư mục).
 
-NỘI DUNG (chỉ đổi GIAO DIỆN, không đổi nghiệp vụ/dữ liệu)
----------------------------------------------------------
-1. Hai bảng dùng hệ bảng chuẩn của app: class "erp-table erp-table-full" (đúng hệ bảng tab Cấu hình)
-   → header nền đậm chữ IN HOA, chỉ kẻ ngang mảnh, hover xanh nhạt, ô số canh phải + tabular-nums
-   (thay cho header màu tự chế #a9bee1 + kẻ ô cả dọc lẫn ngang như trước).
-2. Thêm dòng "TỔNG CỘNG" cuối mỗi bảng (bảng đơn: tổng tiền, % CK bình quân + tiền CK, sau CK,
-   đặt cọc, còn lại; bảng sản phẩm: tổng doanh thu).
-3. Thanh lọc xếp theo lưới 12 cột giống tab Quản lý đơn hàng: nhãn IN HOA 10px, ô cao h-9,
-   ghi rõ "Tất cả đại lý" / "Tất cả khách hàng", nút "⤓ Xuất Excel doanh thu" chuyển vào thanh lọc.
-4. 5 ô tổng dùng kiểu ô tổng hợp của tab Quản lý đơn hàng (nhãn IN HOA 9,5px + số 15px đậm);
-   ô "Còn lại" được làm nổi như ô "Còn phải thu".
-5. Tiêu đề mỗi bảng gọn lại + hiện số lượng ở góc phải ("2 đơn", "3 sản phẩm").
+NỘI DUNG — quy tắc chung: 1 Ô ẢNH CHO CẢ BỘ CỬA (dòng cửa + mọi dòng phụ kiện),
+ảnh canh giữa ô merge; dòng phụ kiện KHÔNG còn ô ảnh riêng.
+Ảnh hiển thị: ưu tiên ảnh dòng cửa; chưa có thì lấy ảnh phụ kiện đầu tiên có ảnh.
+
+Áp dụng ở 6 chỗ:
+1. View quản lý đơn hàng (/orders, cột phải)     → ô ảnh rowSpan (đã có ở V108, gói này chứa lại)
+2. View chi tiết đơn hàng (/orders/[id])          → ô ảnh rowSpan; hàng "↳ Chi tiết / phụ kiện" thu 19 → 18 cột
+3. Trang in web (/orders/[id]/print)              → ô ảnh rowSpan, canh giữa theo chiều dọc
+4. Xuất Excel V2 (cột S)                          → merge S{đầu}:S{cuối} mỗi bộ + chỉ 1 ảnh/bộ
+5. Xuất Excel V1 (cột T)                          → merge T{đầu}:T{cuối} mỗi bộ + chỉ 1 ảnh/bộ
+6. Xuất PDF (python/reportlab_order_v2.py)        → SPAN cột ẢNH SP theo bộ, ảnh ở dòng đầu bộ, canh giữa
+7. View sửa đơn hàng (order-form.tsx)             → ghi rõ nhãn "Hình ảnh SP (cả bộ cửa)"
 
 DANH SÁCH FILE
 --------------
 Sửa:
-  src/app/revenue/page.tsx        thanh lọc + 2 bảng + ô tổng + dòng tổng
-  REVENUE_UI_SYNC_V106.md         tài liệu + kết quả kiểm chứng
+  src/app/orders/[id]/page.tsx
+  src/app/orders/[id]/print/page.tsx
+  src/lib/order-export.ts
+  src/lib/order-export-v2.ts
+  src/components/order-form.tsx
+  src/components/order-list/order-detail-pane.tsx
+  src/app/globals.css
+  python/reportlab_order_v2.py
+  IMAGE_CELL_MERGE_ALL_VIEWS_V109.md            tài liệu + kết quả kiểm chứng
 
-KHÔNG cần migration DB. Các tham số lọc và số liệu giữ nguyên; file Excel xuất ra không đổi.
+KHÔNG cần migration DB. Ảnh vẫn lưu như cũ (Supabase Storage hoặc /uploads).
 
 BẮT BUỘC SAU KHI COPY
 ---------------------
-1. Xoá cache build:  rmdir /s /q .next
+1. Xoá cache build:  rmdir /s /q .next  + xoá python\__pycache__ (nếu có)
 2. Chạy lại: npm run build (hoặc npm run dev).
-3. Mở /revenue: bảng có header đậm chữ IN HOA, cột tiền thẳng cột, cuối bảng có dòng TỔNG CỘNG;
-   thanh lọc giống tab Quản lý đơn hàng.
+3. Kiểm tra: mở 1 đơn có ảnh → cột Ảnh SP ở các bảng chỉ có 1 ô ảnh cho mỗi bộ cửa;
+   Xuất Excel + Xuất PDF xem ô ảnh đã gộp và ảnh canh giữa.
 
 GHI CHÚ
 -------
-Nút "Xuất Excel doanh thu" nay nằm trong thanh lọc (giống tab Quản lý đơn hàng) thay vì ở tiêu đề bảng.
-Muốn đưa về vị trí cũ thì nói.
+Trong view sửa đơn, mỗi bộ cửa chỉ còn 1 ô ảnh nên không đặt ảnh riêng cho từng phụ kiện nữa.
+Muốn nhiều ảnh cho 1 bộ (nhiều góc chụp) thì nói — cần thêm nơi lưu ảnh.

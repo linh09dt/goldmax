@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { resolveOrderItemDetails } from "@/lib/order-detail";
+import type { OutputGroup } from "@/lib/order-output";
 import { buildOutputGroups, calculateOutputTotals, cleanText, outputLineAmount } from "@/lib/order-output";
 import { OrderPrintActions } from "@/components/order-print-actions";
 
@@ -88,7 +89,10 @@ export default async function PrintOrderPage({
             <tr><th>Cao<br/>(7)</th><th>Rộng<br/>(8)</th><th>Khuôn<br/>(9)</th><th>Cao<br/>(10)</th><th>Rộng<br/>(11)</th><th>ĐVT<br/>(14)</th><th>KH/Lượng<br/>(15)</th><th>Đơn giá<br/>(16)</th><th>Thành tiền<br/>(17)</th></tr>
           </thead>
           <tbody>
-            {groups.map((group) => group.rows.map((entry, index) => (
+            {groups.map((group) => {
+              // V109: 1 ô ảnh cho cả bộ cửa — merge từ dòng đầu tới hết dòng phụ kiện.
+              const groupImage = groupImagePath(group);
+              return group.rows.map((entry, index) => (
               <tr key={`${group.lineNo}-${index}`} className={entry.main ? "main-row" : "detail-row"}>
                 <td>{entry.firstInGroup ? group.lineNo : ""}</td>
                 <td>{entry.firstInGroup ? group.setNo : ""}</td>
@@ -104,9 +108,14 @@ export default async function PrintOrderPage({
                 <td>{number(entry.row.clearHeightMm)}</td><td>{number(entry.row.clearWidthMm)}</td><td>{number(entry.row.quantity)}</td>
                 <td>{cleanText(entry.row.unit) || ""}</td><td>{decimal(entry.row.pricingQuantity)}</td><td>{money(entry.row.unitPrice)}</td><td>{money(outputLineAmount(entry.row))}</td>
                 <td className="note">{cleanText(entry.row.note) || ""}</td>
-                <td className="product-image">{rowImagePath(entry.row, entry.main, group.imagePath) ? <img src={rowImagePath(entry.row, entry.main, group.imagePath)!} alt={entry.main ? `Bộ ${group.setNo || group.lineNo}` : cleanText(entry.row.productName) || "Chi tiết / phụ kiện"} /> : ""}</td>
+                {index === 0 ? (
+                  <td className="product-image" rowSpan={group.rows.length}>
+                    {groupImage ? <img src={groupImage} alt={`Bộ ${group.setNo || group.lineNo}`} /> : ""}
+                  </td>
+                ) : null}
               </tr>
-            )))}
+              ));
+            })}
             {!groups.length ? <tr><td colSpan={20} className="empty">Không có dòng hàng hóa nào có KH/Lượng để xuất.</td></tr> : null}
           </tbody>
           <tfoot>
@@ -148,8 +157,12 @@ function detailDimensionClass(main: boolean, value: unknown) {
 function normalizeExportNote(value: string | undefined) {
   return (value || "").replace(/\r\n?/g, "\n").trim().slice(0, 1000);
 }
-function rowImagePath(row: Record<string, any>, main: boolean, groupImagePath: string | null) {
-  return cleanText(row.imagePath) || (main ? cleanText(groupImagePath) : null);
+/** V109: ảnh của cả bộ cửa — ưu tiên ảnh dòng cửa, chưa có thì lấy ảnh phụ kiện đầu tiên có ảnh. */
+function groupImagePath(group: OutputGroup) {
+  const own = cleanText(group.imagePath);
+  if (own) return own;
+  const fromDetail = group.rows.map((entry) => cleanText(entry.row.imagePath)).find(Boolean);
+  return fromDetail ?? "";
 }
 
 function formatDate(value: Date | null) { return value ? new Intl.DateTimeFormat("vi-VN").format(value) : ""; }

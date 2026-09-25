@@ -27,6 +27,8 @@ export type OrderDetailLine = {
   unitPrice: unknown;
   amount: unknown;
   note: string | null;
+  /** V108: ảnh sản phẩm của bộ cửa / phụ kiện (URL đầy đủ hoặc /uploads/...). */
+  imagePath: string | null;
   details?: OrderDetailLine[];
 };
 
@@ -113,7 +115,7 @@ export function OrderDetailPane({ order }: { order: OrderDetailData | null }) {
       <div className="min-h-0 flex-1 overflow-auto">
         <table className="w-full table-fixed border-collapse text-[11px]">
           <colgroup>
-            {[24, 7, 4, 6, 6, 5, 7, 8, 7, 5, 10, 11].map((width, index) => (
+            {[20, 6, 4, 6, 6, 5, 6, 7, 7, 5, 10, 11, 7].map((width, index) => (
               <col key={index} style={{ width: `${width}%` }} />
             ))}
           </colgroup>
@@ -131,12 +133,13 @@ export function OrderDetailPane({ order }: { order: OrderDetailData | null }) {
               <th className="px-1 py-1.5">ĐVT</th>
               <th className="px-1 py-1.5 text-right">Đơn giá</th>
               <th className="px-1 py-1.5 text-right">Thành tiền</th>
+              <th className="px-1 py-1.5 text-center">Ảnh SP</th>
             </tr>
           </thead>
           <tbody>
             {order.items.length === 0 ? (
               <tr>
-                <td className="px-2 py-6 text-center text-slate-500" colSpan={12}>Đơn chưa có hàng hóa.</td>
+                <td className="px-2 py-6 text-center text-slate-500" colSpan={13}>Đơn chưa có hàng hóa.</td>
               </tr>
             ) : null}
             {order.items.flatMap((item, itemIndex) => {
@@ -147,8 +150,17 @@ export function OrderDetailPane({ order }: { order: OrderDetailData | null }) {
               const notes = [item, ...(item.details ?? [])]
                 .map((line) => ({ id: line.id, main: line === item, note: cleanText(line.note) }))
                 .filter((entry) => entry.note.length > 0);
+              const setImage = setImageOf(item);
               return [
-                <ItemRow key={`main-${item.id}`} line={item} main showSetNumber={showSetNumber} topBorder={itemIndex > 0} />,
+                <ItemRow
+                  key={`main-${item.id}`}
+                  line={item}
+                  main
+                  showSetNumber={showSetNumber}
+                  topBorder={itemIndex > 0}
+                  imageSpan={1 + (item.details?.length ?? 0)}
+                  imagePath={setImage}
+                />,
                 ...(item.details ?? []).map((detail) => (
                   <ItemRow key={`detail-${detail.id}`} line={detail} main={false} showSetNumber={showSetNumber} topBorder={false} />
                 )),
@@ -204,11 +216,36 @@ function TotalBox({ label, value, hint, emphasis = false }: { label: string; val
  * V104: hàng "GHI CHÚ KỸ THUẬT" — trải hết bề ngang bảng, chữ đỏ in nghiêng, nằm ở cuối bộ cửa.
  * Nhãn kèm Bộ số giống bản xuất: "GHI CHÚ KỸ THUẬT (Bộ số 12119): <nội dung>".
  */
+/** V108: ảnh sản phẩm trong bảng — bấm để mở ảnh gốc ở tab mới; chưa có ảnh thì hiện dấu —. */
+function ProductThumb({ path }: { path: string | null | undefined }) {
+  const url = cleanText(path);
+  if (!url) {
+    return <span className="text-slate-300">—</span>;
+  }
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="inline-flex" title="Bấm để mở ảnh gốc">
+      {/* eslint-disable-next-line @next/next/no-img-element -- ảnh SP là URL ngoài (Supabase Storage / thư mục uploads), không phải ảnh nội bộ của Next */}
+      <img src={url} alt="Hình sản phẩm" className="h-12 w-12 rounded border border-slate-200 bg-white object-contain" loading="lazy" />
+    </a>
+  );
+}
+
+/**
+ * V109: ảnh hiển thị cho ô merge của một bộ cửa.
+ * Ưu tiên ảnh của chính dòng cửa; nếu chưa có thì lấy ảnh của dòng phụ kiện đầu tiên có ảnh.
+ */
+function setImageOf(item: OrderDetailLine): string | null {
+  const own = cleanText(item.imagePath);
+  if (own) return own;
+  const fromDetail = (item.details ?? []).map((detail) => cleanText(detail.imagePath)).find(Boolean);
+  return fromDetail ?? null;
+}
+
 function ItemNoteRow({ note, setNo }: { note: string; setNo: string }) {
   const label = setNo ? `GHI CHÚ KỸ THUẬT (Bộ số ${setNo}):` : "GHI CHÚ KỸ THUẬT:";
   return (
     <tr className="bg-rose-50/60">
-      <td className="whitespace-pre-line px-2 py-1.5 text-[11px] italic leading-snug text-red-600" colSpan={12}>
+      <td className="whitespace-pre-line px-2 py-1.5 text-[11px] italic leading-snug text-red-600" colSpan={13}>
         <span className="font-bold not-italic">{label}</span> <span>{note}</span>
       </td>
     </tr>
@@ -226,11 +263,17 @@ function ItemRow({
   main,
   showSetNumber,
   topBorder,
+  imageSpan = 0,
+  imagePath = null,
 }: {
   line: OrderDetailLine;
   main: boolean;
   showSetNumber: boolean;
   topBorder: boolean;
+  /** V109: số dòng để merge ô Ảnh SP (chỉ dòng cửa truyền vào; dòng phụ kiện truyền 0 = không vẽ ô ảnh). */
+  imageSpan?: number;
+  /** V109: ảnh hiển thị trong ô merge (ảnh của bộ cửa; nếu bộ cửa chưa có thì lấy ảnh phụ kiện đầu tiên). */
+  imagePath?: string | null;
 }) {
   const top = topBorder ? "border-t-2 border-slate-200" : "";
   return (
@@ -252,6 +295,12 @@ function ItemRow({
       <td className="px-1 py-1.5">{textOrDash(line.unit)}</td>
       <td className="px-1 py-1.5 text-right tabular-nums">{formatMoney(line.unitPrice)}</td>
       <td className="px-1 py-1.5 text-right font-bold tabular-nums">{formatMoney(line.amount)}</td>
+      {imageSpan > 0 ? (
+        // V109: 1 ô ảnh cho cả bộ cửa — merge từ dòng cửa xuống hết các dòng phụ kiện.
+        <td className="px-1 py-1.5 text-center align-middle" rowSpan={imageSpan}>
+          <ProductThumb path={imagePath} />
+        </td>
+      ) : null}
     </tr>
   );
 }

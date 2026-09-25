@@ -2,6 +2,7 @@ import ExcelJS, { type Worksheet } from "exceljs";
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { resolveOrderItemDetails } from "@/lib/order-detail";
+import type { OutputGroup } from "@/lib/order-output";
 import { buildOutputGroups, calculateOutputTotals, cleanText, outputLineAmount, toNumber } from "@/lib/order-output";
 import { logoBox } from "@/lib/png-size";
 
@@ -73,11 +74,14 @@ export async function buildOrderExcel(order: ExportableOrder, exportNote = ""): 
 
   let rowNo = 8;
   for (const group of groups) {
+    // V109: 1 ô ảnh cho cả bộ cửa — merge cột T từ dòng hàng đầu tới dòng hàng cuối của bộ.
+    const firstItemRow = rowNo;
     for (const entry of group.rows) {
       await writeLine(ws, workbook, rowNo, group, entry.row, entry.main, entry.firstInGroup);
       ws.getRow(rowNo).height = entry.main ? 28 : 25;
       rowNo += 1;
     }
+    await writeGroupImageV1(ws, workbook, firstItemRow, rowNo - 1, group);
   }
 
   if (!groups.length) {
@@ -258,35 +262,6 @@ async function writeLine(
     ws.getCell(`S${rowNo}`).alignment = CENTER;
   }
 
-
-  const imageUrl = cleanText(row.imagePath) || (main ? cleanText(group.imagePath) : null);
-  if (imageUrl) {
-    const imageCell = ws.getCell(`T${rowNo}`);
-    imageCell.value = { text: "Xem ảnh", hyperlink: imageUrl, tooltip: "Mở hình ảnh sản phẩm" };
-    imageCell.font = { ...BODY_FONT, size: 10, color: { argb: "FF0563C1" }, underline: true };
-    imageCell.alignment = CENTER;
-    try {
-      const response = await fetch(imageUrl, { cache: "no-store" });
-      if (response.ok) {
-        const contentType = response.headers.get("content-type") || "";
-        const extension = contentType.includes("png") ? "png" : contentType.includes("jpeg") || contentType.includes("jpg") ? "jpeg" : null;
-        if (extension) {
-          const imageBuffer = Buffer.from(await response.arrayBuffer());
-          const imageId = workbook.addImage({ buffer: imageBuffer as any, extension });
-          ws.addImage(imageId, {
-            tl: { col: 19.08, row: rowNo - 0.92 },
-            ext: { width: 82, height: 48 },
-            editAs: "oneCell",
-          });
-          ws.getRow(rowNo).height = Math.max(ws.getRow(rowNo).height || 0, 43);
-          imageCell.value = null;
-        }
-      }
-    } catch {
-      // Giữ link Xem ảnh nếu không tải được ảnh để nhúng vào Excel.
-    }
-  }
-
   if (!main) {
     // Theo mẫu: các ô kích thước có dữ liệu của dòng chi tiết/phụ kiện dùng nền xanh nhạt.
     for (const column of ["I", "J", "K"]) {
@@ -369,6 +344,43 @@ function writeNotes(ws: Worksheet, startRow: number, order: ExportableOrder) {
   styleRange(ws, `A${startRow}:T${startRow + heightRows - 1}`, NOTE_FILL, false);
   for (let row = startRow; row < startRow + heightRows; row += 1) ws.getRow(row).height = 21;
   return startRow + heightRows - 1;
+}
+
+/**
+ * V109: file Excel V1 — gộp ô ảnh (cột T) của cả bộ cửa và chỉ gắn MỘT ảnh căn giữa khối.
+ */
+async function writeGroupImageV1(
+  ws: Worksheet,
+  workbook: ExcelJS.Workbook,
+  firstRow: number,
+  lastRow: number,
+  group: OutputGroup,
+) {
+  if (lastRow > firstRow) ws.mergeCells(`T${firstRow}:T${lastRow}`);
+  const cell = ws.getCell(`T${firstRow}`);
+  cell.alignment = CENTER;
+  const own = cleanText(group.imagePath);
+  const imageUrl = own || group.rows.map((entry) => cleanText(entry.row.imagePath)).find(Boolean) || "";
+  if (!imageUrl) return;
+
+  cell.value = { text: "Xem ảnh", hyperlink: imageUrl, tooltip: "Mở hình ảnh sản phẩm" };
+  cell.font = { ...BODY_FONT, size: 10, color: { argb: "FF0563C1" }, underline: true };
+  try {
+    const response = await fetch(imageUrl, { cache: "no-store" });
+    if (!response.ok) return;
+    const contentType = response.headers.get("content-type") || "";
+    const extension = contentType.includes("png") ? "png" : contentType.includes("jpeg") || contentType.includes("jpg") ? "jpeg" : null;
+    if (!extension) return;
+    const imageBuffer = Buffer.from(await response.arrayBuffer());
+    const imageId = workbook.addImage({ buffer: imageBuffer as any, extension });
+    const rowsInBlock = Math.max(1, lastRow - firstRow + 1);
+    const anchorRow = firstRow - 1 + (rowsInBlock - 1) / 2 + 0.08;
+    ws.addImage(imageId, { tl: { col: 19.08, row: anchorRow }, ext: { width: 82, height: 48 }, editAs: "oneCell" });
+    cell.value = null;
+    ws.getRow(firstRow).height = Math.max(ws.getRow(firstRow).height || 0, 43);
+  } catch {
+    // Giữ hyperlink nếu không thể tải ảnh.
+  }
 }
 
 function styleRange(ws: Worksheet, range: string, fill: ExcelJS.Fill, border: boolean) {

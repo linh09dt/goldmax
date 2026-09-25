@@ -122,19 +122,40 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                       </tr>
                     </thead>
                     <tbody>
-                      {showMainRow ? <ReadRow lineNo={item.lineNo} row={item} main showSetNo={showSetNumber} /> : null}
-                      {detailRows.length > 0 ? (
-                        <>
-                          <tr>
-                            <td className="border border-slate-300 bg-slate-100 px-3 py-2 font-semibold text-slate-700" colSpan={19}>
-                              ↳ Chi tiết / phụ kiện / phụ phí của bộ cửa
-                            </td>
-                          </tr>
-                          {detailRows.map((row, index) => (
-                            <ReadRow key={row.id ?? `raw-${item.id}-${row.sourceRow ?? index}`} lineNo={null} row={row} showSetNo={showSetNumber} />
-                          ))}
-                        </>
-                      ) : null}
+                      {/* V109: 1 ô Ảnh SP cho cả bộ cửa — merge từ dòng cửa xuống hết dòng phụ kiện. */}
+                      {(() => {
+                        const setImage = setImageOf(item, detailRows);
+                        const itemRows = (showMainRow ? 1 : 0) + detailRows.length;
+                        // Hàng "↳ Chi tiết / phụ kiện" nằm TRONG khối nên ô ảnh của dòng cửa phải trải qua nó.
+                        const separatorRows = detailRows.length > 0 ? 1 : 0;
+                        const span = itemRows + separatorRows;
+                        return (
+                          <>
+                            {showMainRow ? (
+                              <ReadRow lineNo={item.lineNo} row={item} main showSetNo={showSetNumber} imageSpan={span} imagePath={setImage} />
+                            ) : null}
+                            {detailRows.length > 0 ? (
+                              <>
+                                <tr>
+                                  <td className="border border-slate-300 bg-slate-100 px-3 py-2 font-semibold text-slate-700" colSpan={18}>
+                                    ↳ Chi tiết / phụ kiện / phụ phí của bộ cửa
+                                  </td>
+                                </tr>
+                                {detailRows.map((row, index) => (
+                                  <ReadRow
+                                    key={row.id ?? `raw-${item.id}-${row.sourceRow ?? index}`}
+                                    lineNo={null}
+                                    row={row}
+                                    showSetNo={showSetNumber}
+                                    imageSpan={showMainRow ? 0 : (index === 0 ? itemRows : 0)}
+                                    imagePath={setImage}
+                                  />
+                                ))}
+                              </>
+                            ) : null}
+                          </>
+                        );
+                      })()}
                       {/* V105: ghi chú kỹ thuật in thành hàng riêng ở CUỐI bộ cửa, giống bản xuất Excel/PDF. */}
                       {itemNoteRows(item, detailRows, showMainRow).map((entry) => (
                         <tr key={entry.key} className="bg-rose-50/60">
@@ -202,19 +223,31 @@ function itemNoteRows(
   return rows;
 }
 
+/** V109: ảnh hiển thị ở ô merge của một bộ cửa — ưu tiên ảnh dòng cửa, chưa có thì lấy ảnh phụ kiện đầu tiên. */
+function setImageOf(item: { imagePath?: string | null }, detailRows: Array<{ imagePath?: string | null }>) {
+  const own = cleanText(item.imagePath);
+  if (own) return own;
+  const fromDetail = detailRows.map((row) => cleanText(row.imagePath)).find(Boolean);
+  return fromDetail ?? null;
+}
+
 function cleanText(value: unknown) {
   if (value === null || value === undefined) return "";
   const text = String(value).trim();
   return text === "-" || text === "—" ? "" : text;
 }
 
-function ReadRow({ lineNo, row, main = false, showSetNo = false }: { lineNo: number | null; main?: boolean; showSetNo?: boolean; row: any }) {
+function ReadRow({ lineNo, row, main = false, showSetNo = false, imageSpan = 0, imagePath = null }: { lineNo: number | null; main?: boolean; showSetNo?: boolean; row: any; imageSpan?: number; imagePath?: string | null }) {
   return (
     <tr className={main ? "bg-cyan-50 font-medium" : "hover:bg-slate-50"}>
       <Td>{lineNo ?? ""}</Td><Td>{showSetNo ? (row.setNo || "") : ""}</Td><Td wide>{row.productName || ""}</Td><Td>{row.productCode || row.model || ""}</Td><Td wide>{row.panelInfo || ""}</Td>
       <Td>{row.openingDirection || ""}</Td><Td>{row.trimDirection || ""}</Td><Td>{row.paintColor || ""}</Td><Td>{row.heightMm ?? ""}</Td><Td>{row.widthMm ?? ""}</Td><Td>{row.frameMm ?? ""}</Td>
       <Td>{row.clearHeightMm ?? ""}</Td><Td>{row.clearWidthMm ?? ""}</Td><Td>{row.quantity ?? ""}</Td><Td>{row.unit || ""}</Td>{/* V74: dòng cửa hiển thị KHỐI LƯỢNG đến 2 số thập phân; dòng phụ kiện giữ tối đa 4. */}<Td>{main ? formatQuantity2(row.pricingQuantity) : formatNumber(row.pricingQuantity)}</Td><Td>{formatMoney(row.unitPrice)}</Td><Td>{formatMoney(row.amount)}</Td>
-      <Td>{row.imagePath ? <ProductImage path={row.imagePath} /> : ""}</Td>
+      {imageSpan > 0 ? (
+        <td className="border border-slate-200 px-1 py-1.5 text-center align-middle" rowSpan={imageSpan}>
+          {imagePath ? <ProductImage path={imagePath} /> : ""}
+        </td>
+      ) : null}
     </tr>
   );
 }
