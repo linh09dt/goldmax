@@ -64,6 +64,12 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
     label: "Công cụ",
     items: [
       {
+        href: "/khao-sat",
+        label: "Khảo sát nhà máy",
+        icon: <IconSurvey />,
+        isActive: (pathname) => pathname.startsWith("/khao-sat"),
+      },
+      {
         href: "/cong-cu-anh",
         label: "Chuẩn hóa ảnh SP",
         icon: <IconImage />,
@@ -121,6 +127,15 @@ export function ErpNav() {
         </div>
       ))}
     </nav>
+  );
+}
+
+function IconSurvey() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 3h6a1 1 0 0 1 1 1v1h2a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h2V4a1 1 0 0 1 1-1Z" />
+      <path d="M8 11l2 2 4-4" />
+    </svg>
   );
 }
 

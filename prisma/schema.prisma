@@ -318,3 +318,16 @@ model ShippingCalculation {
   @@index([orderId, createdAt])
   @@map("shipping_calculations")
 }
+
+/// V126: câu trả lời khảo sát nhà máy (bộ câu hỏi V125) — nhà máy điền trên app, lưu DB, xuất file khi xong.
+model SurveyAnswer {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique @db.VarChar(20)
+  answer    String?  @db.Text
+  choice    String?  @db.VarChar(40)
+  updatedBy String?  @map("updated_by") @db.VarChar(120)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("survey_answers")
+}
