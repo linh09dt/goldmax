@@ -42,7 +42,8 @@ const PRICING_OPTIONS: Array<{ value: PricingQuantityRule; label: string }> = [
   { value: "PERIMETER_LINEAR", label: "(Cao × 2 + Rộng × 2) / 1.000" },
   { value: "DOUBLE_HEIGHT_LINEAR", label: "Cao × 2 / 1.000" },
   { value: "WIDTH_LINEAR", label: "Rộng / 1.000" },
-  // V85: rút gọn nhãn để không bị cắt trong bảng rule ở màn hẹp (1TK/2TK/3TK/4TK đã có ở khối ví dụ bên dưới).
+  // V85: rút gọn nhãn để không bị cắt trong bảng rule ở màn hẹp; xem Hướng dẫn sử dụng (mục B1) để biết đủ các lựa chọn.
+  // V94: dải 5 ô ví dụ cuối trang đã bỏ theo yêu cầu.
   { value: "PANEL_COUNT", label: "Theo số TK ô thoáng" },
   { value: "PARENT_QUANTITY", label: "Theo SL bộ cửa cha" },
 ];
@@ -174,41 +175,60 @@ export function CalculationConfigEditor() {
         Đơn giá Bộ cửa lấy <b>Giá đại lý</b> từ Danh mục hàng hóa và có thể tự cộng phụ thu theo độ dày Khuôn.
       </SettingsNote>
 
-      <SettingsCard
-        title="Thông số chung"
-        description="Áp dụng cho mọi đơn hàng tạo mới hoặc chỉnh sửa sau khi lưu."
-      >
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <label className="block">
-            <span className="erp-field-label">Làm tròn KH/Lượng</span>
-            <select className="erp-input" value={config.decimalPlaces} onChange={(event) => setConfig((current) => ({ ...current, decimalPlaces: Number(event.target.value) }))}>
-              {[0, 1, 2, 3, 4].map((value) => <option key={value} value={value}>{value} chữ số thập phân</option>)}
-            </select>
-            <span className="erp-hint mt-1 block">Chỉ ảnh hưởng cách hiển thị; tiền vẫn tính trên giá trị chính xác.</span>
-          </label>
-          <label className="block">
-            <span className="erp-field-label">Số bắt đầu áp dụng Bộ số</span>
-            <input
-              className="erp-input text-right font-semibold tabular-nums text-sky-900"
-              type="number"
-              min="1"
-              step="1"
-              value={config.setNumberStart}
-              onChange={(event) => patchSetNumberStart(Number(event.target.value))}
-            />
-            <span className="erp-hint mt-1 block">Số nhỏ nhất được dùng. Hệ thống vẫn cấp tiếp nếu dữ liệu cũ đã có số lớn hơn.</span>
-          </label>
-          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-            <div className="erp-field-label">Cơ chế Bộ số</div>
-            <ul className="space-y-1 text-[12px] leading-5 text-slate-600">
-              {/* V91: đơn chỉ còn 2 trạng thái — Bộ số cấp khi bấm Lưu đơn hàng (Sản xuất). */}
-              <li>• Đơn ở trạng thái <b>Đơn hàng mẫu</b> (Lưu nháp): chưa có Bộ số.</li>
-              <li>• Bấm <b>Lưu đơn hàng</b> → đơn chuyển sang <b>Sản xuất</b>: hệ thống cấp Bộ số tự động, tăng dần.</li>
-              <li>• Bộ số đã cấp thì <b>giữ nguyên</b>, không đổi số cho đơn đó.</li>
-            </ul>
+      {/* V94: tách “Thông số chung” thành 2 khu vực rõ ràng — LÀM TRÒN KH/LƯỢNG và BỘ SỐ. */}
+      <div className="grid gap-3 xl:grid-cols-2">
+        <SettingsCard
+          title="Làm tròn KH/Lượng"
+          description="Cách hiển thị số KH/Lượng tự tính. Áp dụng cho mọi đơn tạo mới hoặc chỉnh sửa sau khi lưu."
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="erp-field-label">Số chữ số thập phân</span>
+              <select className="erp-input" value={config.decimalPlaces} onChange={(event) => setConfig((current) => ({ ...current, decimalPlaces: Number(event.target.value) }))}>
+                {[0, 1, 2, 3, 4].map((value) => <option key={value} value={value}>{value} chữ số thập phân</option>)}
+              </select>
+              <span className="erp-hint mt-1 block">Chỉ ảnh hưởng cách hiển thị; tiền vẫn tính trên giá trị chính xác.</span>
+            </label>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="erp-field-label">Ví dụ</div>
+              <ul className="space-y-1 text-[12px] leading-5 text-slate-600">
+                <li>• Cửa 2000 × 900 mm → KH/Lượng <b>1,8</b>.</li>
+                <li>• Số lẻ 0,9056: chọn 2 chữ số → hiển thị <b>0,91</b>; chọn 0 → <b>1</b>.</li>
+                <li>• Thành tiền luôn tính trên giá trị chính xác, không dùng số đã làm tròn.</li>
+              </ul>
+            </div>
           </div>
-        </div>
-      </SettingsCard>
+        </SettingsCard>
+
+        <SettingsCard
+          title="Bộ số"
+          description="Số bắt đầu và cách hệ thống cấp Bộ số cho từng bộ cửa. Áp dụng cho mọi đơn tạo mới hoặc chỉnh sửa sau khi lưu."
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="erp-field-label">Số bắt đầu áp dụng</span>
+              <input
+                className="erp-input text-right font-semibold tabular-nums text-sky-900"
+                type="number"
+                min="1"
+                step="1"
+                value={config.setNumberStart}
+                onChange={(event) => patchSetNumberStart(Number(event.target.value))}
+              />
+              <span className="erp-hint mt-1 block">Số nhỏ nhất được dùng. Hệ thống vẫn cấp tiếp nếu dữ liệu cũ đã có số lớn hơn.</span>
+            </label>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="erp-field-label">Cơ chế cấp số</div>
+              <ul className="space-y-1 text-[12px] leading-5 text-slate-600">
+                {/* V91: đơn chỉ còn 2 trạng thái — Bộ số cấp khi bấm Lưu đơn hàng (Sản xuất). */}
+                <li>• Đơn ở trạng thái <b>Đơn hàng mẫu</b> (Lưu nháp): chưa có Bộ số.</li>
+                <li>• Bấm <b>Lưu đơn hàng</b> → đơn chuyển sang <b>Sản xuất</b>: hệ thống cấp Bộ số tự động, tăng dần.</li>
+                <li>• Bộ số đã cấp thì <b>giữ nguyên</b>, không đổi số cho đơn đó.</li>
+              </ul>
+            </div>
+          </div>
+        </SettingsCard>
+      </div>
 
       <SettingsCard
         title="Tự động tính Đơn giá cửa theo Khuôn"
@@ -248,20 +268,25 @@ export function CalculationConfigEditor() {
           </div>
           <button className="erp-button-secondary" type="button" onClick={addRule}>+ Thêm rule</button>
         </div>
-        <SettingsTable>
+        {/*
+          V94: bảng rule trước đây chia cột theo % + table-layout fixed nên nhãn dài bị cắt
+          ("Khuôn biệt thự...", "PR - Phào mặt t..."). Nay đặt bề rộng tối thiểu theo px cho
+          từng cột và cho phép cuộn ngang để luôn hiển thị đủ chữ.
+        */}
+        <SettingsTable className="min-w-[1660px]">
           <thead>
             <tr>
-              <th className="w-[12%]">Áp dụng cho</th>
-              <th className="w-[9%]">Nhóm hàng</th>
-              <th className="w-[10%]">Model / hàng hóa</th>
+              <th className="w-[175px]">Áp dụng cho</th>
+              <th className="w-[155px]">Nhóm hàng</th>
+              <th className="w-[205px]">Model / hàng hóa</th>
               {/* V89: điều kiện bộ cửa chính — cùng một phụ kiện nhưng khác loại cửa cha thì khác công thức. */}
-              <th className="w-[13%]">Bộ cửa chính</th>
-              <th className="w-[15%]">Cách tính KH/Lượng</th>
-              <th className="w-[12%]">Đề xuất Cao</th>
-              <th className="w-[12%]">Đề xuất Rộng</th>
-              <th className="w-[10%]">Ghi chú</th>
-              <th className="w-[3%] text-center">Dùng</th>
-              <th className="w-[4%]"></th>
+              <th className="w-[195px]">Bộ cửa chính</th>
+              <th className="w-[235px]">Cách tính KH/Lượng</th>
+              <th className="w-[180px]">Đề xuất Cao</th>
+              <th className="w-[180px]">Đề xuất Rộng</th>
+              <th className="w-[215px]">Ghi chú</th>
+              <th className="w-[56px] text-center">Dùng</th>
+              <th className="w-[64px]"></th>
             </tr>
           </thead>
           <tbody>
@@ -378,14 +403,6 @@ export function CalculationConfigEditor() {
           </SettingsNote>
         </div>
       </section>
-
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <Example title="Nhóm cửa" value="Cao × Rộng / 1.000.000" />
-        <Example title="Phào / Phao" value="(Cao × 2 + Rộng) / 1.000" />
-        <Example title="Ô thoáng" value="4TK → 4; 3TK → 3; 2TK → 2; 1TK → 1" />
-        <Example title="Khóa" value="Theo SL bộ cửa cha" />
-        <Example title="Bộ số" value="Tự tăng dần, tạo khi bấm Lưu đơn hàng" />
-      </section>
     </div>
   );
 }
@@ -403,15 +420,6 @@ function RuleSelect({ value, options, onChange }: { value: string; options: Arra
   // V85: title = nhãn đang chọn, để ở màn hẹp (cột hẹp nên chữ bị cắt) vẫn xem được đầy đủ khi rê chuột.
   const label = options.find((option) => option.value === value)?.label ?? "";
   return <select className="erp-cell-input" title={label} value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>;
-}
-
-function Example({ title, value }: { title: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3.5">
-      <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{title}</div>
-      <div className="mt-1.5 text-[13px] font-semibold text-sky-900">{value}</div>
-    </div>
-  );
 }
 
 function formatNumber(value: number) {

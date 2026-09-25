@@ -129,10 +129,12 @@ export function SettingsBadge({
  * không cần kéo ngang. Bề rộng cột khai báo bằng % ở hàng `<th>` đầu tiên (tổng 100%).
  * Giữ `overflow-x-auto` làm lưới an toàn nhưng bình thường sẽ không có gì để cuộn.
  */
-export function SettingsTable({ children }: { children: ReactNode }) {
+export function SettingsTable({ children, className = "" }: { children: ReactNode; className?: string }) {
+  // V94: cho phép khai báo bề rộng tối thiểu cho từng bảng (bảng nhiều cột cần cuộn ngang
+  // để hiển thị đủ chữ, thay vì bóp cột lại và cắt chữ).
   return (
     <div className="erp-scrollbar overflow-x-auto">
-      <table className="erp-table erp-table-full">{children}</table>
+      <table className={`erp-table erp-table-full ${className}`}>{children}</table>
     </div>
   );
 }
