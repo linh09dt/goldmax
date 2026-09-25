@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 /**
  * V76: các khối giao diện dùng chung cho tab CẤU HÌNH.
@@ -64,6 +64,91 @@ export function SettingsCard({
       ) : null}
       <div className={bodyClassName}>{children}</div>
     </section>
+  );
+}
+
+/**
+ * V95: ô chọn dùng trong bảng cấu hình, nhãn hiển thị ĐƯỢC XUỐNG DÒNG.
+ * <select> gốc chỉ hiển thị 1 dòng nên khi cột hẹp bị cắt chữ ("Khuôn biệt thự…");
+ * ở đây dựng bằng button + danh sách để bảng nằm gọn trong khung mà vẫn đủ chữ.
+ */
+export function WrapSelect({
+  value,
+  options,
+  onChange,
+  title,
+  placeholder = "—",
+  className = "",
+}: {
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  onChange: (value: string) => void;
+  title?: string;
+  placeholder?: string;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  // Mở lên trên khi ô nằm gần đáy màn hình, tránh danh sách bị che.
+  const [opensUp, setOpensUp] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const current = options.find((option) => option.value === value);
+
+  function toggleOpen() {
+    if (!open && boxRef.current && typeof window !== "undefined") {
+      const rect = boxRef.current.getBoundingClientRect();
+      setOpensUp(rect.bottom + 300 > window.innerHeight);
+    }
+    setOpen((isOpen) => !isOpen);
+  }
+
+  useEffect(() => {
+    if (!open) return undefined;
+    function onDocumentDown(event: MouseEvent) {
+      if (boxRef.current && !boxRef.current.contains(event.target as Node)) setOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocumentDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onDocumentDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div className={`relative min-w-0 ${className}`} ref={boxRef}>
+      <button
+        type="button"
+        className="flex w-full items-start gap-1 rounded-md border border-slate-300 bg-white px-1.5 py-1 text-left text-[11.5px] leading-4 text-slate-900 outline-none transition hover:border-slate-400 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
+        title={title ?? current?.label}
+        aria-expanded={open}
+        onClick={toggleOpen}
+      >
+        <span className={`min-w-0 flex-1 whitespace-normal break-words ${current ? "" : "italic text-slate-400"}`}>{current?.label ?? placeholder}</span>
+        <span aria-hidden className="mt-0.5 shrink-0 text-[9px] leading-none text-slate-500">{open ? "▲" : "▼"}</span>
+      </button>
+      {open ? (
+        <div className={`absolute left-0 z-[80] max-h-64 w-max min-w-full max-w-[340px] overflow-auto rounded-md border border-slate-200 bg-white py-1 shadow-xl ${opensUp ? "bottom-full mb-1" : "top-full mt-1"}`}>
+          {options.length === 0 ? <div className="px-2 py-1.5 text-[11.5px] italic text-slate-400">Không có lựa chọn</div> : null}
+          {options.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={`block w-full whitespace-normal break-words px-2 py-1.5 text-left text-[11.5px] leading-4 hover:bg-cyan-50 ${option.value === value ? "bg-cyan-50 font-semibold text-cyan-800" : "text-slate-800"}`}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                onChange(option.value);
+                setOpen(false);
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

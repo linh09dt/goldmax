@@ -17,6 +17,7 @@ import {
   SettingsNote,
   SettingsSectionHeader,
   SettingsTable,
+  WrapSelect,
 } from "@/components/settings/settings-ui";
 
 type CatalogItem = {
@@ -269,24 +270,23 @@ export function CalculationConfigEditor() {
           <button className="erp-button-secondary" type="button" onClick={addRule}>+ Thêm rule</button>
         </div>
         {/*
-          V94: bảng rule trước đây chia cột theo % + table-layout fixed nên nhãn dài bị cắt
-          ("Khuôn biệt thự...", "PR - Phào mặt t..."). Nay đặt bề rộng tối thiểu theo px cho
-          từng cột và cho phép cuộn ngang để luôn hiển thị đủ chữ.
+          V95: bảng nằm gọn trong khung (không kéo ngang) và hiển thị đủ chữ bằng cách
+          cho nhãn trong ô chọn tự XUỐNG DÒNG (WrapSelect) thay vì <select> 1 dòng bị cắt.
         */}
-        <SettingsTable className="min-w-[1660px]">
+        <SettingsTable>
           <thead>
             <tr>
-              <th className="w-[175px]">Áp dụng cho</th>
-              <th className="w-[155px]">Nhóm hàng</th>
-              <th className="w-[205px]">Model / hàng hóa</th>
+              <th className="w-[11%]">Áp dụng cho</th>
+              <th className="w-[10%]">Nhóm hàng</th>
+              <th className="w-[12%]">Model / hàng hóa</th>
               {/* V89: điều kiện bộ cửa chính — cùng một phụ kiện nhưng khác loại cửa cha thì khác công thức. */}
-              <th className="w-[195px]">Bộ cửa chính</th>
-              <th className="w-[235px]">Cách tính KH/Lượng</th>
-              <th className="w-[180px]">Đề xuất Cao</th>
-              <th className="w-[180px]">Đề xuất Rộng</th>
-              <th className="w-[215px]">Ghi chú</th>
-              <th className="w-[56px] text-center">Dùng</th>
-              <th className="w-[64px]"></th>
+              <th className="w-[12%]">Bộ cửa chính</th>
+              <th className="w-[15%]">Cách tính KH/Lượng</th>
+              <th className="w-[11%]">Đề xuất Cao</th>
+              <th className="w-[11%]">Đề xuất Rộng</th>
+              <th className="w-[11%]">Ghi chú</th>
+              <th className="w-[3%] text-center">Dùng</th>
+              <th className="w-[4%]"></th>
             </tr>
           </thead>
           <tbody>
@@ -301,41 +301,60 @@ export function CalculationConfigEditor() {
               return (
                 <tr key={rule.id} className={rule.active ? "bg-white" : "bg-slate-50 text-slate-500"}>
                   <td>
-                    <select className="erp-cell-input" title={SCOPE_OPTIONS.find((option) => option.value === rule.scope)?.label ?? ""} value={rule.scope} onChange={(event) => {
-                      const scope = event.target.value as CalculationScope;
-                      patchRule(index, {
-                        scope,
-                        groupName: scope === "MAIN" ? "" : rule.groupName,
-                        itemCode: scope === "ITEM" ? rule.itemCode : "",
-                        parentGroupName: scope === "MAIN" ? "" : rule.parentGroupName,
-                        parentItemCode: scope === "MAIN" ? "" : rule.parentItemCode,
-                        pricingRule: scope === "MAIN" && rule.pricingRule === "INHERIT" ? "DOOR_AREA" : rule.pricingRule,
-                      });
-                    }}>
-                      {SCOPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                    </select>
+                    <WrapSelect
+                      value={rule.scope}
+                      options={SCOPE_OPTIONS as unknown as Array<{ value: string; label: string }>}
+                      title={SCOPE_OPTIONS.find((option) => option.value === rule.scope)?.label ?? ""}
+                      onChange={(next) => {
+                        const scope = next as CalculationScope;
+                        patchRule(index, {
+                          scope,
+                          groupName: scope === "MAIN" ? "" : rule.groupName,
+                          itemCode: scope === "ITEM" ? rule.itemCode : "",
+                          parentGroupName: scope === "MAIN" ? "" : rule.parentGroupName,
+                          parentItemCode: scope === "MAIN" ? "" : rule.parentItemCode,
+                          pricingRule: scope === "MAIN" && rule.pricingRule === "INHERIT" ? "DOOR_AREA" : rule.pricingRule,
+                        });
+                      }}
+                    />
                   </td>
                   <td>
                     {rule.scope === "MAIN" ? <span className="text-[12px] text-slate-400">—</span> : (
-                      <select className="erp-cell-input" title={rule.groupName || "Chọn nhóm hàng"} value={rule.groupName} onChange={(event) => patchRule(index, { groupName: event.target.value, itemCode: rule.scope === "ITEM" ? "" : rule.itemCode })}>
-                        <option value="">Chọn nhóm hàng</option>
-                        {rule.groupName && !groups.some((group) => normalizeLookup(group) === normalizeLookup(rule.groupName)) ? <option value={rule.groupName}>{rule.groupName} (cũ)</option> : null}
-                        {groups.map((group) => <option key={group} value={group}>{group}</option>)}
-                      </select>
+                      <WrapSelect
+                        value={rule.groupName}
+                        placeholder="Chọn nhóm hàng"
+                        title={rule.groupName || "Chọn nhóm hàng"}
+                        options={[
+                          { value: "", label: "Chọn nhóm hàng" },
+                          ...(rule.groupName && !groups.some((group) => normalizeLookup(group) === normalizeLookup(rule.groupName))
+                            ? [{ value: rule.groupName, label: `${rule.groupName} (cũ)` }]
+                            : []),
+                          ...groups.map((group) => ({ value: group, label: group })),
+                        ]}
+                        onChange={(next) => patchRule(index, { groupName: next, itemCode: rule.scope === "ITEM" ? "" : rule.itemCode })}
+                      />
                     )}
                   </td>
                   <td>
                     {rule.scope !== "ITEM" ? (
                       <span className="text-[12px] text-slate-400">{rule.scope === "GROUP" ? "Tất cả Model trong nhóm" : "—"}</span>
                     ) : (
-                      <select className="erp-cell-input" title={rule.itemCode || "Chọn Model / hàng hóa"} value={rule.itemCode} onChange={(event) => {
-                        const item = catalogItems.find((candidate) => candidate.code === event.target.value);
-                        patchRule(index, { itemCode: event.target.value, groupName: item?.name ?? rule.groupName });
-                      }}>
-                        <option value="">Chọn Model / hàng hóa</option>
-                        {rule.itemCode && !catalogItems.some((item) => item.code === rule.itemCode) ? <option value={rule.itemCode}>{rule.itemCode} (cũ)</option> : null}
-                        {filteredItems.map((item) => <option key={item.code} value={item.code}>{item.code}{item.productDescription ? ` · ${item.productDescription}` : ""}</option>)}
-                      </select>
+                      <WrapSelect
+                        value={rule.itemCode}
+                        placeholder="Chọn Model / hàng hóa"
+                        title={rule.itemCode || "Chọn Model / hàng hóa"}
+                        options={[
+                          { value: "", label: "Chọn Model / hàng hóa" },
+                          ...(rule.itemCode && !catalogItems.some((item) => item.code === rule.itemCode)
+                            ? [{ value: rule.itemCode, label: `${rule.itemCode} (cũ)` }]
+                            : []),
+                          ...filteredItems.map((item) => ({ value: item.code, label: `${item.code}${item.productDescription ? ` · ${item.productDescription}` : ""}` })),
+                        ]}
+                        onChange={(next) => {
+                          const item = catalogItems.find((candidate) => candidate.code === next);
+                          patchRule(index, { itemCode: next, groupName: item?.name ?? rule.groupName });
+                        }}
+                      />
                     )}
                   </td>
                   {/* V89: chỉ áp dụng cho rule của dòng phụ kiện chi tiết (Theo nhóm hàng / Theo Model). */}
@@ -344,27 +363,33 @@ export function CalculationConfigEditor() {
                       <span className="text-[12px] text-slate-400">—</span>
                     ) : (
                       <div className="flex flex-col gap-1">
-                        <select
-                          className="erp-cell-input"
-                          title={rule.parentGroupName ? `Chỉ khi bộ cửa chính thuộc nhóm: ${rule.parentGroupName}` : "Áp dụng cho mọi bộ cửa chính"}
+                        <WrapSelect
                           value={rule.parentGroupName}
-                          onChange={(event) => patchRule(index, { parentGroupName: event.target.value, parentItemCode: "" })}
-                        >
-                          <option value="">Mọi bộ cửa</option>
-                          {rule.parentGroupName && !groups.some((group) => normalizeLookup(group) === normalizeLookup(rule.parentGroupName)) ? <option value={rule.parentGroupName}>{rule.parentGroupName} (cũ)</option> : null}
-                          {groups.map((group) => <option key={group} value={group}>{group}</option>)}
-                        </select>
+                          placeholder="Mọi bộ cửa"
+                          title={rule.parentGroupName ? `Chỉ khi bộ cửa chính thuộc nhóm: ${rule.parentGroupName}` : "Áp dụng cho mọi bộ cửa chính"}
+                          options={[
+                            { value: "", label: "Mọi bộ cửa" },
+                            ...(rule.parentGroupName && !groups.some((group) => normalizeLookup(group) === normalizeLookup(rule.parentGroupName))
+                              ? [{ value: rule.parentGroupName, label: `${rule.parentGroupName} (cũ)` }]
+                              : []),
+                            ...groups.map((group) => ({ value: group, label: group })),
+                          ]}
+                          onChange={(next) => patchRule(index, { parentGroupName: next, parentItemCode: "" })}
+                        />
                         {rule.parentGroupName ? (
-                          <select
-                            className="erp-cell-input"
-                            title={rule.parentItemCode || "Mọi model trong nhóm"}
+                          <WrapSelect
                             value={rule.parentItemCode}
-                            onChange={(event) => patchRule(index, { parentItemCode: event.target.value })}
-                          >
-                            <option value="">Mọi model trong nhóm</option>
-                            {rule.parentItemCode && !parentGroupItems.some((item) => item.code === rule.parentItemCode) ? <option value={rule.parentItemCode}>{rule.parentItemCode} (cũ)</option> : null}
-                            {parentGroupItems.map((item) => <option key={item.code} value={item.code}>{item.code}{item.productDescription ? ` · ${item.productDescription}` : ""}</option>)}
-                          </select>
+                            placeholder="Mọi model trong nhóm"
+                            title={rule.parentItemCode || "Mọi model trong nhóm"}
+                            options={[
+                              { value: "", label: "Mọi model trong nhóm" },
+                              ...(rule.parentItemCode && !parentGroupItems.some((item) => item.code === rule.parentItemCode)
+                                ? [{ value: rule.parentItemCode, label: `${rule.parentItemCode} (cũ)` }]
+                                : []),
+                              ...parentGroupItems.map((item) => ({ value: item.code, label: `${item.code}${item.productDescription ? ` · ${item.productDescription}` : ""}` })),
+                            ]}
+                            onChange={(next) => patchRule(index, { parentItemCode: next })}
+                          />
                         ) : null}
                       </div>
                     )}
@@ -417,9 +442,10 @@ function NumberSetting({ label, value, onChange }: { label: string; value: numbe
 }
 
 function RuleSelect({ value, options, onChange }: { value: string; options: Array<{ value: string; label: string }>; onChange: (value: string) => void }) {
-  // V85: title = nhãn đang chọn, để ở màn hẹp (cột hẹp nên chữ bị cắt) vẫn xem được đầy đủ khi rê chuột.
+  // V85: title = nhãn đang chọn để vẫn xem đủ khi cột hẹp.
+  // V95: dùng WrapSelect (nhãn xuống dòng) thay <select> để bảng không cần kéo ngang mà vẫn đủ chữ.
   const label = options.find((option) => option.value === value)?.label ?? "";
-  return <select className="erp-cell-input" title={label} value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>;
+  return <WrapSelect value={value} options={options} onChange={onChange} title={label} />;
 }
 
 function formatNumber(value: number) {

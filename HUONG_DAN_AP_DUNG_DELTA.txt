@@ -1,30 +1,30 @@
-GOLDMAX door-production — GÓI DELTA V94 (dọn tab Cấu hình tính toán)
-====================================================================
+GOLDMAX door-production — GÓI DELTA V95 (bảng rule: không kéo ngang, chữ xuống dòng)
+====================================================================================
 
 Gói này CHỈ chứa các file thay đổi so với bản door-production.zip gốc (24/09/2026).
 Cách áp dụng: copy đè toàn bộ nội dung gói này vào thư mục gốc dự án (giữ nguyên cây thư mục).
 
-NỘI DUNG (3 việc trong tab Cấu hình tính toán)
----------------------------------------------
-1. Tách "Thông số chung" thành 2 khu vực rõ ràng: LÀM TRÒN KH/LƯỢNG và BỘ SỐ.
-2. Bỏ dải 5 ô ví dụ ở cuối trang (NHÓM CỬA / PHÀO-PHAO / Ô THOÁNG / KHÓA / BỘ SỐ).
-3. Bảng rule: cột theo px + bề rộng tối thiểu 1660px nên KHÔNG còn cắt chữ
-   ("Khuôn biệt thự...", "PR - Phào mặt t..."); màn hẹp thì cuộn ngang.
+NỘI DUNG
+--------
+Bảng rule KH/Lượng trong tab Cấu hình tính toán:
+- KHÔNG còn kéo ngang: bỏ bề rộng tối thiểu px của V94, cột quay lại chia % (tổng 100%).
+- Nhãn trong ô chọn TỰ XUỐNG DÒNG nên hiển thị đầy đủ thông tin (trước đây <select>
+  1 dòng nên bị cắt chữ: "Khuôn biệt thự…", "PR - Phào mặt t…").
+- Ô chọn mới tự mở lên trên khi ở gần đáy màn hình; đóng khi bấm ra ngoài hoặc Esc.
 
 DANH SÁCH FILE
 --------------
 Sửa:
-  src/components/calculation-config.tsx  2 khu vực + bỏ dải ô ví dụ + bề rộng cột
-  src/components/settings/settings-ui.tsx  SettingsTable nhận className (bề rộng tối thiểu)
-  src/app/guide/page.tsx                  chuyển thông tin 1TK/2TK/3TK/4TK vào Hướng dẫn (mục B1)
+  src/components/settings/settings-ui.tsx  thêm WrapSelect (ô chọn nhãn xuống dòng)
+  src/components/calculation-config.tsx    thay 8 loại ô chọn trong bảng rule + cột quay lại %
 Mới:
-  CALCULATION_TAB_UI_V94.md               tài liệu chi tiết + bảng kiểm chứng
+  CALCULATION_TABLE_WRAP_V95.md            tài liệu chi tiết + bảng kiểm chứng
 
 QUAN HỆ VỚI CÁC GÓI TRƯỚC
 -------------------------
-- src/app/guide/page.tsx đã bao gồm cả thay đổi V93 (Lưu nháp mở trang chi tiết đơn).
-- src/components/calculation-config.tsx đã bao gồm V88/V89 (công thức KH/Lượng + cột Bộ cửa chính).
-- ⚠ KHÔNG copy các gói V88/V89/V93 lên sau gói này với các file trùng tên.
+- Gói này áp SAU V94 và THAY cách làm mục 3 của V94 (bỏ bề rộng px + kéo ngang).
+- 2 file trong gói đã bao gồm thay đổi của V88/V89/V94.
+- ⚠ KHÔNG copy các gói V88/V89/V94 lên sau gói này với các file trùng tên.
 
 BẮT BUỘC SAU KHI COPY
 ---------------------
@@ -32,7 +32,8 @@ BẮT BUỘC SAU KHI COPY
        rmdir /s /q .next
        del /s /q python\__pycache__ api\__pycache__
 2. Chạy lại: npm run build (hoặc npm run dev).
-3. Mở Cấu hình → Cấu hình tính toán để xem 2 khu vực mới và bảng rule đủ chữ.
+3. Mở Cấu hình → Cấu hình tính toán: bảng rule phải vừa khung (không có thanh cuộn ngang)
+   và các nhãn dài phải xuống dòng, hiển thị đủ.
 
 GHI CHÚ
 -------
