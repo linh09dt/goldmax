@@ -1,42 +1,38 @@
-GOLDMAX door-production — GÓI DELTA V103 (doanh thu chỉ tính đơn đã vào Sản xuất)
-================================================================================
+GOLDMAX door-production — GÓI DELTA V104 (ghi chú kỹ thuật trong tab Quản lý đơn hàng)
+=====================================================================================
 
-!!! ÁP DỤNG SAU GÓI V102 (và V91 trở lên). Gói này gồm revenue/page.tsx + api/revenue/export/route.ts
-    đã tính cả thay đổi của V102 (cột "Loại ĐH" theo trạng thái). Nếu chưa áp V102 thì chỉ cần
-    áp gói này cũng đủ (nó chứa cả nội dung V102 của 2 file đó).
+!!! ÁP DỤNG SAU GÓI V100 (bảng chi tiết ở cột phải do V100 tạo ra). Gói này chứa bản đầy đủ
+    của file đó nên cứ copy đè là được.
 
 Cách áp dụng: copy đè nội dung gói này vào thư mục gốc dự án (giữ nguyên cây thư mục).
 
 NỘI DUNG
 --------
-Màn "Theo dõi doanh thu" (/revenue) nay CHỈ tính các đơn đã vào sản xuất:
-  hiện: CHUYEN_SAN_XUAT  và  DA_XAC_NHAN (mã cũ)
-  ẩn  : NHAP (Đơn hàng mẫu), CHO_XAC_NHAN (mã cũ), HUY (đã hủy), trống
-
-Áp dụng đồng bộ ở 4 chỗ: bảng doanh thu theo đơn · 5 ô tổng · bảng "Sản phẩm phát sinh
-doanh thu" · file "Xuất Excel". Danh sách chọn Đại lý/Khách hàng ở thanh lọc cũng chỉ lấy
-từ đơn đã sản xuất. Thêm ghi chú ngay dưới tiêu đề bảng cho người dùng biết.
+Trước: ghi chú kỹ thuật nằm trong cột "Ghi chú" rộng 90px ở cột phải màn /orders → chữ dài bị bó hẹp.
+Nay:  xếp GIỐNG BẢN XUẤT FILE (Excel V2 / PDF):
+  - Bỏ hẳn cột "Ghi chú" → bảng từ 13 cột còn 12 cột, bề rộng chia lại cho các cột khác.
+  - Ghi chú in thành HÀNG RIÊNG trải hết bề ngang bảng (colSpan=12), CHỮ ĐỎ IN NGHIÊNG,
+    nhãn in đậm: GHI CHÚ KỸ THUẬT (Bộ số 12119): <nội dung>
+    (đơn chưa vào sản xuất thì nhãn không kèm Bộ số).
+  - Nằm ở CUỐI mỗi bộ cửa (sau dòng phụ kiện cuối), gồm cả ghi chú của dòng cửa và dòng phụ kiện.
+  - Ghi chú nhiều dòng giữ nguyên xuống dòng.
 
 DANH SÁCH FILE
 --------------
 Sửa:
-  src/app/revenue/page.tsx                     lọc chỉ đơn đã sản xuất + ghi chú + câu báo rỗng mới
-  src/app/api/revenue/export/route.ts          file Excel cũng chỉ xuất đơn đã sản xuất
-  src/lib/order-form.ts                        thêm SAMPLE_STATUS_CODES / PRODUCTION_STATUS_CODES
-  src/lib/order-list-filters.ts                dùng lại 2 hằng số trên (không đổi hành vi màn đơn hàng)
-  REVENUE_PRODUCTION_ONLY_V103.md              tài liệu + kết quả kiểm chứng
+  src/components/order-list/order-detail-pane.tsx   bỏ cột Ghi chú + thêm hàng GHI CHÚ KỸ THUẬT
+  ORDER_NOTES_ARRANGEMENT_V104.md                   tài liệu + kết quả kiểm chứng
 
-KHÔNG cần migration DB. Đơn hàng mẫu vẫn nằm nguyên trong bảng, chỉ không tính vào doanh thu —
-bấm "Lưu đơn hàng" cho đơn mẫu là đơn tự vào doanh thu.
+KHÔNG cần migration DB. Không đổi dữ liệu.
 
 BẮT BUỘC SAU KHI COPY
 ---------------------
 1. Xoá cache build:  rmdir /s /q .next
 2. Chạy lại: npm run build (hoặc npm run dev).
-3. Mở /revenue: chỉ còn các đơn 26092202... (Sản xuất); các đơn NHAP-... không còn hiện;
-   bấm "Xuất Excel" kiểm tra file cũng chỉ có đơn sản xuất.
+3. Mở /orders, bấm 1 đơn có ghi chú: ghi chú phải hiện thành hàng chữ đỏ trải hết bảng,
+   nằm cuối mỗi bộ cửa, có nhãn "GHI CHÚ KỸ THUẬT (Bộ số ...)".
 
 GHI CHÚ
 -------
-- Cột "Loại ĐH" giờ luôn là "Sản xuất" — nói nếu muốn bỏ hẳn cột này.
-- Muốn khi cần vẫn xem được đơn mẫu (nút lọc [Chỉ đơn sản xuất ▾]) thì nói, mặc định vẫn là chỉ đơn sản xuất.
+Hai chỗ khác vẫn giữ cột ghi chú (nói nếu muốn làm giống): trang xem đầy đủ 23 cột (/orders/[id])
+và trang in trên web (/orders/[id]/print). File PDF/Excel tải về thì đã xếp kiểu hàng riêng từ trước.

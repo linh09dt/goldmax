@@ -113,7 +113,7 @@ export function OrderDetailPane({ order }: { order: OrderDetailData | null }) {
       <div className="min-h-0 flex-1 overflow-auto">
         <table className="w-full table-fixed border-collapse text-[11px]">
           <colgroup>
-            {[20, 8, 5, 7, 7, 6, 7, 8, 7, 5, 9, 10, 11].map((width, index) => (
+            {[24, 7, 4, 6, 6, 5, 7, 8, 7, 5, 10, 11].map((width, index) => (
               <col key={index} style={{ width: `${width}%` }} />
             ))}
           </colgroup>
@@ -131,23 +131,31 @@ export function OrderDetailPane({ order }: { order: OrderDetailData | null }) {
               <th className="px-1 py-1.5">ĐVT</th>
               <th className="px-1 py-1.5 text-right">Đơn giá</th>
               <th className="px-1 py-1.5 text-right">Thành tiền</th>
-              <th className="px-1 py-1.5">Ghi chú</th>
             </tr>
           </thead>
           <tbody>
             {order.items.length === 0 ? (
               <tr>
-                <td className="px-2 py-6 text-center text-slate-500" colSpan={13}>Đơn chưa có hàng hóa.</td>
+                <td className="px-2 py-6 text-center text-slate-500" colSpan={12}>Đơn chưa có hàng hóa.</td>
               </tr>
             ) : null}
             {order.items.flatMap((item, itemIndex) => {
-              const rows = [
-                <ItemRow key={`main-${item.id}`} line={item} main showSetNumber={showsSetNumber(order.status)} topBorder={itemIndex > 0} />,
+              const showSetNumber = showsSetNumber(order.status);
+              // V104: ghi chú kỹ thuật KHÔNG nằm trong cột nữa — in thành hàng riêng trải hết
+              // bề ngang, ở CUỐI mỗi bộ cửa, đúng như bản xuất Excel/PDF.
+              const setNo = showSetNumber ? cleanText(item.setNo) : "";
+              const notes = [item, ...(item.details ?? [])]
+                .map((line) => ({ id: line.id, main: line === item, note: cleanText(line.note) }))
+                .filter((entry) => entry.note.length > 0);
+              return [
+                <ItemRow key={`main-${item.id}`} line={item} main showSetNumber={showSetNumber} topBorder={itemIndex > 0} />,
                 ...(item.details ?? []).map((detail) => (
-                  <ItemRow key={`detail-${detail.id}`} line={detail} main={false} showSetNumber={showsSetNumber(order.status)} topBorder={false} />
+                  <ItemRow key={`detail-${detail.id}`} line={detail} main={false} showSetNumber={showSetNumber} topBorder={false} />
+                )),
+                ...notes.map((entry) => (
+                  <ItemNoteRow key={`note-${entry.id}`} note={entry.note} setNo={setNo} />
                 )),
               ];
-              return rows;
             })}
           </tbody>
         </table>
@@ -192,6 +200,27 @@ function TotalBox({ label, value, hint, emphasis = false }: { label: string; val
   );
 }
 
+/**
+ * V104: hàng "GHI CHÚ KỸ THUẬT" — trải hết bề ngang bảng, chữ đỏ in nghiêng, nằm ở cuối bộ cửa.
+ * Nhãn kèm Bộ số giống bản xuất: "GHI CHÚ KỸ THUẬT (Bộ số 12119): <nội dung>".
+ */
+function ItemNoteRow({ note, setNo }: { note: string; setNo: string }) {
+  const label = setNo ? `GHI CHÚ KỸ THUẬT (Bộ số ${setNo}):` : "GHI CHÚ KỸ THUẬT:";
+  return (
+    <tr className="bg-rose-50/60">
+      <td className="whitespace-pre-line px-2 py-1.5 text-[11px] italic leading-snug text-red-600" colSpan={12}>
+        <span className="font-bold not-italic">{label}</span> <span>{note}</span>
+      </td>
+    </tr>
+  );
+}
+
+function cleanText(value: unknown) {
+  if (value === null || value === undefined) return "";
+  const text = String(value).trim();
+  return text === "-" || text === "—" ? "" : text;
+}
+
 function ItemRow({
   line,
   main,
@@ -223,7 +252,6 @@ function ItemRow({
       <td className="px-1 py-1.5">{textOrDash(line.unit)}</td>
       <td className="px-1 py-1.5 text-right tabular-nums">{formatMoney(line.unitPrice)}</td>
       <td className="px-1 py-1.5 text-right font-bold tabular-nums">{formatMoney(line.amount)}</td>
-      <td className="px-1 py-1.5"><span className="break-words">{textOrDash(line.note)}</span></td>
     </tr>
   );
 }
