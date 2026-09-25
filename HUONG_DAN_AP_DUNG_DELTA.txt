@@ -1,37 +1,39 @@
-GOLDMAX door-production — GÓI DELTA V105 (ghi chú kỹ thuật ở trang chi tiết đơn hàng)
-=====================================================================================
+GOLDMAX door-production — GÓI DELTA V106 (đồng bộ UI trang Theo dõi doanh thu)
+=============================================================================
 
-!!! ÁP DỤNG SAU CÁC GÓI V91 và V104. File này chứa cả nội dung V91 của trang chi tiết đơn.
+!!! ÁP DỤNG SAU GÓI V103. File này chứa cả nội dung V102 + V103 của trang doanh thu.
 
 Cách áp dụng: copy đè nội dung gói này vào thư mục gốc dự án (giữ nguyên cây thư mục).
 
-NỘI DUNG
---------
-Trang chi tiết đơn hàng (/orders/[id], phần "Chi tiết từng bộ cửa") nay xếp ghi chú kỹ thuật
-GIỐNG BẢN XUẤT EXCEL V2 / PDF (và giống tab Quản lý đơn hàng đã sửa ở V104):
-  - BỎ hẳn cột "Ghi chú (18)" → bảng từ 20 cột còn 19 cột, bề rộng chia lại hết 100%.
-  - Ghi chú in thành HÀNG RIÊNG trải hết bề ngang bảng (colSpan=19), CHỮ ĐỎ IN NGHIÊNG,
-    nhãn in đậm: GHI CHÚ KỸ THUẬT (Bộ số 12062): <nội dung>
-    (đơn hàng mẫu chưa có Bộ số thì nhãn không kèm bộ số).
-  - Nằm ở CUỐI mỗi bộ cửa, sau dòng phụ kiện cuối; ghi chú của cả dòng cửa lẫn dòng phụ kiện.
-  - Ghi chú nhiều dòng giữ nguyên xuống dòng.
+NỘI DUNG (chỉ đổi GIAO DIỆN, không đổi nghiệp vụ/dữ liệu)
+---------------------------------------------------------
+1. Hai bảng dùng hệ bảng chuẩn của app: class "erp-table erp-table-full" (đúng hệ bảng tab Cấu hình)
+   → header nền đậm chữ IN HOA, chỉ kẻ ngang mảnh, hover xanh nhạt, ô số canh phải + tabular-nums
+   (thay cho header màu tự chế #a9bee1 + kẻ ô cả dọc lẫn ngang như trước).
+2. Thêm dòng "TỔNG CỘNG" cuối mỗi bảng (bảng đơn: tổng tiền, % CK bình quân + tiền CK, sau CK,
+   đặt cọc, còn lại; bảng sản phẩm: tổng doanh thu).
+3. Thanh lọc xếp theo lưới 12 cột giống tab Quản lý đơn hàng: nhãn IN HOA 10px, ô cao h-9,
+   ghi rõ "Tất cả đại lý" / "Tất cả khách hàng", nút "⤓ Xuất Excel doanh thu" chuyển vào thanh lọc.
+4. 5 ô tổng dùng kiểu ô tổng hợp của tab Quản lý đơn hàng (nhãn IN HOA 9,5px + số 15px đậm);
+   ô "Còn lại" được làm nổi như ô "Còn phải thu".
+5. Tiêu đề mỗi bảng gọn lại + hiện số lượng ở góc phải ("2 đơn", "3 sản phẩm").
 
 DANH SÁCH FILE
 --------------
 Sửa:
-  src/app/orders/[id]/page.tsx        bỏ cột Ghi chú + thêm hàng GHI CHÚ KỸ THUẬT (19 cột)
-  ORDER_DETAIL_NOTES_V105.md          tài liệu + kết quả kiểm chứng
+  src/app/revenue/page.tsx        thanh lọc + 2 bảng + ô tổng + dòng tổng
+  REVENUE_UI_SYNC_V106.md         tài liệu + kết quả kiểm chứng
 
-KHÔNG cần migration DB. Không đổi dữ liệu.
+KHÔNG cần migration DB. Các tham số lọc và số liệu giữ nguyên; file Excel xuất ra không đổi.
 
 BẮT BUỘC SAU KHI COPY
 ---------------------
 1. Xoá cache build:  rmdir /s /q .next
 2. Chạy lại: npm run build (hoặc npm run dev).
-3. Mở 1 đơn có ghi chú: bảng không còn cột "Ghi chú"; cuối mỗi bộ cửa có hàng chữ đỏ
-   "GHI CHÚ KỸ THUẬT (Bộ số ...): ..." trải hết bề ngang bảng.
+3. Mở /revenue: bảng có header đậm chữ IN HOA, cột tiền thẳng cột, cuối bảng có dòng TỔNG CỘNG;
+   thanh lọc giống tab Quản lý đơn hàng.
 
 GHI CHÚ
 -------
-Còn 1 chỗ vẫn để cột ghi chú: trang in trên web /orders/[id]/print (mở từ nút "In / Lưu PDF").
-File PDF/Excel tải về thì đã xếp kiểu hàng riêng từ trước — nói nếu muốn sửa nốt trang in.
+Nút "Xuất Excel doanh thu" nay nằm trong thanh lọc (giống tab Quản lý đơn hàng) thay vì ở tiêu đề bảng.
+Muốn đưa về vị trí cũ thì nói.

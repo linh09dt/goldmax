@@ -172,6 +172,9 @@ export default async function RevenuePage({
   );
 
   const productRevenueRows = buildProductRevenue(reportRows, masterProducts);
+  // V106: số cho dòng "TỔNG CỘNG" cuối bảng (bảng đơn + bảng sản phẩm).
+  const summaryDiscountPercent = summary.total > 0 ? (summary.discountAmount / summary.total) * 100 : 0;
+  const productRevenueTotal = productRevenueRows.reduce((sum, row) => sum + row.revenue, 0);
   const dealers = buildDealerOptions(filterSource);
   const customers: string[] = Array.from(
     new Set<string>(filterSource.map((row) => clean(row.receiverName)).filter(Boolean)),
@@ -179,163 +182,177 @@ export default async function RevenuePage({
 
   return (
     <ErpShell title="Theo dõi doanh thu">
-      <section className="erp-card p-4">
-        <form method="GET" className="grid gap-3 md:grid-cols-2 xl:grid-cols-8">
-          <FilterField label="Ngày">
-            <input className="erp-input" type="date" name="date" defaultValue={clean(query.date)} />
+      {/* V106: thanh lọc xếp theo lưới 12 cột, cùng kiểu với tab Quản lý đơn hàng. */}
+      <form method="GET" className="erp-card mt-5 px-3 py-3">
+        <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2 xl:grid-cols-12">
+          <FilterField className="xl:col-span-2" label="Ngày">
+            <input className="erp-input mt-1 h-9" type="date" name="date" defaultValue={clean(query.date)} />
           </FilterField>
-
-          <FilterField label="Tháng">
-            <input className="erp-input" type="month" name="month" defaultValue={clean(query.month)} />
+          <FilterField className="xl:col-span-2" label="Tháng">
+            <input className="erp-input mt-1 h-9" type="month" name="month" defaultValue={clean(query.month)} />
           </FilterField>
-
-          <FilterField label="Năm">
-            <input
-              className="erp-input"
-              type="number"
-              name="year"
-              min={2000}
-              max={2100}
-              inputMode="numeric"
-              defaultValue={clean(query.year)}
-            />
+          <FilterField className="xl:col-span-2" label="Năm">
+            <input className="erp-input mt-1 h-9" type="number" name="year" min={2000} max={2100} inputMode="numeric" defaultValue={clean(query.year)} />
           </FilterField>
-
-          <FilterField label="Từ ngày">
-            <input className="erp-input" type="date" name="from" defaultValue={clean(query.from)} />
+          <FilterField className="xl:col-span-3" label="Từ ngày">
+            <input className="erp-input mt-1 h-9" type="date" name="from" defaultValue={clean(query.from)} />
           </FilterField>
-
-          <FilterField label="Đến ngày">
-            <input className="erp-input" type="date" name="to" defaultValue={clean(query.to)} />
+          <FilterField className="xl:col-span-3" label="Đến ngày">
+            <input className="erp-input mt-1 h-9" type="date" name="to" defaultValue={clean(query.to)} />
           </FilterField>
-
-          <FilterField label="Đại lý">
-            <select className="erp-input" name="dealer" defaultValue={clean(query.dealer)}>
-              <option value="">Tất cả</option>
+          <FilterField className="xl:col-span-3" label="Đại lý">
+            <select className="erp-input mt-1 h-9" name="dealer" defaultValue={clean(query.dealer)}>
+              <option value="">Tất cả đại lý</option>
               {dealers.map((dealer) => (
                 <option key={dealer.value} value={dealer.value}>{dealer.label}</option>
               ))}
             </select>
           </FilterField>
-
-          <FilterField label="Khách hàng">
-            <select className="erp-input" name="customer" defaultValue={customerFilter}>
-              <option value="">Tất cả</option>
+          <FilterField className="xl:col-span-3" label="Khách hàng">
+            <select className="erp-input mt-1 h-9" name="customer" defaultValue={customerFilter}>
+              <option value="">Tất cả khách hàng</option>
               {customers.map((customer) => (
                 <option key={customer} value={customer}>{customer}</option>
               ))}
             </select>
           </FilterField>
-
-          <div className="flex items-end gap-2">
-            <button type="submit" className="erp-button h-10 flex-1">Lọc</button>
-            <Link href="/revenue" className="erp-button-secondary flex h-10 flex-1 items-center justify-center">Xóa lọc</Link>
-          </div>
-        </form>
-      </section>
-
-      <section className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <Metric title="Tổng tiền đơn hàng" value={formatMoney(summary.total)} />
-        <Metric title="Tổng tiền chiết khấu" value={formatMoney(summary.discountAmount)} />
-        <Metric title="Tổng tiền sau CK" value={formatMoney(summary.afterDiscount)} />
-        <Metric title="Tổng đặt cọc" value={formatMoney(summary.deposit)} />
-        <Metric title="Tổng còn lại" value={formatMoney(summary.remaining)} />
-      </section>
-
-      <section className="erp-card mt-6 overflow-hidden">
-        <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="font-bold">Theo dõi doanh thu theo đơn hàng</h2>
-              <p className="mt-0.5 text-[11px] text-slate-500">Chỉ tính đơn đã vào sản xuất — đơn hàng mẫu và đơn đã hủy không tính doanh thu.</p>
-            </div>
-            <a
-              className="inline-flex h-9 items-center justify-center rounded-md border border-emerald-700 bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
-              href={buildRevenueExportHref(query)}
-            >
-              Xuất Excel
+          <div className="flex flex-wrap items-center gap-2 self-end sm:col-span-2 xl:col-span-6 xl:justify-end">
+            <button type="submit" className="erp-button h-9 px-3.5 text-[12px]">Lọc</button>
+            <Link className="erp-button-secondary flex h-9 items-center px-3.5 text-[12px]" href="/revenue">Xoá lọc</Link>
+            <a className="inline-flex h-9 items-center rounded-lg border border-emerald-700 bg-emerald-600 px-3.5 text-[12px] font-semibold text-white transition hover:bg-emerald-500" href={buildRevenueExportHref(query)}>
+              ⤓ Xuất Excel doanh thu
             </a>
           </div>
         </div>
+      </form>
 
-        <div className="w-full overflow-hidden">
-          <table className="w-full table-fixed border-collapse text-[10px] 2xl:text-xs">
+      {/* 5 ô tổng — cùng kiểu ô tổng hợp với tab Quản lý đơn hàng */}
+      <section className="mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-5">
+        <Metric title="Tổng tiền đơn hàng" value={formatMoney(summary.total)} />
+        <Metric title="Chiết khấu" value={formatMoney(summary.discountAmount)} />
+        <Metric title="Tổng sau chiết khấu" value={formatMoney(summary.afterDiscount)} />
+        <Metric title="Đặt cọc" value={formatMoney(summary.deposit)} />
+        <Metric title="Còn lại" value={formatMoney(summary.remaining)} emphasis />
+      </section>
+
+      <section className="erp-card mt-4 overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3">
+          <div>
+            <h2 className="text-[13px] font-bold text-slate-900">Theo dõi doanh thu theo đơn hàng</h2>
+            <p className="mt-0.5 text-[11px] text-slate-500">Chỉ tính đơn đã vào sản xuất — đơn hàng mẫu và đơn đã hủy không tính doanh thu.</p>
+          </div>
+          <span className="text-[11px] text-slate-500">
+            <b className="tabular-nums text-slate-900">{reportRows.length}</b> đơn
+          </span>
+        </div>
+
+        <div className="erp-scrollbar overflow-x-auto">
+          <table className="erp-table erp-table-full">
             <colgroup>
               {[4, 8, 7, 12, 12, 7, 11, 10, 12, 8, 9].map((width, index) => (
                 <col key={index} style={{ width: `${width}%` }} />
               ))}
             </colgroup>
-            <thead className="bg-[#a9bee1] text-center text-slate-950">
+            <thead>
               <tr>
-                <Th>STT</Th>
-                <Th>Ngày</Th>
-                <Th>Mã ĐL</Th>
-                <Th>Tên ĐL</Th>
-                <Th>Số ĐH</Th>
-                <Th>Loại ĐH</Th>
-                <Th>Tổng Tiền</Th>
-                <Th>CK</Th>
-                <Th>Tổng tiền sau CK</Th>
-                <Th>Đặt Cọc</Th>
-                <Th>Còn Lại</Th>
+                <th className="text-center">STT</th>
+                <th className="text-center">Ngày</th>
+                <th>Mã ĐL</th>
+                <th>Tên ĐL</th>
+                <th>Số ĐH</th>
+                <th className="text-center">Loại ĐH</th>
+                <th className="text-right">Tổng tiền</th>
+                <th className="text-right">CK</th>
+                <th className="text-right">Tổng tiền sau CK</th>
+                <th className="text-right">Đặt cọc</th>
+                <th className="text-right">Còn lại</th>
               </tr>
             </thead>
-            <tbody className="bg-white">
+            <tbody>
               {reportRows.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-12 text-center text-slate-500" colSpan={11}>Không có đơn đã vào sản xuất phù hợp bộ lọc.</td>
+                  <td className="py-10 text-center text-slate-500" colSpan={11}>Không có đơn đã vào sản xuất phù hợp bộ lọc.</td>
                 </tr>
               ) : reportRows.map((row, index) => (
                 <RevenueOrderRows key={row.order.id} row={row} index={index + 1} />
               ))}
             </tbody>
+            {reportRows.length > 0 ? (
+              <tfoot>
+                <tr className="bg-slate-100 font-bold text-slate-900">
+                  <td className="px-1.5 py-2 text-right" colSpan={6}>TỔNG CỘNG ({reportRows.length} đơn)</td>
+                  <td className="erp-td-num px-1.5 py-2">{formatMoney(summary.total)}</td>
+                  <td className="erp-td-num px-1.5 py-2">
+                    <div>{formatPercent(summaryDiscountPercent)}</div>
+                    <div className="text-[10.5px] font-semibold text-slate-600">{formatMoney(summary.discountAmount)}</div>
+                  </td>
+                  <td className="erp-td-num px-1.5 py-2">{formatMoney(summary.afterDiscount)}</td>
+                  <td className="erp-td-num px-1.5 py-2">{formatMoney(summary.deposit)}</td>
+                  <td className="erp-td-num px-1.5 py-2">{formatMoney(summary.remaining)}</td>
+                </tr>
+              </tfoot>
+            ) : null}
           </table>
         </div>
       </section>
 
-      <section className="erp-card mt-6 overflow-hidden">
-        <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
-          <h2 className="font-bold">Sản phẩm phát sinh doanh thu</h2>
+      <section className="erp-card mt-4 overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3">
+          <div>
+            <h2 className="text-[13px] font-bold text-slate-900">Sản phẩm phát sinh doanh thu</h2>
+            <p className="mt-0.5 text-[11px] text-slate-500">Gom theo danh mục hàng hóa của các đơn đã vào sản xuất.</p>
+          </div>
+          <span className="text-[11px] text-slate-500">
+            <b className="tabular-nums text-slate-900">{productRevenueRows.length}</b> sản phẩm
+          </span>
         </div>
-        <div className="w-full overflow-hidden">
-          <table className="w-full table-fixed border-collapse text-[10px] 2xl:text-xs">
+        <div className="erp-scrollbar overflow-x-auto">
+          <table className="erp-table erp-table-full">
             <colgroup>
               {[4, 15, 27, 15, 7, 7, 8, 8, 9].map((width, index) => (
                 <col key={index} style={{ width: `${width}%` }} />
               ))}
             </colgroup>
-            <thead className="bg-[#a9bee1] text-center text-slate-950">
+            <thead>
               <tr>
-                <Th>STT</Th>
-                <Th>TENHANG</Th>
-                <Th>Tên sản phẩm diễn giải</Th>
-                <Th>MODEL</Th>
-                <Th>ĐVT</Th>
-                <Th>Số đơn</Th>
-                <Th>Tổng SL</Th>
-                <Th>Tổng KH/Lượng</Th>
-                <Th>Doanh thu</Th>
+                <th className="text-center">STT</th>
+                <th>TENHANG</th>
+                <th>Tên sản phẩm diễn giải</th>
+                <th>MODEL</th>
+                <th className="text-center">ĐVT</th>
+                <th className="text-right">Số đơn</th>
+                <th className="text-right">Tổng SL</th>
+                <th className="text-right">Tổng KH/Lượng</th>
+                <th className="text-right">Doanh thu</th>
               </tr>
             </thead>
-            <tbody className="bg-white">
+            <tbody>
               {productRevenueRows.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-12 text-center text-slate-500" colSpan={9}>Chưa có sản phẩm trong danh mục phát sinh doanh thu.</td>
+                  <td className="py-10 text-center text-slate-500" colSpan={9}>Chưa có sản phẩm trong danh mục phát sinh doanh thu.</td>
                 </tr>
               ) : productRevenueRows.map((row, index) => (
-                <tr key={row.masterId} className="border-t border-slate-300 hover:bg-cyan-50/60">
-                  <Td className="text-center">{index + 1}</Td>
-                  <Td>{row.name}</Td>
-                  <Td>{row.productDescription || row.name}</Td>
-                  <Td className="font-semibold">{row.code}</Td>
-                  <Td className="text-center">{row.unit || "—"}</Td>
-                  <Td className="text-right">{formatNumber(row.orderIds.size)}</Td>
-                  <Td className="text-right">{formatDecimal(row.quantity)}</Td>
-                  <Td className="text-right">{formatDecimal(row.pricingQuantity)}</Td>
-                  <Td className="text-right font-bold">{formatMoney(row.revenue)}</Td>
+                <tr key={row.masterId}>
+                  <td className="text-center tabular-nums">{index + 1}</td>
+                  <td className="erp-td-strong">{row.name}</td>
+                  <td>{row.productDescription || row.name}</td>
+                  <td className="erp-td-strong">{row.code}</td>
+                  <td className="text-center">{row.unit || "—"}</td>
+                  <td className="erp-td-num">{formatNumber(row.orderIds.size)}</td>
+                  <td className="erp-td-num">{formatDecimal(row.quantity)}</td>
+                  <td className="erp-td-num">{formatDecimal(row.pricingQuantity)}</td>
+                  <td className="erp-td-num font-bold text-slate-900">{formatMoney(row.revenue)}</td>
                 </tr>
               ))}
             </tbody>
+            {productRevenueRows.length > 0 ? (
+              <tfoot>
+                <tr className="bg-slate-100 font-bold text-slate-900">
+                  <td className="px-1.5 py-2 text-right" colSpan={8}>TỔNG CỘNG ({productRevenueRows.length} sản phẩm)</td>
+                  <td className="erp-td-num px-1.5 py-2">{formatMoney(productRevenueTotal)}</td>
+                </tr>
+              </tfoot>
+            ) : null}
           </table>
         </div>
       </section>
@@ -386,55 +403,47 @@ function RevenueOrderRows({
   index: number;
 }) {
   return (
-    <tr className="border-t border-slate-300 bg-white align-top hover:bg-cyan-50/60">
-      <Td className="text-center">{index}</Td>
-      <Td className="text-center">{formatDate(row.order.orderDate)}</Td>
-      <Td className="font-semibold">{row.order.customerCode || "—"}</Td>
-      <Td>{row.order.customerName || "—"}</Td>
-      <Td>
+    <tr>
+      <td className="text-center tabular-nums">{index}</td>
+      <td className="text-center">{formatDate(row.order.orderDate)}</td>
+      <td className="erp-td-strong">{row.order.customerCode || "—"}</td>
+      <td>{row.order.customerName || "—"}</td>
+      <td>
         <Link className="font-semibold text-cyan-700 hover:underline" href={`/orders/${row.order.id}`}>
           {row.order.orderCode}
         </Link>
-      </Td>
-      <Td className="text-center">
+      </td>
+      <td className="text-center">
         <StatusTag value={row.order.status} />
-      </Td>
-      <Td className="text-right font-semibold">{formatMoney(row.total)}</Td>
-      <Td className="text-right">
-        <div className="font-bold">{formatPercent(row.discountPercent)}</div>
-        <div className="mt-0.5 text-[9px] text-slate-500 2xl:text-[10px]">{formatMoney(row.discountAmount)}</div>
-      </Td>
-      <Td className="text-right font-semibold">{formatMoney(row.afterDiscount)}</Td>
-      <Td className="text-right">{formatMoney(row.deposit)}</Td>
-      <Td className="text-right font-bold">{formatMoney(row.remaining)}</Td>
+      </td>
+      <td className="erp-td-num font-semibold text-slate-900">{formatMoney(row.total)}</td>
+      <td className="erp-td-num">
+        <div className="font-semibold text-slate-900">{formatPercent(row.discountPercent)}</div>
+        <div className="text-[10.5px] text-slate-500">{formatMoney(row.discountAmount)}</div>
+      </td>
+      <td className="erp-td-num font-semibold text-slate-900">{formatMoney(row.afterDiscount)}</td>
+      <td className="erp-td-num">{formatMoney(row.deposit)}</td>
+      <td className="erp-td-num font-bold text-slate-900">{formatMoney(row.remaining)}</td>
     </tr>
   );
 }
 
-function FilterField({ label, children }: { label: string; children: React.ReactNode }) {
+function FilterField({ label, className = "", children }: { label: string; className?: string; children: React.ReactNode }) {
   return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-semibold text-slate-600">{label}</span>
+    <label className={`min-w-0 ${className}`}>
+      <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</span>
       {children}
     </label>
   );
 }
 
-function Metric({ title, value }: { title: string; value: string }) {
+function Metric({ title, value, emphasis = false }: { title: string; value: string; emphasis?: boolean }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-xs font-medium text-slate-500">{title}</p>
-      <p className="mt-2 text-xl font-bold text-slate-950">{value}</p>
+    <div className={`rounded-lg border px-3 py-2 ${emphasis ? "border-cyan-200 bg-cyan-50" : "border-slate-200 bg-white shadow-sm"}`}>
+      <div className="text-[9.5px] font-bold uppercase tracking-wide text-slate-500">{title}</div>
+      <div className="mt-0.5 text-[15px] font-bold tabular-nums text-slate-900">{value}</div>
     </div>
   );
-}
-
-function Th({ children }: { children: React.ReactNode }) {
-  return <th className="break-words border border-slate-500 px-1 py-2 font-bold leading-tight">{children}</th>;
-}
-
-function Td({ children, className = "" }: { children?: React.ReactNode; className?: string }) {
-  return <td className={`break-words border border-slate-300 px-1.5 py-2 leading-tight ${className}`}>{children}</td>;
 }
 
 function buildProductRevenue(
