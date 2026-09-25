@@ -1,27 +1,26 @@
-GOLDMAX door-production — GÓI DELTA V104 (ghi chú kỹ thuật trong tab Quản lý đơn hàng)
+GOLDMAX door-production — GÓI DELTA V105 (ghi chú kỹ thuật ở trang chi tiết đơn hàng)
 =====================================================================================
 
-!!! ÁP DỤNG SAU GÓI V100 (bảng chi tiết ở cột phải do V100 tạo ra). Gói này chứa bản đầy đủ
-    của file đó nên cứ copy đè là được.
+!!! ÁP DỤNG SAU CÁC GÓI V91 và V104. File này chứa cả nội dung V91 của trang chi tiết đơn.
 
 Cách áp dụng: copy đè nội dung gói này vào thư mục gốc dự án (giữ nguyên cây thư mục).
 
 NỘI DUNG
 --------
-Trước: ghi chú kỹ thuật nằm trong cột "Ghi chú" rộng 90px ở cột phải màn /orders → chữ dài bị bó hẹp.
-Nay:  xếp GIỐNG BẢN XUẤT FILE (Excel V2 / PDF):
-  - Bỏ hẳn cột "Ghi chú" → bảng từ 13 cột còn 12 cột, bề rộng chia lại cho các cột khác.
-  - Ghi chú in thành HÀNG RIÊNG trải hết bề ngang bảng (colSpan=12), CHỮ ĐỎ IN NGHIÊNG,
-    nhãn in đậm: GHI CHÚ KỸ THUẬT (Bộ số 12119): <nội dung>
-    (đơn chưa vào sản xuất thì nhãn không kèm Bộ số).
-  - Nằm ở CUỐI mỗi bộ cửa (sau dòng phụ kiện cuối), gồm cả ghi chú của dòng cửa và dòng phụ kiện.
+Trang chi tiết đơn hàng (/orders/[id], phần "Chi tiết từng bộ cửa") nay xếp ghi chú kỹ thuật
+GIỐNG BẢN XUẤT EXCEL V2 / PDF (và giống tab Quản lý đơn hàng đã sửa ở V104):
+  - BỎ hẳn cột "Ghi chú (18)" → bảng từ 20 cột còn 19 cột, bề rộng chia lại hết 100%.
+  - Ghi chú in thành HÀNG RIÊNG trải hết bề ngang bảng (colSpan=19), CHỮ ĐỎ IN NGHIÊNG,
+    nhãn in đậm: GHI CHÚ KỸ THUẬT (Bộ số 12062): <nội dung>
+    (đơn hàng mẫu chưa có Bộ số thì nhãn không kèm bộ số).
+  - Nằm ở CUỐI mỗi bộ cửa, sau dòng phụ kiện cuối; ghi chú của cả dòng cửa lẫn dòng phụ kiện.
   - Ghi chú nhiều dòng giữ nguyên xuống dòng.
 
 DANH SÁCH FILE
 --------------
 Sửa:
-  src/components/order-list/order-detail-pane.tsx   bỏ cột Ghi chú + thêm hàng GHI CHÚ KỸ THUẬT
-  ORDER_NOTES_ARRANGEMENT_V104.md                   tài liệu + kết quả kiểm chứng
+  src/app/orders/[id]/page.tsx        bỏ cột Ghi chú + thêm hàng GHI CHÚ KỸ THUẬT (19 cột)
+  ORDER_DETAIL_NOTES_V105.md          tài liệu + kết quả kiểm chứng
 
 KHÔNG cần migration DB. Không đổi dữ liệu.
 
@@ -29,10 +28,10 @@ BẮT BUỘC SAU KHI COPY
 ---------------------
 1. Xoá cache build:  rmdir /s /q .next
 2. Chạy lại: npm run build (hoặc npm run dev).
-3. Mở /orders, bấm 1 đơn có ghi chú: ghi chú phải hiện thành hàng chữ đỏ trải hết bảng,
-   nằm cuối mỗi bộ cửa, có nhãn "GHI CHÚ KỸ THUẬT (Bộ số ...)".
+3. Mở 1 đơn có ghi chú: bảng không còn cột "Ghi chú"; cuối mỗi bộ cửa có hàng chữ đỏ
+   "GHI CHÚ KỸ THUẬT (Bộ số ...): ..." trải hết bề ngang bảng.
 
 GHI CHÚ
 -------
-Hai chỗ khác vẫn giữ cột ghi chú (nói nếu muốn làm giống): trang xem đầy đủ 23 cột (/orders/[id])
-và trang in trên web (/orders/[id]/print). File PDF/Excel tải về thì đã xếp kiểu hàng riêng từ trước.
+Còn 1 chỗ vẫn để cột ghi chú: trang in trên web /orders/[id]/print (mở từ nút "In / Lưu PDF").
+File PDF/Excel tải về thì đã xếp kiểu hàng riêng từ trước — nói nếu muốn sửa nốt trang in.

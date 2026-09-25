@@ -89,25 +89,24 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 <div className="w-full overflow-hidden">
                   <table className="w-full table-fixed border-collapse text-[9px] leading-tight xl:text-[10px]">
                     <colgroup>
-                      <col style={{ width: "2%" }} />
-                      <col style={{ width: "3.5%" }} />
-                      <col style={{ width: "11%" }} />
-                      <col style={{ width: "8%" }} />
-                      <col style={{ width: "4.5%" }} />
+                      <col style={{ width: "2.5%" }} />
                       <col style={{ width: "4%" }} />
+                      <col style={{ width: "12%" }} />
+                      <col style={{ width: "9%" }} />
                       <col style={{ width: "5%" }} />
                       <col style={{ width: "4.5%" }} />
-                      <col style={{ width: "3.5%" }} />
-                      <col style={{ width: "3.5%" }} />
-                      <col style={{ width: "3.5%" }} />
-                      <col style={{ width: "3.5%" }} />
-                      <col style={{ width: "3.5%" }} />
-                      <col style={{ width: "4%" }} />
-                      <col style={{ width: "3.5%" }} />
-                      <col style={{ width: "5%" }} />
                       <col style={{ width: "5.5%" }} />
+                      <col style={{ width: "5%" }} />
+                      <col style={{ width: "4%" }} />
+                      <col style={{ width: "4%" }} />
+                      <col style={{ width: "4%" }} />
+                      <col style={{ width: "4%" }} />
+                      <col style={{ width: "4%" }} />
+                      <col style={{ width: "4.5%" }} />
+                      <col style={{ width: "4%" }} />
+                      <col style={{ width: "5%" }} />
                       <col style={{ width: "6%" }} />
-                      <col style={{ width: "9.5%" }} />
+                      <col style={{ width: "6.5%" }} />
                       <col style={{ width: "6.5%" }} />
                     </colgroup>
                     <thead className="bg-slate-200 text-slate-700">
@@ -115,7 +114,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                         <Th rowSpan={2}>STT</Th><Th rowSpan={2}>BỘ SỐ</Th><Th rowSpan={2}>Tên sản phẩm<br/>(1)</Th><Th rowSpan={2}>Model<br/>(2)</Th><Th rowSpan={2}>Ô THOÁNG</Th>
                         <Th rowSpan={2}>Hướng mở<br/>(3)</Th><Th rowSpan={2}>Phào<br/>(Thuận - Nghịch)<br/>(4)</Th><Th rowSpan={2}>Màu sơn<br/>(5)</Th>
                         <Th colSpan={3} center>Kích thước cửa (mm)</Th><Th colSpan={2} center>KT thông thủy</Th><Th rowSpan={2}>Số lượng bộ<br/>(13)</Th>
-                        <Th colSpan={4} center>Tính giá</Th><Th rowSpan={2}>Ghi chú<br/>(18)</Th><Th rowSpan={2}>Hình ảnh SP</Th>
+                        <Th colSpan={4} center>Tính giá</Th><Th rowSpan={2}>Hình ảnh SP</Th>
                       </tr>
                       <tr>
                         <Th center>Cao<br/>(7)</Th><Th center>Rộng<br/>(8)</Th><Th center>Khuôn<br/>(9)</Th><Th center>Cao<br/>(10)</Th><Th center>Rộng<br/>(11)</Th>
@@ -127,7 +126,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                       {detailRows.length > 0 ? (
                         <>
                           <tr>
-                            <td className="border border-slate-300 bg-slate-100 px-3 py-2 font-semibold text-slate-700" colSpan={20}>
+                            <td className="border border-slate-300 bg-slate-100 px-3 py-2 font-semibold text-slate-700" colSpan={19}>
                               ↳ Chi tiết / phụ kiện / phụ phí của bộ cửa
                             </td>
                           </tr>
@@ -136,6 +135,17 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                           ))}
                         </>
                       ) : null}
+                      {/* V105: ghi chú kỹ thuật in thành hàng riêng ở CUỐI bộ cửa, giống bản xuất Excel/PDF. */}
+                      {itemNoteRows(item, detailRows, showMainRow).map((entry) => (
+                        <tr key={entry.key} className="bg-rose-50/60">
+                          <td className="whitespace-pre-line border border-slate-200 px-3 py-2 text-[10px] italic leading-snug text-red-600 xl:text-[11px]" colSpan={19}>
+                            <span className="font-bold not-italic">
+                              {showSetNumber && item.setNo ? `GHI CHÚ KỸ THUẬT (Bộ số ${item.setNo}):` : "GHI CHÚ KỸ THUẬT:"}
+                            </span>{" "}
+                            <span>{entry.note}</span>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -176,13 +186,35 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   );
 }
 
+/** V105: các ghi chú kỹ thuật của 1 bộ cửa (dòng cửa + dòng phụ kiện đang hiển thị), in thành hàng riêng. */
+function itemNoteRows(
+  item: { id: number; note?: string | null },
+  detailRows: Array<{ id?: number | null; note?: string | null; sourceRow?: number | null }>,
+  showMainRow: boolean,
+) {
+  const rows: Array<{ key: string; note: string }> = [];
+  const mainNote = cleanText(item.note);
+  if (showMainRow && mainNote) rows.push({ key: `note-main-${item.id}`, note: mainNote });
+  detailRows.forEach((row, index) => {
+    const note = cleanText(row.note);
+    if (note) rows.push({ key: `note-${item.id}-${row.id ?? row.sourceRow ?? index}`, note });
+  });
+  return rows;
+}
+
+function cleanText(value: unknown) {
+  if (value === null || value === undefined) return "";
+  const text = String(value).trim();
+  return text === "-" || text === "—" ? "" : text;
+}
+
 function ReadRow({ lineNo, row, main = false, showSetNo = false }: { lineNo: number | null; main?: boolean; showSetNo?: boolean; row: any }) {
   return (
     <tr className={main ? "bg-cyan-50 font-medium" : "hover:bg-slate-50"}>
       <Td>{lineNo ?? ""}</Td><Td>{showSetNo ? (row.setNo || "") : ""}</Td><Td wide>{row.productName || ""}</Td><Td>{row.productCode || row.model || ""}</Td><Td wide>{row.panelInfo || ""}</Td>
       <Td>{row.openingDirection || ""}</Td><Td>{row.trimDirection || ""}</Td><Td>{row.paintColor || ""}</Td><Td>{row.heightMm ?? ""}</Td><Td>{row.widthMm ?? ""}</Td><Td>{row.frameMm ?? ""}</Td>
       <Td>{row.clearHeightMm ?? ""}</Td><Td>{row.clearWidthMm ?? ""}</Td><Td>{row.quantity ?? ""}</Td><Td>{row.unit || ""}</Td>{/* V74: dòng cửa hiển thị KHỐI LƯỢNG đến 2 số thập phân; dòng phụ kiện giữ tối đa 4. */}<Td>{main ? formatQuantity2(row.pricingQuantity) : formatNumber(row.pricingQuantity)}</Td><Td>{formatMoney(row.unitPrice)}</Td><Td>{formatMoney(row.amount)}</Td>
-      <Td wide>{row.note || ""}</Td><Td>{row.imagePath ? <ProductImage path={row.imagePath} /> : ""}</Td>
+      <Td>{row.imagePath ? <ProductImage path={row.imagePath} /> : ""}</Td>
     </tr>
   );
 }
