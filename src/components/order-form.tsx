@@ -481,9 +481,12 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
         <div className="border-b border-slate-200 bg-slate-50 px-3 py-1.5">
           <h2 className="text-[12px] font-semibold tracking-normal text-slate-900">Thông tin đơn hàng</h2>
         </div>
-        {/* V80: đưa toàn bộ 13 ô thông tin đơn hàng lên 1 hàng (như yêu cầu). */}
+        {/* V80: đưa toàn bộ ô thông tin đơn hàng lên 1 hàng.
+            V112b: thêm ô "Loại đơn" nên lưới phải có 14 cột (trước đó 13 cột → ô Số Km bị đẩy
+            xuống hàng 2): Loại đơn thu 50% (12,4fr → 6,2fr), Số Km thu 60% (8fr → 3,2fr);
+            minmax() giữ kích thước tối thiểu để chữ "Đơn hàng mẫu" và số Km không bị cắt. */}
         <div className="p-2.5">
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-[8fr_12.4fr_6.8fr_7.2fr_minmax(52px,5.6fr)_9.1fr_6.8fr_7.2fr_6.8fr_6.4fr_11.4fr_4.7fr_3.1fr]">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-[8fr_minmax(84px,6.2fr)_6.8fr_7.2fr_minmax(52px,5.6fr)_9.1fr_6.8fr_7.2fr_6.8fr_6.4fr_11.4fr_4.7fr_3.1fr_minmax(38px,3.2fr)]">
             <Field label="Mã đơn hàng" required invalid={invalidOrderInfoFields.has("orderCode")}><TextInput value={form.orderCode} onChange={(v) => setField("orderCode", v)} /></Field>
             <Field label="Loại đơn">
               {/* V112: loại đơn chọn khi tạo đơn (Đơn hàng mẫu / Sản xuất / Đơn làm lại). */}
