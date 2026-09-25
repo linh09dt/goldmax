@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { normalizeOrderPayload } from "@/lib/order-persistence";
 import { resolveSetNumbers } from "@/lib/set-number";
+import { ORDER_WRITE_TRANSACTION } from "@/lib/db-transaction";
 
 export const runtime = "nodejs";
 
@@ -20,32 +21,43 @@ export async function POST(request: Request) {
       );
     }
 
+    // V111: mỗi BẢNG một lượt ghi (createManyAndReturn + createMany) thay vì create từng dòng.
+    // Đo thực tế: 25 bộ cửa trước đây = 61 lượt round trip; Prisma KHÔNG gộp nested write khi
+    // dùng driver adapter nên phải gom theo bảng. Sau khi gom: ~8 lượt, không phụ thuộc số bộ cửa.
+    // (Với DB remote ~85 ms/lượt, 61 lượt ≈ 5,2 giây > hạn mức 5 giây của transaction → lỗi
+    // "A query cannot be executed on an expired transaction".)
     const { order, setNumbers } = await prisma.$transaction(async (tx) => {
-      const created = await tx.salesOrder.create({
-        data: { orderCode: normalized.orderCode, ...normalized.orderData },
-      });
-
-      // V75/V91: Bộ số tự tăng dần — chỉ cấp khi đơn ở trạng thái Sản xuất (bấm Lưu đơn hàng).
+      // Bộ số phải chốt trước khi ghi và nằm trong cùng transaction để không cấp trùng.
       const assignedSetNumbers = await resolveSetNumbers(tx, {
         status: normalized.orderData.status,
         incoming: normalized.items.map((item) => item.data.setNo),
       });
 
-      for (const [index, item] of normalized.items.entries()) {
-        const createdItem = await tx.salesOrderItem.create({
-          data: { orderId: created.id, lineNo: item.lineNo, ...item.data, setNo: assignedSetNumbers[index] },
-        });
-        if (item.details.length) {
-          await tx.salesOrderItemDetail.createMany({
-            data: item.details.map((detail) => ({
-              orderItemId: createdItem.id,
-              rowOrder: detail.rowOrder,
-              detailType: detail.detailType,
-              ...detail.data,
-            })),
-          });
-        }
-      }
+      const created = await tx.salesOrder.create({
+        data: { orderCode: normalized.orderCode, ...normalized.orderData },
+        select: { id: true, orderCode: true },
+      });
+
+      const createdItems = await tx.salesOrderItem.createManyAndReturn({
+        data: normalized.items.map((item, index) => ({
+          orderId: created.id,
+          lineNo: item.lineNo,
+          ...item.data,
+          setNo: assignedSetNumbers[index] ?? null,
+        })),
+        select: { id: true, lineNo: true },
+      });
+
+      const idByLineNo = new Map(createdItems.map((row) => [row.lineNo, row.id]));
+      const details = normalized.items.flatMap((item) =>
+        item.details.map((detail) => ({
+          orderItemId: idByLineNo.get(item.lineNo) as number,
+          rowOrder: detail.rowOrder,
+          detailType: detail.detailType,
+          ...detail.data,
+        })),
+      );
+      if (details.length) await tx.salesOrderItemDetail.createMany({ data: details });
 
       if (normalized.requirements.length) {
         await tx.salesOrderRequirement.createMany({
@@ -54,7 +66,7 @@ export async function POST(request: Request) {
       }
 
       return { order: created, setNumbers: assignedSetNumbers };
-    });
+    }, ORDER_WRITE_TRANSACTION);
 
     return NextResponse.json({ ok: true, id: order.id, orderCode: order.orderCode, setNumbers });
   } catch (error) {

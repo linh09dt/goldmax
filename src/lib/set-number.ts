@@ -88,34 +88,33 @@ function highestNumericSetNo(values: Array<string | null>) {
 async function reserveSetNumbers(tx: Prisma.TransactionClient, start: number, count: number, keptHighest = 0) {
   const floor = Math.max(1, Math.floor(Number.isFinite(start) ? start : DEFAULT_SET_NUMBER_START));
 
-  // Khóa bộ đếm: INSERT ... ON CONFLICT DO NOTHING tạo khóa hàng, SELECT ... FOR UPDATE giữ khóa
-  // để hai đơn lưu cùng lúc không nhận cùng một Bộ số.
+  // Khóa bộ đếm: INSERT ... ON CONFLICT DO NOTHING tạo hàng khoá nếu chưa có.
   await tx.$executeRaw`
     INSERT INTO system_settings ("key", "value", "created_at", "updated_at")
     VALUES (${SET_NUMBER_COUNTER_KEY}, ${String(Math.max(0, floor - 1))}, now(), now())
     ON CONFLICT (key) DO NOTHING`;
 
-  const counterRows = await tx.$queryRaw<Array<{ value: string | null }>>`
-    SELECT "value" FROM system_settings WHERE "key" = ${SET_NUMBER_COUNTER_KEY} FOR UPDATE`;
-  const lastUsed = toSafeInteger(counterRows[0]?.value);
-  const highestInUse = await highestExistingSetNumber(tx);
+  // V111: gộp SELECT ... FOR UPDATE + MAX + UPDATE thành MỘT câu UPDATE ... RETURNING.
+  // Câu UPDATE tự khóa hàng bộ đếm nên hai đơn lưu cùng lúc vẫn không nhận trùng Bộ số,
+  // còn số lớn nhất đang dùng được tính bằng subquery ngay trong biểu thức GREATEST.
+  // Giá trị mới = max(bộ đếm + count, floor + count - 1, số lớn nhất đang dùng + count, số đang giữ + count)
+  // → tương đương first = max(lastUsed + 1, floor, highestInUse + 1, keptHighest + 1).
+  const rows = await tx.$queryRaw<Array<{ last_value: bigint | number | string | null }>>`
+    UPDATE system_settings
+    SET "value" = GREATEST(
+          COALESCE(NULLIF("value", '')::bigint, 0) + ${count},
+          ${floor + count - 1}::bigint,
+          (SELECT COALESCE(MAX("set_no"::bigint), 0) FROM sales_order_items
+             WHERE "set_no" ~ '^[0-9]{1,18}$') + ${count},
+          ${keptHighest + count}::bigint
+        )::text,
+        "updated_at" = now()
+    WHERE "key" = ${SET_NUMBER_COUNTER_KEY}
+    RETURNING "value"::bigint AS last_value`;
 
-  const first = Math.max(lastUsed + 1, floor, highestInUse + 1, keptHighest + 1);
-  const lastAssigned = first + count - 1;
-
-  await tx.$executeRaw`
-    UPDATE system_settings SET "value" = ${String(lastAssigned)}, "updated_at" = now()
-    WHERE "key" = ${SET_NUMBER_COUNTER_KEY}`;
-
+  const lastAssigned = toSafeInteger(rows[0]?.last_value);
+  const first = Math.max(floor, lastAssigned - count + 1);
   return Array.from({ length: count }, (_, index) => String(first + index));
-}
-
-async function highestExistingSetNumber(tx: Prisma.TransactionClient) {
-  const rows = await tx.$queryRaw<Array<{ highest: string | null }>>`
-    SELECT MAX("set_no"::bigint)::text AS highest
-    FROM sales_order_items
-    WHERE "set_no" ~ '^[0-9]{1,18}$'`;
-  return toSafeInteger(rows[0]?.highest);
 }
 
 function toSafeInteger(value: unknown) {

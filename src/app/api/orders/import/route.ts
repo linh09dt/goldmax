@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { parseOrderWorkbook } from "@/lib/order-excel";
 import { DEFAULT_DISCOUNT_PERCENT } from "@/lib/order-output";
+import { ORDER_WRITE_TRANSACTION } from "@/lib/db-transaction";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -114,88 +115,96 @@ export async function POST(request: Request) {
         lastImportedAt: new Date(),
       };
 
-      const order = existing
-        ? await tx.salesOrder.update({ where: { id: existing.id }, data: orderData })
-        : await tx.salesOrder.create({ data: { orderCode: parsed.orderCode, ...orderData } });
-
+      // V111: xóa hàng cũ (nếu cập nhật) rồi ghi LỒNG NHAU items + details + requirements
+      // trong một lượt thay vì create từng dòng — trước đây một đơn nhập từ Excel vài chục bộ cửa
+      // tốn hàng trăm lượt round trip nên vượt hạn mức 5 giây của transaction.
       if (existing) {
-        await tx.salesOrderRequirement.deleteMany({ where: { orderId: order.id } });
-        await tx.salesOrderItem.deleteMany({ where: { orderId: order.id } });
+        await tx.salesOrderRequirement.deleteMany({ where: { orderId: existing.id } });
+        await tx.salesOrderItem.deleteMany({ where: { orderId: existing.id } });
       }
 
-      for (const item of parsed.items) {
-        const createdItem = await tx.salesOrderItem.create({
-          data: {
-            orderId: order.id,
-            lineNo: item.lineNo,
-            setNo: item.setNo,
-            productName: item.productName,
-            productCode: item.productCode,
-            model: item.model,
-            openingDirection: item.openingDirection,
-            trimDirection: item.trimDirection,
-            paintColor: item.paintColor,
-            heightMm: item.heightMm,
-            widthMm: item.widthMm,
-            frameMm: item.frameMm,
-            clearHeightMm: item.clearHeightMm,
-            clearWidthMm: item.clearWidthMm,
-            panelInfo: item.panelInfo,
-            trimBarsPerSet: item.trimBarsPerSet,
-            trimType: item.trimType,
-            lockModel: item.lockModel,
-            windowBars: item.windowBars,
-            leavesPerSet: item.leavesPerSet,
-            quantity: item.quantity,
-            unit: item.unit,
-            pricingQuantity: item.pricingQuantity,
-            unitPrice: item.unitPrice,
-            amount: item.amount,
-            note: item.note,
-            modelCheck: item.modelCheck,
-            priceCheck: item.priceCheck,
-            sourceRow: item.sourceRow,
-            rawBlock: JSON.parse(JSON.stringify(item.rawBlock)),
-          },
-        });
-
-        if (item.details.length > 0) {
-          await tx.salesOrderItemDetail.createMany({
-            data: item.details.map((detail) => ({
-              orderItemId: createdItem.id,
-              rowOrder: detail.rowOrder,
-              detailType: detail.detailType,
-              setNo: detail.setNo,
-              productName: detail.productName,
-              productCode: detail.productCode,
-              model: detail.model,
-              openingDirection: detail.openingDirection,
-              trimDirection: detail.trimDirection,
-              paintColor: detail.paintColor,
-              heightMm: detail.heightMm,
-              widthMm: detail.widthMm,
-              frameMm: detail.frameMm,
-              clearHeightMm: detail.clearHeightMm,
-              clearWidthMm: detail.clearWidthMm,
-              panelInfo: detail.panelInfo,
-              trimBarsPerSet: detail.trimBarsPerSet,
-              trimType: detail.trimType,
-              lockModel: detail.lockModel,
-              windowBars: detail.windowBars,
-              leavesPerSet: detail.leavesPerSet,
-              quantity: detail.quantity,
-              unit: detail.unit,
-              pricingQuantity: detail.pricingQuantity,
-              unitPrice: detail.unitPrice,
-              amount: detail.amount,
-              note: detail.note,
-              modelCheck: detail.modelCheck,
-              priceCheck: detail.priceCheck,
-              sourceRow: detail.sourceRow,
-            })),
+      // V111: mỗi BẢNG một lượt ghi (createManyAndReturn + createMany) thay vì create từng dòng.
+      // Đơn nhập từ Excel có thể vài chục bộ cửa × nhiều phụ kiện → trước đây hàng trăm lượt
+      // round trip tuần tự làm transaction quá hạn 5 giây khi DB ở xa.
+      const order = existing
+        ? await tx.salesOrder.update({ where: { id: existing.id }, data: orderData, select: { id: true } })
+        : await tx.salesOrder.create({
+            data: { orderCode: parsed.orderCode, ...orderData },
+            select: { id: true },
           });
-        }
-      }
+
+      const createdItems = await tx.salesOrderItem.createManyAndReturn({
+        data: parsed.items.map((item) => ({
+          orderId: order.id,
+          lineNo: item.lineNo,
+          setNo: item.setNo,
+          productName: item.productName,
+          productCode: item.productCode,
+          model: item.model,
+          openingDirection: item.openingDirection,
+          trimDirection: item.trimDirection,
+          paintColor: item.paintColor,
+          heightMm: item.heightMm,
+          widthMm: item.widthMm,
+          frameMm: item.frameMm,
+          clearHeightMm: item.clearHeightMm,
+          clearWidthMm: item.clearWidthMm,
+          panelInfo: item.panelInfo,
+          trimBarsPerSet: item.trimBarsPerSet,
+          trimType: item.trimType,
+          lockModel: item.lockModel,
+          windowBars: item.windowBars,
+          leavesPerSet: item.leavesPerSet,
+          quantity: item.quantity,
+          unit: item.unit,
+          pricingQuantity: item.pricingQuantity,
+          unitPrice: item.unitPrice,
+          amount: item.amount,
+          note: item.note,
+          modelCheck: item.modelCheck,
+          priceCheck: item.priceCheck,
+          sourceRow: item.sourceRow,
+          rawBlock: JSON.parse(JSON.stringify(item.rawBlock)),
+        })),
+        select: { id: true, lineNo: true },
+      });
+
+      const idByLineNo = new Map(createdItems.map((row) => [row.lineNo, row.id]));
+      const details = parsed.items.flatMap((item) =>
+        item.details.map((detail) => ({
+          orderItemId: idByLineNo.get(item.lineNo) as number,
+          rowOrder: detail.rowOrder,
+          detailType: detail.detailType,
+          setNo: detail.setNo,
+          productName: detail.productName,
+          productCode: detail.productCode,
+          model: detail.model,
+          openingDirection: detail.openingDirection,
+          trimDirection: detail.trimDirection,
+          paintColor: detail.paintColor,
+          heightMm: detail.heightMm,
+          widthMm: detail.widthMm,
+          frameMm: detail.frameMm,
+          clearHeightMm: detail.clearHeightMm,
+          clearWidthMm: detail.clearWidthMm,
+          panelInfo: detail.panelInfo,
+          trimBarsPerSet: detail.trimBarsPerSet,
+          trimType: detail.trimType,
+          lockModel: detail.lockModel,
+          windowBars: detail.windowBars,
+          leavesPerSet: detail.leavesPerSet,
+          quantity: detail.quantity,
+          unit: detail.unit,
+          pricingQuantity: detail.pricingQuantity,
+          unitPrice: detail.unitPrice,
+          amount: detail.amount,
+          note: detail.note,
+          modelCheck: detail.modelCheck,
+          priceCheck: detail.priceCheck,
+          sourceRow: detail.sourceRow,
+        })),
+      );
+      if (details.length > 0) await tx.salesOrderItemDetail.createMany({ data: details });
 
       if (parsed.requirements.length > 0) {
         await tx.salesOrderRequirement.createMany({
@@ -224,7 +233,7 @@ export async function POST(request: Request) {
       });
 
       return { id: order.id, action: importAction };
-    });
+    }, ORDER_WRITE_TRANSACTION);
 
     return NextResponse.json({
       ok: true,

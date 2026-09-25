@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { normalizeOrderPayload } from "@/lib/order-persistence";
 import { resolveSetNumbers } from "@/lib/set-number";
+import { ORDER_WRITE_TRANSACTION } from "@/lib/db-transaction";
 
 export const runtime = "nodejs";
 
@@ -25,11 +26,10 @@ async function updateOrder(request: Request, context: { params: Promise<{ id: st
     const exists = await prisma.salesOrder.findUnique({ where: { id: orderId }, select: { id: true } });
     if (!exists) return NextResponse.json({ ok: false, error: "Không tìm thấy đơn hàng." }, { status: 404 });
 
+    // V111: xóa hàng cũ rồi mỗi BẢNG một lượt ghi (createManyAndReturn + createMany) thay vì
+    // create từng dòng — trước đây mỗi bộ cửa là 2 lượt round trip nên đơn lớn vượt hạn mức
+    // 5 giây của transaction khi DB ở xa ("expired transaction").
     const assignedSetNumbers = await prisma.$transaction(async (tx) => {
-      await tx.salesOrder.update({
-        where: { id: orderId },
-        data: { orderCode: normalized.orderCode, ...normalized.orderData },
-      });
       await tx.salesOrderRequirement.deleteMany({ where: { orderId } });
       await tx.salesOrderItem.deleteMany({ where: { orderId } });
 
@@ -40,21 +40,31 @@ async function updateOrder(request: Request, context: { params: Promise<{ id: st
         incoming: normalized.items.map((item) => item.data.setNo),
       });
 
-      for (const [index, item] of normalized.items.entries()) {
-        const createdItem = await tx.salesOrderItem.create({
-          data: { orderId, lineNo: item.lineNo, ...item.data, setNo: setNumbers[index] },
-        });
-        if (item.details.length) {
-          await tx.salesOrderItemDetail.createMany({
-            data: item.details.map((detail) => ({
-              orderItemId: createdItem.id,
-              rowOrder: detail.rowOrder,
-              detailType: detail.detailType,
-              ...detail.data,
-            })),
-          });
-        }
-      }
+      await tx.salesOrder.update({
+        where: { id: orderId },
+        data: { orderCode: normalized.orderCode, ...normalized.orderData },
+      });
+
+      const createdItems = await tx.salesOrderItem.createManyAndReturn({
+        data: normalized.items.map((item, index) => ({
+          orderId,
+          lineNo: item.lineNo,
+          ...item.data,
+          setNo: setNumbers[index] ?? null,
+        })),
+        select: { id: true, lineNo: true },
+      });
+
+      const idByLineNo = new Map(createdItems.map((row) => [row.lineNo, row.id]));
+      const details = normalized.items.flatMap((item) =>
+        item.details.map((detail) => ({
+          orderItemId: idByLineNo.get(item.lineNo) as number,
+          rowOrder: detail.rowOrder,
+          detailType: detail.detailType,
+          ...detail.data,
+        })),
+      );
+      if (details.length) await tx.salesOrderItemDetail.createMany({ data: details });
 
       if (normalized.requirements.length) {
         await tx.salesOrderRequirement.createMany({
@@ -63,7 +73,7 @@ async function updateOrder(request: Request, context: { params: Promise<{ id: st
       }
 
       return setNumbers;
-    });
+    }, ORDER_WRITE_TRANSACTION);
 
     return NextResponse.json({
       ok: true,
