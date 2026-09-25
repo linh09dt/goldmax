@@ -483,10 +483,12 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
         </div>
         {/* V80: đưa toàn bộ ô thông tin đơn hàng lên 1 hàng.
             V112b: thêm ô "Loại đơn" nên lưới phải có 14 cột (trước đó 13 cột → ô Số Km bị đẩy
-            xuống hàng 2): Loại đơn thu 50% (12,4fr → 6,2fr), Số Km thu 60% (8fr → 3,2fr);
-            minmax() giữ kích thước tối thiểu để chữ "Đơn hàng mẫu" và số Km không bị cắt. */}
+            xuống hàng 2): Số Km 8fr → 3,2fr (−60%).
+            V112c: lấy bớt chỗ của ô Số điện thoại (11,4fr → 7,4fr) để mở rộng ô Loại đơn
+            (6,2fr → 10,2fr) cho hiện đủ chữ "Đơn hàng mẫu" mà KHÔNG làm tràn hàng.
+            minmax() giữ kích thước tối thiểu để không ô nào bị cắt mất nội dung. */}
         <div className="p-2.5">
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-[8fr_minmax(84px,6.2fr)_6.8fr_7.2fr_minmax(52px,5.6fr)_9.1fr_6.8fr_7.2fr_6.8fr_6.4fr_11.4fr_4.7fr_3.1fr_minmax(38px,3.2fr)]">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-[8fr_minmax(118px,10.2fr)_6.8fr_7.2fr_minmax(52px,5.6fr)_9.1fr_6.8fr_7.2fr_6.8fr_6.4fr_minmax(88px,7.4fr)_4.7fr_3.1fr_minmax(38px,3.2fr)]">
             <Field label="Mã đơn hàng" required invalid={invalidOrderInfoFields.has("orderCode")}><TextInput value={form.orderCode} onChange={(v) => setField("orderCode", v)} /></Field>
             <Field label="Loại đơn">
               {/* V112: loại đơn chọn khi tạo đơn (Đơn hàng mẫu / Sản xuất / Đơn làm lại). */}

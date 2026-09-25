@@ -54,7 +54,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           <h2 className="text-[12px] font-semibold tracking-normal text-slate-900">Thông tin đơn hàng</h2>
         </div>
         <div className="p-2.5">
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-[1.18fr_0.88fr_0.96fr_1.05fr_1.12fr_1.28fr_0.96fr_1.02fr_0.98fr_0.88fr_1.42fr_0.78fr_0.82fr]">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-[1.18fr_1.12fr_0.94fr_1.02fr_1.08fr_1.24fr_0.94fr_0.99fr_0.95fr_0.86fr_0.95fr_0.76fr_0.80fr_0.60fr]">
             <OrderInfoField label="Mã đơn hàng" value={order.orderCode} required />
             <OrderInfoField label="Loại đơn" value={orderTypeLabel(order.orderType)} required />
             <OrderInfoField label="Trạng thái" value={statusLabel(order.status)} required />
