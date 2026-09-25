@@ -390,12 +390,12 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
 
   /**
    * V91: chỉ còn 2 hành động lưu.
-   * - "DRAFT" (Lưu nháp): đơn giữ/trở về trạng thái Đơn hàng mẫu và ở lại trang để nhập tiếp.
-   * - "ORDER" (Lưu đơn hàng): chuyển đơn sang trạng thái Sản xuất rồi mở trang chi tiết đơn.
+   * - "DRAFT" (Lưu nháp): đơn giữ/trở về trạng thái Đơn hàng mẫu.
+   * - "ORDER" (Lưu đơn hàng): chuyển đơn sang trạng thái Sản xuất.
+   * V93: lưu xong (cả 2 hành động) đều mở trang chi tiết đơn.
    */
   async function save(action: OrderSaveAction) {
     setMessage(null);
-    const stayOnPage = action === "DRAFT";
     const missingFields = REQUIRED_ORDER_INFO_FIELDS.filter(({ key }) => {
       const value = form[key];
       return typeof value !== "string" || value.trim() === "";
@@ -441,13 +441,9 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
         type: "ok",
         text: `${targetOrderId ? "Đã cập nhật" : "Đã tạo"} đơn hàng — trạng thái ${orderStatusLabel(nextStatus)}.`,
       });
-      if (stayOnPage) {
-        if (!targetOrderId) router.replace(`/orders/${result.id}/edit`);
-        else router.refresh();
-      } else {
-        router.push(`/orders/${result.id}`);
-        router.refresh();
-      }
+      // V93: sau khi lưu, cả Lưu nháp và Lưu đơn hàng đều mở trang chi tiết đơn.
+      router.push(`/orders/${result.id}`);
+      router.refresh();
     } catch (error) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Không thể lưu đơn hàng." });
     } finally {
@@ -593,7 +589,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
             type="button"
             disabled={busy}
             onClick={() => void save("DRAFT")}
-            title="Lưu lại và giữ đơn ở trạng thái Đơn hàng mẫu"
+            title="Lưu nháp — giữ đơn ở trạng thái Đơn hàng mẫu, sau đó mở trang chi tiết đơn"
           >
             {busy ? "Đang lưu..." : "Lưu nháp"}
           </button>

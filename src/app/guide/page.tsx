@@ -51,7 +51,7 @@ export default function GuidePage() {
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 3.</b> Nhập kích thước, số lượng và đơn giá. KH/Lượng sẽ tự tính nếu Model/Nhóm hàng đã được gán rule trong Cấu hình tính toán; nếu không thì nhập tay.</li>
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 4.</b> Thêm chi tiết / phụ kiện / phụ phí. Mỗi dòng là một mini-card; nhập trực tiếp các cột hiển thị, không cần cuộn ngang.</li>
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 5.</b> Dán ảnh bằng Ctrl+V hoặc tải ảnh sản phẩm nếu cần, sau đó kiểm tra tổng giá trị.</li>
-            <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 6.</b> Bấm <b>Lưu nháp</b> để giữ đơn ở trạng thái Đơn hàng mẫu (vẫn ở lại trang để nhập tiếp), hoặc <b>Lưu đơn hàng</b> để chuyển đơn sang trạng thái Sản xuất và mở trang chi tiết đơn.</li>
+            <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 6.</b> Bấm <b>Lưu nháp</b> để giữ đơn ở trạng thái Đơn hàng mẫu, hoặc <b>Lưu đơn hàng</b> để chuyển đơn sang trạng thái Sản xuất. Cả hai cách đều mở trang chi tiết đơn sau khi lưu.</li>
           </ol>
           <ActionTable rows={[
             ["Nhập Excel mẫu đơn", "Đọc dữ liệu từ file Excel mẫu và đưa vào đơn đang nhập."],
@@ -61,7 +61,7 @@ export default function GuidePage() {
             ["Xóa bộ", "Xóa toàn bộ bộ cửa và các dòng chi tiết thuộc bộ đó."],
             ["Dán / Tải ảnh", "Bấm vào ô Hình ảnh SP rồi nhấn Ctrl+V để dán ảnh từ Clipboard, hoặc tải file ảnh như trước. Ảnh được lưu trên Supabase Storage."],
             ["Xóa", "Xóa một dòng chi tiết / phụ kiện / phụ phí."],
-            ["Lưu nháp", "Lưu lại đơn và giữ ở trạng thái Đơn hàng mẫu; vẫn ở lại trang để nhập tiếp. Đơn đã ở trạng thái Sản xuất thì không bị hạ cấp về mẫu."],
+            ["Lưu nháp", "Lưu lại đơn và giữ ở trạng thái Đơn hàng mẫu, sau đó mở trang chi tiết đơn. Đơn đã ở trạng thái Sản xuất thì không bị hạ cấp về mẫu."],
             ["Lưu đơn hàng", "Lưu đơn và chuyển sang trạng thái Sản xuất (hệ thống cấp Bộ số), sau đó mở trang chi tiết đơn."],
           ]} />
         </GuideSection>
