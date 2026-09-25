@@ -1,46 +1,38 @@
-GOLDMAX door-production — GÓI DELTA V100 (danh sách đơn hàng chia 2 cột — Phương án B)
-======================================================================================
+GOLDMAX door-production — GÓI DELTA V101 (cân đối thanh lọc màn Quản lý đơn hàng)
+================================================================================
 
-Gói này CHỈ chứa các file thay đổi so với bản door-production.zip gốc (24/09/2026).
-Cách áp dụng: copy đè toàn bộ nội dung gói này vào thư mục gốc dự án (giữ nguyên cây thư mục).
+!!! ÁP DỤNG SAU GÓI V100 (door-production-delta-v100.zip) — gói này gồm file page.tsx
+    đã tính cả thay đổi của V100. Nếu chưa áp dụng V100 thì copy CẢ HAI gói, thứ tự:
+    V100 trước → V101 sau.
+
+Cách áp dụng: copy đè nội dung gói này vào thư mục gốc dự án (giữ nguyên cây thư mục).
 
 NỘI DUNG
 --------
-Màn Quản lý đơn hàng (/orders) chuyển sang bố cục 2 cột:
-- Cột trái: tab trạng thái (Tất cả / Đơn hàng mẫu / Sản xuất) + 3 chỉ số (tổng đơn,
-  tổng tiền, quá hạn) + danh sách đơn gọn + PHÂN TRANG 20 đơn/trang.
-- Cột phải: chi tiết đơn đang chọn (thông tin nhận hàng, 4 ô tổng, bảng hàng hóa 13 cột,
-  nút Sửa / Xuất Excel / Xuất PDF / Xóa, link In và xem đầy đủ 23 cột). Không cần mở trang mới.
-- Thanh lọc: thêm TÌM NHANH + chip khoảng ngày (Hôm nay/Tuần/Tháng/Quý/Năm) + LỌC TRẠNG THÁI.
-- Nút "Xuất Excel danh sách" giờ lọc đúng như trên màn (dùng chung bộ lọc).
+Thanh lọc trên màn /orders được xếp lại theo LƯỚI 12 CỘT cho thẳng hàng, cân đối:
+  Hàng 1: Tìm nhanh (3 cột) · Khoảng ngày 5 chip (5 cột) · Từ ngày (2) · Đến ngày (2)
+  Hàng 2: Đại lý (3) · Khách hàng (3) · nút Lọc / Xoá lọc / Xuất Excel (6, dồn phải)
+- Các ô cùng loại có cùng bề rộng (Từ/Đến ngày 2-2 cột, Đại lý/Khách hàng 3-3 cột) → mép thẳng nhau.
+- Mọi ô cao đều nhau (36px), chữ trong chip ngày không bị bẻ dòng.
+- Ô tìm nhanh không còn bị cắt chữ (gợi ý rút gọn "Mã đơn, khách hàng, SĐT…").
+- Màn hẹp < 1280px: xếp 2 cột rồi 1 cột, Tìm nhanh và Khoảng ngày chiếm cả hàng.
+- Chọn chưa lọc nay ghi rõ "Tất cả đại lý" / "Tất cả khách hàng".
 
-SỬA KÈM: ngày đơn/hạn giao trước đây hiển thị lệch 1 ngày (format theo giờ máy chủ) — nay format theo UTC.
+Thanh lọc được TÁCH RA FILE RIÊNG (src/components/order-list/order-filter-bar.tsx).
 
 DANH SÁCH FILE
 --------------
 Mới:
-  src/components/order-list/order-list-pane.tsx     cột trái
-  src/components/order-list/order-detail-pane.tsx   cột phải
-  src/components/order-list/format.ts               định dạng ngày/tiền dùng chung
-  src/lib/order-list-filters.ts                     bộ lọc dùng chung + dựng query
-  ORDER_LIST_SPLIT_VIEW_V100.md                     tài liệu + bảng kiểm chứng
+  src/components/order-list/order-filter-bar.tsx    thanh lọc lưới 12 cột
+  ORDER_FILTER_BAR_ALIGN_V101.md                    tài liệu + bảng số đo
 Sửa:
-  src/app/orders/page.tsx                           bố cục 2 cột + truy vấn phân trang
-  src/app/api/orders/export-list/route.ts           dùng chung bộ lọc (thêm q/status)
+  src/app/orders/page.tsx                           dùng component thanh lọc mới
 
-KHÔNG cần migration DB. Không đổi cấu trúc bảng dữ liệu.
+KHÔNG cần migration DB. Không đổi tên field lọc (q/from/to/dealer/customer/status).
 
 BẮT BUỘC SAU KHI COPY
 ---------------------
-1. Xoá cache build:
-       rmdir /s /q .next
-       del /s /q python\__pycache__ api\__pycache__
+1. Xoá cache build:  rmdir /s /q .next
 2. Chạy lại: npm run build (hoặc npm run dev).
-3. Mở /orders: bấm 1 đơn ở cột trái → chi tiết hiện ngay cột phải; thử tìm nhanh,
-   chip khoảng ngày, đổi tab trạng thái và phân trang.
-
-GHI CHÚ
--------
-- Bảng 23 cột đầy đủ vẫn còn ở trang chi tiết đơn và trong file Excel xuất danh sách.
-- Chưa làm: Kanban, Lịch giao hàng, nút "▶ Sang Sản xuất" (là P1/P2 — nói nếu muốn làm tiếp).
-- Gói đầy đủ (nếu cần) xem door-production-logo-v87.zip.
+3. Mở /orders kiểm tra thanh lọc: các ô thẳng hàng, chip Hôm nay/Tuần này/Tháng này/Quý/Năm
+   nằm gọn 1 hàng, nút Lọc/Xoá lọc/Xuất Excel dồn về mép phải.
