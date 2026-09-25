@@ -1,38 +1,42 @@
-GOLDMAX door-production — GÓI DELTA V101 (cân đối thanh lọc màn Quản lý đơn hàng)
+GOLDMAX door-production — GÓI DELTA V103 (doanh thu chỉ tính đơn đã vào Sản xuất)
 ================================================================================
 
-!!! ÁP DỤNG SAU GÓI V100 (door-production-delta-v100.zip) — gói này gồm file page.tsx
-    đã tính cả thay đổi của V100. Nếu chưa áp dụng V100 thì copy CẢ HAI gói, thứ tự:
-    V100 trước → V101 sau.
+!!! ÁP DỤNG SAU GÓI V102 (và V91 trở lên). Gói này gồm revenue/page.tsx + api/revenue/export/route.ts
+    đã tính cả thay đổi của V102 (cột "Loại ĐH" theo trạng thái). Nếu chưa áp V102 thì chỉ cần
+    áp gói này cũng đủ (nó chứa cả nội dung V102 của 2 file đó).
 
 Cách áp dụng: copy đè nội dung gói này vào thư mục gốc dự án (giữ nguyên cây thư mục).
 
 NỘI DUNG
 --------
-Thanh lọc trên màn /orders được xếp lại theo LƯỚI 12 CỘT cho thẳng hàng, cân đối:
-  Hàng 1: Tìm nhanh (3 cột) · Khoảng ngày 5 chip (5 cột) · Từ ngày (2) · Đến ngày (2)
-  Hàng 2: Đại lý (3) · Khách hàng (3) · nút Lọc / Xoá lọc / Xuất Excel (6, dồn phải)
-- Các ô cùng loại có cùng bề rộng (Từ/Đến ngày 2-2 cột, Đại lý/Khách hàng 3-3 cột) → mép thẳng nhau.
-- Mọi ô cao đều nhau (36px), chữ trong chip ngày không bị bẻ dòng.
-- Ô tìm nhanh không còn bị cắt chữ (gợi ý rút gọn "Mã đơn, khách hàng, SĐT…").
-- Màn hẹp < 1280px: xếp 2 cột rồi 1 cột, Tìm nhanh và Khoảng ngày chiếm cả hàng.
-- Chọn chưa lọc nay ghi rõ "Tất cả đại lý" / "Tất cả khách hàng".
+Màn "Theo dõi doanh thu" (/revenue) nay CHỈ tính các đơn đã vào sản xuất:
+  hiện: CHUYEN_SAN_XUAT  và  DA_XAC_NHAN (mã cũ)
+  ẩn  : NHAP (Đơn hàng mẫu), CHO_XAC_NHAN (mã cũ), HUY (đã hủy), trống
 
-Thanh lọc được TÁCH RA FILE RIÊNG (src/components/order-list/order-filter-bar.tsx).
+Áp dụng đồng bộ ở 4 chỗ: bảng doanh thu theo đơn · 5 ô tổng · bảng "Sản phẩm phát sinh
+doanh thu" · file "Xuất Excel". Danh sách chọn Đại lý/Khách hàng ở thanh lọc cũng chỉ lấy
+từ đơn đã sản xuất. Thêm ghi chú ngay dưới tiêu đề bảng cho người dùng biết.
 
 DANH SÁCH FILE
 --------------
-Mới:
-  src/components/order-list/order-filter-bar.tsx    thanh lọc lưới 12 cột
-  ORDER_FILTER_BAR_ALIGN_V101.md                    tài liệu + bảng số đo
 Sửa:
-  src/app/orders/page.tsx                           dùng component thanh lọc mới
+  src/app/revenue/page.tsx                     lọc chỉ đơn đã sản xuất + ghi chú + câu báo rỗng mới
+  src/app/api/revenue/export/route.ts          file Excel cũng chỉ xuất đơn đã sản xuất
+  src/lib/order-form.ts                        thêm SAMPLE_STATUS_CODES / PRODUCTION_STATUS_CODES
+  src/lib/order-list-filters.ts                dùng lại 2 hằng số trên (không đổi hành vi màn đơn hàng)
+  REVENUE_PRODUCTION_ONLY_V103.md              tài liệu + kết quả kiểm chứng
 
-KHÔNG cần migration DB. Không đổi tên field lọc (q/from/to/dealer/customer/status).
+KHÔNG cần migration DB. Đơn hàng mẫu vẫn nằm nguyên trong bảng, chỉ không tính vào doanh thu —
+bấm "Lưu đơn hàng" cho đơn mẫu là đơn tự vào doanh thu.
 
 BẮT BUỘC SAU KHI COPY
 ---------------------
 1. Xoá cache build:  rmdir /s /q .next
 2. Chạy lại: npm run build (hoặc npm run dev).
-3. Mở /orders kiểm tra thanh lọc: các ô thẳng hàng, chip Hôm nay/Tuần này/Tháng này/Quý/Năm
-   nằm gọn 1 hàng, nút Lọc/Xoá lọc/Xuất Excel dồn về mép phải.
+3. Mở /revenue: chỉ còn các đơn 26092202... (Sản xuất); các đơn NHAP-... không còn hiện;
+   bấm "Xuất Excel" kiểm tra file cũng chỉ có đơn sản xuất.
+
+GHI CHÚ
+-------
+- Cột "Loại ĐH" giờ luôn là "Sản xuất" — nói nếu muốn bỏ hẳn cột này.
+- Muốn khi cần vẫn xem được đơn mẫu (nút lọc [Chỉ đơn sản xuất ▾]) thì nói, mặc định vẫn là chỉ đơn sản xuất.

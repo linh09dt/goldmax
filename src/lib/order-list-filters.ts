@@ -27,8 +27,9 @@ export type OrderListQuery = {
 export const ORDER_LIST_PAGE_SIZE = 20;
 
 /** Trạng thái đơn cũ vẫn nằm trong dữ liệu nên lọc theo nhóm mã thay vì 1 mã. */
-export const SAMPLE_STATUS_CODES = ["NHAP", "CHO_XAC_NHAN"];
-export const PRODUCTION_STATUS_CODES = ["CHUYEN_SAN_XUAT", "DA_XAC_NHAN"];
+import { PRODUCTION_STATUS_CODES, SAMPLE_STATUS_CODES } from "@/lib/order-form";
+
+export { PRODUCTION_STATUS_CODES, SAMPLE_STATUS_CODES };
 
 export const ORDER_LIST_STATUS_FILTERS = [
   { value: "all", label: "Tất cả" },

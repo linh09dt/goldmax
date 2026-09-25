@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ErpShell } from "@/components/erp-shell";
 import { prisma } from "@/lib/prisma";
+import { PRODUCTION_STATUS_CODES, isProductionStatus, orderStatusLabel } from "@/lib/order-form";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,8 @@ export default async function RevenuePage({
   const customerFilter = clean(query.customer);
 
   const filterSource = await prisma.salesOrder.findMany({
+    // V103: danh sách đại lý / khách hàng cũng chỉ lấy đơn đã vào sản xuất cho khớp bảng.
+    where: { status: { in: PRODUCTION_STATUS_CODES } },
     orderBy: [{ orderDate: "desc" }, { id: "desc" }],
     select: {
       customerCode: true,
@@ -69,6 +72,8 @@ export default async function RevenuePage({
 
   const orders = await prisma.salesOrder.findMany({
     where: {
+      // V103: doanh thu CHỈ tính đơn đã vào sản xuất — đơn hàng mẫu / đơn đã hủy không hiện.
+      status: { in: PRODUCTION_STATUS_CODES },
       ...(dateFilter ? { orderDate: dateFilter } : {}),
       ...(dealerFilter
         ? dealerFilter.kind === "code"
@@ -240,7 +245,10 @@ export default async function RevenuePage({
       <section className="erp-card mt-6 overflow-hidden">
         <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="font-bold">Theo dõi doanh thu theo đơn hàng</h2>
+            <div>
+              <h2 className="font-bold">Theo dõi doanh thu theo đơn hàng</h2>
+              <p className="mt-0.5 text-[11px] text-slate-500">Chỉ tính đơn đã vào sản xuất — đơn hàng mẫu và đơn đã hủy không tính doanh thu.</p>
+            </div>
             <a
               className="inline-flex h-9 items-center justify-center rounded-md border border-emerald-700 bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
               href={buildRevenueExportHref(query)}
@@ -275,7 +283,7 @@ export default async function RevenuePage({
             <tbody className="bg-white">
               {reportRows.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-12 text-center text-slate-500" colSpan={11}>Không có đơn hàng phù hợp bộ lọc.</td>
+                  <td className="px-4 py-12 text-center text-slate-500" colSpan={11}>Không có đơn đã vào sản xuất phù hợp bộ lọc.</td>
                 </tr>
               ) : reportRows.map((row, index) => (
                 <RevenueOrderRows key={row.order.id} row={row} index={index + 1} />
@@ -361,6 +369,8 @@ function RevenueOrderRows({
     order: {
       id: number;
       orderCode: string;
+      /** V102: dùng để hiện cột "Loại ĐH" theo trạng thái thật của đơn. */
+      status: string | null;
       customerCode: string | null;
       customerName: string | null;
       orderDate: Date | null;
@@ -386,7 +396,9 @@ function RevenueOrderRows({
           {row.order.orderCode}
         </Link>
       </Td>
-      <Td className="text-center">Sản xuất</Td>
+      <Td className="text-center">
+        <StatusTag value={row.order.status} />
+      </Td>
       <Td className="text-right font-semibold">{formatMoney(row.total)}</Td>
       <Td className="text-right">
         <div className="font-bold">{formatPercent(row.discountPercent)}</div>
@@ -595,6 +607,24 @@ function toNumber(value: unknown): number | null {
 
 function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+/**
+ * V102: nhãn "Loại ĐH" lấy theo TRẠNG THÁI THẬT của đơn (Đơn hàng mẫu / Sản xuất / Đã hủy),
+ * không mặc định là "Sản xuất" như trước.
+ */
+function StatusTag({ value }: { value: string | null | undefined }) {
+  const label = orderStatusLabel(value);
+  const style = isProductionStatus(value)
+    ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+    : label === "Đã hủy"
+      ? "border-red-300 bg-red-50 text-red-700"
+      : "border-slate-300 bg-slate-100 text-slate-700";
+  return (
+    <span className={`inline-flex items-center whitespace-nowrap rounded border px-1.5 py-0.5 text-[9px] font-bold 2xl:text-[10px] ${style}`}>
+      {label}
+    </span>
+  );
 }
 
 function formatDate(value: Date | null) {

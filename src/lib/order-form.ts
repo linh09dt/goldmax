@@ -16,6 +16,13 @@ export const ORDER_STATUS_SAMPLE = "NHAP";
 export const ORDER_STATUS_PRODUCTION = "CHUYEN_SAN_XUAT";
 
 /**
+ * V103: danh sách mã trạng thái dùng cho truy vấn (gồm cả mã cũ trước V91) — một nơi duy nhất
+ * cho mọi màn, tránh mỗi chỗ khai báo một kiểu.
+ */
+export const SAMPLE_STATUS_CODES: string[] = [ORDER_STATUS_SAMPLE, "CHO_XAC_NHAN"];
+export const PRODUCTION_STATUS_CODES: string[] = [ORDER_STATUS_PRODUCTION, "DA_XAC_NHAN"];
+
+/**
  * V91: đơn lưu trước đây còn mã trạng thái cũ → quy về 2 trạng thái mới khi hiển thị.
  * "Đã hủy" giữ riêng để đơn đã hủy không bị hiển thị nhầm thành đang sản xuất.
  */
