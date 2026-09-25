@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { orderStatusLabel } from "@/lib/order-form";
 
 type CustomerOrder = {
   id: number;
@@ -37,14 +38,6 @@ type ApiResponse = {
 };
 
 type SortKey = "recent" | "orders" | "amount";
-
-const STATUS_LABELS: Record<string, string> = {
-  NHAP: "Nháp",
-  CHO_XAC_NHAN: "Chờ khách hàng xác nhận",
-  DA_XAC_NHAN: "Đã xác nhận",
-  CHUYEN_SAN_XUAT: "Đã chuyển sản xuất",
-  HUY: "Đã hủy",
-};
 
 /** V79: tab Thông tin khách hàng — tự động tổng hợp từ các đơn hàng đã lưu. */
 export function CustomerDirectory() {
@@ -205,7 +198,7 @@ export function CustomerDirectory() {
                                       <Link className="font-semibold text-cyan-700 hover:underline" href={`/orders/${order.id}`}>{order.orderCode}</Link>
                                     </td>
                                     <td className="px-2 py-1.5 tabular-nums text-slate-600">{order.orderDate ? formatDate(order.orderDate) : "—"}</td>
-                                    <td className="px-2 py-1.5 text-slate-600">{STATUS_LABELS[order.status] ?? order.status}</td>
+                                    <td className="px-2 py-1.5 text-slate-600">{orderStatusLabel(order.status)}</td>
                                     <td className="px-2 py-1.5 text-right tabular-nums text-slate-700">{formatMoney(order.amount)}đ</td>
                                   </tr>
                                 ))}

@@ -33,8 +33,8 @@ async function updateOrder(request: Request, context: { params: Promise<{ id: st
       await tx.salesOrderRequirement.deleteMany({ where: { orderId } });
       await tx.salesOrderItem.deleteMany({ where: { orderId } });
 
-      // V75: giữ nguyên Bộ số đã cấp; chỉ sinh số mới cho bộ cửa chưa có số khi
-      // đơn ở trạng thái cho phép (Đã xác nhận / Đã chuyển sản xuất).
+      // V75/V91: giữ nguyên Bộ số đã cấp; chỉ sinh số mới cho bộ cửa chưa có số khi
+      // đơn ở trạng thái Sản xuất (bấm Lưu đơn hàng).
       const setNumbers = await resolveSetNumbers(tx, {
         status: normalized.orderData.status,
         incoming: normalized.items.map((item) => item.data.setNo),

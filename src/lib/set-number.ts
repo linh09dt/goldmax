@@ -10,10 +10,10 @@ import { SET_NUMBER_STATUSES } from "@/lib/order-form";
  * V75: Bộ số do hệ thống tự tăng dần, người dùng không nhập tay.
  *
  * Quy tắc:
- * - Đơn ở trạng thái Nháp / Chờ khách hàng xác nhận: Bộ số CHƯA được tạo (để trống).
- * - Bộ số chỉ được tạo khi đơn chuyển sang Đã xác nhận (hoặc Đã chuyển sản xuất).
- * - Đơn đã có Bộ số thì không bao giờ đổi số, kể cả khi sau đó chuyển sang
- *   Đã chuyển sản xuất hoặc Đã hủy.
+ * - Đơn ở trạng thái Đơn hàng mẫu (Lưu nháp): Bộ số CHƯA được tạo (để trống).
+ * - Bộ số chỉ được tạo khi bấm Lưu đơn hàng — đơn chuyển sang trạng thái Sản xuất
+ *   (gồm cả mã cũ "Đã xác nhận" của đơn đã lưu trước đây).
+ * - Đơn đã có Bộ số thì không bao giờ đổi số.
  * - Số bắt đầu lấy từ cấu hình tính toán (CalculationConfig.setNumberStart).
  * - Không dùng lại số đã cấp: bộ đếm lưu ở SystemSetting, đồng thời luôn lớn hơn
  *   số lớn nhất đang có trong dữ liệu để tránh trùng với đơn nhập từ Excel.

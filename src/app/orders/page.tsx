@@ -4,6 +4,7 @@ import { ErpShell } from "@/components/erp-shell";
 import { OrderDeleteButton } from "@/components/order-delete-button";
 import { OrderExportButtons } from "@/components/order-export-buttons";
 import { prisma } from "@/lib/prisma";
+import { isProductionStatus, orderStatusLabel } from "@/lib/order-form";
 
 export const dynamic = "force-dynamic";
 
@@ -486,25 +487,18 @@ function Td({ children, className = "" }: { children: React.ReactNode; className
 }
 
 function Status({ value }: { value: string }) {
-  const labels: Record<string, string> = {
-    NHAP: "Nháp",
-    CHO_XAC_NHAN: "Chờ xác nhận",
-    DA_XAC_NHAN: "Đã xác nhận",
-    CHUYEN_SAN_XUAT: "Đã chuyển sản xuất",
-    HUY: "Đã hủy",
-  };
-  const styles: Record<string, string> = {
-    NHAP: "border-slate-300 bg-slate-100 text-slate-700",
-    CHO_XAC_NHAN: "border-amber-300 bg-amber-50 text-amber-800",
-    DA_XAC_NHAN: "border-cyan-300 bg-cyan-50 text-cyan-800",
-    CHUYEN_SAN_XUAT: "border-emerald-300 bg-emerald-50 text-emerald-800",
-    HUY: "border-red-300 bg-red-50 text-red-700",
-  };
+  // V91: đơn hàng chỉ còn 2 trạng thái — Đơn hàng mẫu / Sản xuất (đơn cũ được quy về 2 trạng thái này).
+  const label = orderStatusLabel(value);
+  const style = isProductionStatus(value)
+    ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+    : label === "Đã hủy"
+      ? "border-red-300 bg-red-50 text-red-700"
+      : "border-slate-300 bg-slate-100 text-slate-700";
   return (
     <span
-      className={`inline-flex h-8 items-center justify-center rounded-md border px-3 text-[11px] font-semibold shadow-sm ${styles[value] ?? "border-slate-300 bg-white text-slate-700"}`}
+      className={`inline-flex h-8 items-center justify-center rounded-md border px-3 text-[11px] font-semibold shadow-sm ${style}`}
     >
-      {labels[value] ?? value}
+      {label}
     </span>
   );
 }

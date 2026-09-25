@@ -5,7 +5,7 @@ import { OrderDeleteButton } from "@/components/order-delete-button";
 import { OrderExportButtons } from "@/components/order-export-buttons";
 import { prisma } from "@/lib/prisma";
 import { resolveOrderItemDetails } from "@/lib/order-detail";
-import { showsSetNumber } from "@/lib/order-form";
+import { showsSetNumber, orderStatusLabel } from "@/lib/order-form";
 import { buildOutputGroups, calculateOutputTotals, hasPricingQuantity } from "@/lib/order-output";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +27,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
   const outputGroups = buildOutputGroups(order.items as any, resolveOrderItemDetails as any);
   const outputTotals = calculateOutputTotals(outputGroups, order);
-  // V75: Bộ số chỉ hiển thị khi đơn đã sang trạng thái Đã xác nhận / Đã chuyển sản xuất.
+  // V75/V91: Bộ số chỉ hiển thị khi đơn đã vào Sản xuất (bấm Lưu đơn hàng).
   const showSetNumber = showsSetNumber(order.status);
   const visibleItems = order.items.flatMap((item) => {
     const detailRows = resolveOrderItemDetails(item).filter((row) => hasPricingQuantity(row.pricingQuantity));
@@ -220,5 +220,5 @@ function formatDateTime(value: Date) { return new Intl.DateTimeFormat("vi-VN", {
 function formatQuantity2(value: unknown) { if (value === null || value === undefined || value === "") return "—"; const n = Number(String(value)); return Number.isFinite(n) ? new Intl.NumberFormat("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) : String(value); }
 function formatNumber(value: unknown) { if (value === null || value === undefined || value === "") return "—"; const n = Number(String(value)); return Number.isFinite(n) ? new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 4 }).format(n) : String(value); }
 function formatMoney(value: unknown) { if (value === null || value === undefined || value === "") return "—"; const n = Number(String(value)); return Number.isFinite(n) ? `${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(n)} đ` : String(value); }
-function statusLabel(value: string) { return ({ NHAP:"Nháp", CHO_XAC_NHAN:"Chờ khách hàng xác nhận", DA_XAC_NHAN:"Đã xác nhận", CHUYEN_SAN_XUAT:"Đã chuyển sản xuất", HUY:"Đã hủy" } as Record<string,string>)[value] ?? value; }
+function statusLabel(value: string) { return orderStatusLabel(value); }
 function importAction(value: string) { return value === "CREATED" ? "Tạo từ Excel" : value === "UPDATED" ? "Cập nhật từ Excel" : value === "REBUILT_DETAILS" ? "Khôi phục chi tiết từ Excel" : value; }

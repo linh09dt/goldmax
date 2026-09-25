@@ -3,16 +3,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ORDER_STATUS_OPTIONS,
   createDefaultOrderForm,
   createOrderItem,
   localTodayInput,
+  isProductionStatus,
   newClientId,
+  orderStatusLabel,
   reindexItems,
   showsSetNumber,
+  statusAfterSave,
   type OrderFormData,
   type OrderItemForm,
   type OrderLineForm,
+  type OrderSaveAction,
 } from "@/lib/order-form";
 import {
   DEFAULT_CALCULATION_CONFIG,
@@ -52,6 +55,8 @@ type Props = {
 
 type SaveOrderResponse = { ok: boolean; id?: number; error?: string; setNumbers?: Array<string | null> };
 
+// V91: trạng thái do nút Lưu quyết định (Lưu nháp = Đơn hàng mẫu, Lưu đơn hàng = Sản xuất) nên
+// không còn là trường người dùng phải nhập.
 const REQUIRED_ORDER_INFO_FIELDS = [
   { key: "customerCode", label: "Mã Đại Lý" },
   { key: "customerName", label: "Tên khách hàng" },
@@ -59,7 +64,6 @@ const REQUIRED_ORDER_INFO_FIELDS = [
   { key: "orderCode", label: "Mã đơn hàng" },
   { key: "orderDate", label: "Ngày đặt hàng" },
   { key: "requiredDeliveryDate", label: "Ngày cần giao hàng" },
-  { key: "status", label: "Trạng thái" },
   { key: "excelUpdateDate", label: "Ngày cập nhật" },
   { key: "receiverPhone", label: "Số điện thoại" },
   { key: "receiverAddress", label: "Địa chỉ nhận hàng" },
@@ -174,7 +178,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
 
   const totals = useMemo(() => calculateTotals(form), [form]);
   const detailCount = useMemo(() => form.items.reduce((sum, item) => sum + item.details.length, 0), [form.items]);
-  // V75: Bộ số chỉ hiện khi đơn Đã xác nhận / Đã chuyển sản xuất.
+  // V75/V91: Bộ số chỉ hiện khi đơn đã vào Sản xuất (bấm Lưu đơn hàng).
   const setNumberVisible = useMemo(() => showsSetNumber(form.status), [form.status]);
 
   function setField<K extends keyof OrderFormData>(key: K, value: OrderFormData[K]) {
@@ -384,8 +388,14 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
     }
   }
 
-  async function save(stayOnPage = false) {
+  /**
+   * V91: chỉ còn 2 hành động lưu.
+   * - "DRAFT" (Lưu nháp): đơn giữ/trở về trạng thái Đơn hàng mẫu và ở lại trang để nhập tiếp.
+   * - "ORDER" (Lưu đơn hàng): chuyển đơn sang trạng thái Sản xuất rồi mở trang chi tiết đơn.
+   */
+  async function save(action: OrderSaveAction) {
     setMessage(null);
+    const stayOnPage = action === "DRAFT";
     const missingFields = REQUIRED_ORDER_INFO_FIELDS.filter(({ key }) => {
       const value = form[key];
       return typeof value !== "string" || value.trim() === "";
@@ -405,25 +415,32 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
     try {
       const targetOrderId = persistedOrderId;
       const url = targetOrderId ? `/api/orders/${targetOrderId}` : "/api/orders";
+      const nextStatus = statusAfterSave(form.status, action);
       const response = await fetch(url, {
         // Dùng POST cho cập nhật để tránh proxy/hosting trả HTML với PUT ở route động.
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, status: nextStatus }),
       });
       const result = await readJsonResponse(response);
       if (!response.ok || !result.ok || !result.id) throw new Error(result.error || "Không thể lưu đơn hàng.");
       setPersistedOrderId(result.id);
+      // V91: cập nhật trạng thái hiển thị ngay theo hành động vừa bấm.
+      setForm((current) => ({ ...current, status: nextStatus }));
       // V75: hiển thị Bộ số vừa được hệ thống cấp mà không cần tải lại trang.
       if (result.setNumbers?.length) {
         const assigned = result.setNumbers;
         setForm((current) => ({
           ...current,
+          status: nextStatus,
           items: current.items.map((item, index) =>
             assigned[index] ? { ...item, setNo: assigned[index] as string } : item),
         }));
       }
-      setMessage({ type: "ok", text: targetOrderId ? "Đã cập nhật đơn hàng." : "Đã tạo đơn hàng." });
+      setMessage({
+        type: "ok",
+        text: `${targetOrderId ? "Đã cập nhật" : "Đã tạo"} đơn hàng — trạng thái ${orderStatusLabel(nextStatus)}.`,
+      });
       if (stayOnPage) {
         if (!targetOrderId) router.replace(`/orders/${result.id}/edit`);
         else router.refresh();
@@ -437,7 +454,6 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
       setBusy(false);
     }
   }
-
   return (
     <div className="order-entry-compact space-y-3 text-[12px]" style={{ fontFamily: '"Segoe UI", Tahoma, Arial, sans-serif' }}>
       <section className="erp-card">
@@ -470,10 +486,15 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
         <div className="p-2.5">
           <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-[8fr_12.4fr_6.8fr_7.2fr_minmax(52px,5.6fr)_9.1fr_6.8fr_7.2fr_6.8fr_6.4fr_11.4fr_4.7fr_3.1fr]">
             <Field label="Mã đơn hàng" required invalid={invalidOrderInfoFields.has("orderCode")}><TextInput value={form.orderCode} onChange={(v) => setField("orderCode", v)} /></Field>
-            <Field label="Trạng thái" required invalid={invalidOrderInfoFields.has("status")}>
-              <select className="erp-input" value={form.status} onChange={(e) => setField("status", e.target.value)}>
-                {ORDER_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
+            <Field label="Trạng thái">
+              {/* V91: trạng thái do nút Lưu quyết định — chỉ hiển thị để biết, không chọn tay. */}
+              <span
+                className={`erp-input flex items-center gap-1.5 font-semibold ${isProductionStatus(form.status) ? "text-emerald-700" : "text-slate-700"}`}
+                title="Lưu nháp = Đơn hàng mẫu · Lưu đơn hàng = Sản xuất"
+              >
+                <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${isProductionStatus(form.status) ? "bg-emerald-500" : "bg-slate-400"}`} />
+                <span className="truncate">{orderStatusLabel(form.status)}</span>
+              </span>
             </Field>
             <Field label="Ngày cập nhật" required invalid={invalidOrderInfoFields.has("excelUpdateDate")}><DateInput value={form.excelUpdateDate} onChange={(v) => setField("excelUpdateDate", v)} /></Field>
             <Field label="NVKD phụ trách" required invalid={invalidOrderInfoFields.has("salesEmployeeCode")}><TextInput value={form.salesEmployeeCode} onChange={(v) => setField("salesEmployeeCode", v)} /></Field>
@@ -565,9 +586,27 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
           <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 tabular-nums text-slate-600">Còn lại: {formatMoney(totals.deliveryPayment)}đ</span>
           {message ? <span className={message.type === "ok" ? "text-emerald-700" : "text-red-700"}>{message.text}</span> : null}
         </div>
-        <button className="rounded-md bg-cyan-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-cyan-500 disabled:opacity-50" type="button" disabled={busy} onClick={() => void save()}>
-          {busy ? "Đang lưu..." : mode === "create" ? "Lưu đơn hàng" : "Lưu thay đổi"}
-        </button>
+        <div className="flex items-center gap-2">
+          {/* V91: 2 hành động lưu — Lưu nháp giữ đơn ở trạng thái Đơn hàng mẫu, Lưu đơn hàng chuyển sang Sản xuất. */}
+          <button
+            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            type="button"
+            disabled={busy}
+            onClick={() => void save("DRAFT")}
+            title="Lưu lại và giữ đơn ở trạng thái Đơn hàng mẫu"
+          >
+            {busy ? "Đang lưu..." : "Lưu nháp"}
+          </button>
+          <button
+            className="rounded-md bg-cyan-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-cyan-500 disabled:opacity-50"
+            type="button"
+            disabled={busy}
+            onClick={() => void save("ORDER")}
+            title="Lưu và chuyển đơn sang trạng thái Sản xuất"
+          >
+            {busy ? "Đang lưu..." : "Lưu đơn hàng"}
+          </button>
+        </div>
       </section>
     </div>
   );
@@ -711,8 +750,8 @@ function DoorSetCard({
                 value={showSetNumber ? item.setNo : ""}
                 placeholder="Tự động"
                 title={showSetNumber
-                  ? (item.setNo ? `Bộ số ${item.setNo} do hệ thống cấp tự động` : "Bộ số sẽ được tạo tự động khi lưu đơn ở trạng thái Đã xác nhận")
-                  : "Bộ số chưa được tạo ở trạng thái Nháp / Chờ khách hàng xác nhận — sẽ tự cấp khi đơn chuyển sang Đã xác nhận"}
+                  ? (item.setNo ? `Bộ số ${item.setNo} do hệ thống cấp tự động` : "Bộ số sẽ được tạo tự động khi bấm Lưu đơn hàng")
+                  : "Bộ số sẽ được tạo tự động khi bấm Lưu đơn hàng (trạng thái Sản xuất)"}
               />
             </CardField>
             <CardField label="Nhóm cửa">

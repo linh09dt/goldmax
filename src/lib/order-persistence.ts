@@ -195,7 +195,8 @@ function normalizeRequiredOrderInfo(input: UnknownRecord) {
     customerName: requiredText(input.customerName, "Tên khách hàng"),
     salesEmployeeCode: requiredText(input.salesEmployeeCode, "NVKD phụ trách"),
     orderCode: requiredText(input.orderCode, "Mã đơn hàng"),
-    status: requiredText(input.status, "Trạng thái"),
+    // V91: chỉ nhận 2 trạng thái chuẩn — mã cũ được quy về trạng thái tương ứng.
+    status: normalizeOrderStatus(requiredText(input.status, "Trạng thái")),
     orderDate,
     requiredDeliveryDate,
     excelUpdateDate,
@@ -264,6 +265,18 @@ function optionalText(value: unknown) {
   if (value === null || value === undefined) return null;
   const normalized = String(value).trim();
   return normalized ? normalized : null;
+}
+
+/**
+ * V91: đơn hàng chỉ còn 2 trạng thái (Đơn hàng mẫu / Sản xuất).
+ * Đơn lưu trước đây còn mã cũ → quy về trạng thái tương ứng khi ghi vào DB.
+ * "Đã hủy" (HUY) giữ nguyên nếu được gửi tới, để không tự ý khôi phục đơn đã hủy.
+ */
+function normalizeOrderStatus(value: string) {
+  const text = value.trim();
+  if (text === "CHUYEN_SAN_XUAT" || text === "DA_XAC_NHAN") return "CHUYEN_SAN_XUAT";
+  if (text === "NHAP" || text === "CHO_XAC_NHAN") return "NHAP";
+  return text;
 }
 
 function requiredText(value: unknown, label: string) {

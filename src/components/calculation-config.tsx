@@ -201,9 +201,10 @@ export function CalculationConfigEditor() {
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
             <div className="erp-field-label">Cơ chế Bộ số</div>
             <ul className="space-y-1 text-[12px] leading-5 text-slate-600">
-              <li>• Đơn <b>Nháp</b> / <b>Chờ khách hàng xác nhận</b>: chưa có Bộ số.</li>
-              <li>• Chuyển sang <b>Đã xác nhận</b>: hệ thống cấp Bộ số tự động, tăng dần.</li>
-              <li>• Sang <b>Đã chuyển sản xuất</b> hoặc <b>Đã hủy</b>: giữ nguyên Bộ số.</li>
+              {/* V91: đơn chỉ còn 2 trạng thái — Bộ số cấp khi bấm Lưu đơn hàng (Sản xuất). */}
+              <li>• Đơn ở trạng thái <b>Đơn hàng mẫu</b> (Lưu nháp): chưa có Bộ số.</li>
+              <li>• Bấm <b>Lưu đơn hàng</b> → đơn chuyển sang <b>Sản xuất</b>: hệ thống cấp Bộ số tự động, tăng dần.</li>
+              <li>• Bộ số đã cấp thì <b>giữ nguyên</b>, không đổi số cho đơn đó.</li>
             </ul>
           </div>
         </div>
@@ -383,7 +384,7 @@ export function CalculationConfigEditor() {
         <Example title="Phào / Phao" value="(Cao × 2 + Rộng) / 1.000" />
         <Example title="Ô thoáng" value="4TK → 4; 3TK → 3; 2TK → 2; 1TK → 1" />
         <Example title="Khóa" value="Theo SL bộ cửa cha" />
-        <Example title="Bộ số" value="Tự tăng dần, tạo khi đơn Đã xác nhận" />
+        <Example title="Bộ số" value="Tự tăng dần, tạo khi bấm Lưu đơn hàng" />
       </section>
     </div>
   );

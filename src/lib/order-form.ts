@@ -1,17 +1,58 @@
 import { DEFAULT_DISCOUNT_PERCENT } from "@/lib/order-output";
 export { DEFAULT_DISCOUNT_PERCENT };
 
+/**
+ * V91: đơn hàng chỉ còn 2 trạng thái — Đơn hàng mẫu (đang nhập / lưu nháp) và Sản xuất.
+ * Trạng thái do HÀNH ĐỘNG khi lưu quyết định (Lưu nháp / Lưu đơn hàng), không chọn tay trên form.
+ */
 export const ORDER_STATUS_OPTIONS = [
-  { value: "NHAP", label: "Nháp" },
-  { value: "CHO_XAC_NHAN", label: "Chờ khách hàng xác nhận" },
-  { value: "DA_XAC_NHAN", label: "Đã xác nhận" },
-  { value: "CHUYEN_SAN_XUAT", label: "Đã chuyển sản xuất" },
-  { value: "HUY", label: "Đã hủy" },
+  { value: "NHAP", label: "Đơn hàng mẫu" },
+  { value: "CHUYEN_SAN_XUAT", label: "Sản xuất" },
 ] as const;
 
+/** Mã trạng thái đơn hàng mẫu (chưa vào sản xuất). */
+export const ORDER_STATUS_SAMPLE = "NHAP";
+/** Mã trạng thái đã vào sản xuất. */
+export const ORDER_STATUS_PRODUCTION = "CHUYEN_SAN_XUAT";
+
 /**
- * V75: Bộ số do hệ thống tự tăng dần khi đơn chuyển sang các trạng thái này.
- * Đơn Nháp / Chờ khách hàng xác nhận chưa có Bộ số nên không hiển thị.
+ * V91: đơn lưu trước đây còn mã trạng thái cũ → quy về 2 trạng thái mới khi hiển thị.
+ * "Đã hủy" giữ riêng để đơn đã hủy không bị hiển thị nhầm thành đang sản xuất.
+ */
+const LEGACY_STATUS_LABELS: Record<string, string> = {
+  CHO_XAC_NHAN: "Đơn hàng mẫu",
+  DA_XAC_NHAN: "Sản xuất",
+  HUY: "Đã hủy",
+};
+
+export function orderStatusLabel(status: string | null | undefined) {
+  const value = String(status ?? "").trim();
+  const option = ORDER_STATUS_OPTIONS.find((item) => item.value === value);
+  if (option) return option.label;
+  return LEGACY_STATUS_LABELS[value] ?? (value || "—");
+}
+
+/** Đơn đã vào sản xuất (gồm cả mã cũ "Đã xác nhận"). */
+export function isProductionStatus(status: string | null | undefined) {
+  const value = String(status ?? "").trim();
+  return value === ORDER_STATUS_PRODUCTION || value === "DA_XAC_NHAN";
+}
+
+export type OrderSaveAction = "DRAFT" | "ORDER";
+
+/**
+ * V91: trạng thái sau khi lưu.
+ * - Lưu đơn hàng → Sản xuất.
+ * - Lưu nháp → giữ Đơn hàng mẫu; đơn đã vào sản xuất thì KHÔNG bị hạ cấp về mẫu.
+ */
+export function statusAfterSave(currentStatus: string | null | undefined, action: OrderSaveAction) {
+  if (action === "ORDER") return ORDER_STATUS_PRODUCTION;
+  return isProductionStatus(currentStatus) ? ORDER_STATUS_PRODUCTION : ORDER_STATUS_SAMPLE;
+}
+
+/**
+ * V75: Bộ số do hệ thống tự tăng dần khi đơn đã vào sản xuất (gồm mã cũ "Đã xác nhận").
+ * Đơn ở trạng thái Đơn hàng mẫu chưa có Bộ số nên không hiển thị.
  */
 export const SET_NUMBER_STATUSES: readonly string[] = ["DA_XAC_NHAN", "CHUYEN_SAN_XUAT"];
 

@@ -25,7 +25,7 @@ export async function POST(request: Request) {
         data: { orderCode: normalized.orderCode, ...normalized.orderData },
       });
 
-      // V75: Bộ số tự tăng dần — Nháp/Chờ khách hàng xác nhận thì chưa tạo số.
+      // V75/V91: Bộ số tự tăng dần — chỉ cấp khi đơn ở trạng thái Sản xuất (bấm Lưu đơn hàng).
       const assignedSetNumbers = await resolveSetNumbers(tx, {
         status: normalized.orderData.status,
         incoming: normalized.items.map((item) => item.data.setNo),

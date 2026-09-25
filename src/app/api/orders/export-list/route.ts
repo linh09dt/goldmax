@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import type { SalesOrderGetPayload } from "@/generated/prisma/models/SalesOrder";
 import { prisma } from "@/lib/prisma";
+import { orderStatusLabel } from "@/lib/order-form";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -322,15 +323,9 @@ function toNumber(value: unknown) {
   return Number.isFinite(n) ? n : null;
 }
 
+// V91: nhãn trạng thái dùng chung với màn đơn hàng (2 trạng thái: Đơn hàng mẫu / Sản xuất).
 function statusLabel(value: string) {
-  const labels: Record<string, string> = {
-    NHAP: "Nháp",
-    CHO_XAC_NHAN: "Chờ xác nhận",
-    DA_XAC_NHAN: "Đã xác nhận",
-    CHUYEN_SAN_XUAT: "Đã chuyển sản xuất",
-    HUY: "Đã hủy",
-  };
-  return labels[value] ?? value;
+  return orderStatusLabel(value);
 }
 
 function parseDealerFilter(value: unknown) {

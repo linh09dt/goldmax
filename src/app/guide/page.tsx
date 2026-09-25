@@ -40,7 +40,7 @@ export default function GuidePage() {
             ["Số đơn hàng", "Bấm vào số đơn để xem chi tiết đơn hàng."],
           ]} />
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-            Badge trạng thái cho biết đơn đang ở trạng thái Nháp, Chờ xác nhận, Đã xác nhận, Đã chuyển sản xuất hoặc Đã hủy.
+            Đơn hàng chỉ có <b>2 trạng thái</b>: <b>Đơn hàng mẫu</b> (chưa vào sản xuất) và <b>Sản xuất</b>. Nhãn xám = Đơn hàng mẫu, nhãn xanh = Sản xuất. Đơn cũ đã hủy vẫn hiển thị “Đã hủy”.
           </div>
         </GuideSection>
 
@@ -51,7 +51,7 @@ export default function GuidePage() {
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 3.</b> Nhập kích thước, số lượng và đơn giá. KH/Lượng sẽ tự tính nếu Model/Nhóm hàng đã được gán rule trong Cấu hình tính toán; nếu không thì nhập tay.</li>
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 4.</b> Thêm chi tiết / phụ kiện / phụ phí. Mỗi dòng là một mini-card; nhập trực tiếp các cột hiển thị, không cần cuộn ngang.</li>
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 5.</b> Dán ảnh bằng Ctrl+V hoặc tải ảnh sản phẩm nếu cần, sau đó kiểm tra tổng giá trị.</li>
-            <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 6.</b> Bấm Lưu đơn hàng hoặc Lưu thay đổi.</li>
+            <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 6.</b> Bấm <b>Lưu nháp</b> để giữ đơn ở trạng thái Đơn hàng mẫu (vẫn ở lại trang để nhập tiếp), hoặc <b>Lưu đơn hàng</b> để chuyển đơn sang trạng thái Sản xuất và mở trang chi tiết đơn.</li>
           </ol>
           <ActionTable rows={[
             ["Nhập Excel mẫu đơn", "Đọc dữ liệu từ file Excel mẫu và đưa vào đơn đang nhập."],
@@ -61,8 +61,8 @@ export default function GuidePage() {
             ["Xóa bộ", "Xóa toàn bộ bộ cửa và các dòng chi tiết thuộc bộ đó."],
             ["Dán / Tải ảnh", "Bấm vào ô Hình ảnh SP rồi nhấn Ctrl+V để dán ảnh từ Clipboard, hoặc tải file ảnh như trước. Ảnh được lưu trên Supabase Storage."],
             ["Xóa", "Xóa một dòng chi tiết / phụ kiện / phụ phí."],
-            ["Lưu đơn hàng", "Lưu đơn mới khi toàn bộ Thông tin đơn hàng đã nhập đầy đủ."],
-            ["Lưu thay đổi", "Ghi lại chỉnh sửa khi toàn bộ Thông tin đơn hàng đã nhập đầy đủ."],
+            ["Lưu nháp", "Lưu lại đơn và giữ ở trạng thái Đơn hàng mẫu; vẫn ở lại trang để nhập tiếp. Đơn đã ở trạng thái Sản xuất thì không bị hạ cấp về mẫu."],
+            ["Lưu đơn hàng", "Lưu đơn và chuyển sang trạng thái Sản xuất (hệ thống cấp Bộ số), sau đó mở trang chi tiết đơn."],
           ]} />
         </GuideSection>
 
@@ -131,7 +131,7 @@ export default function GuidePage() {
           <GuideSubTitle code="B1" title="Cấu hình tính toán" text="Gán cách tính KH/Lượng, nguồn đề xuất Cao/Rộng, đơn giá theo Khuôn và số bắt đầu Bộ số. Rule Model ưu tiên hơn rule Nhóm hàng." />
           <ActionTable rows={[
             ["Làm tròn KH/Lượng", "Chọn số chữ số thập phân dùng cho các giá trị KH/Lượng tự tính; mặc định 2."],
-            ["Số bắt đầu áp dụng Bộ số", "Số nhỏ nhất dùng cho Bộ số. Bộ số chỉ được cấp khi đơn chuyển sang Đã xác nhận và không đổi khi sang Đã chuyển sản xuất / Đã hủy."],
+            ["Số bắt đầu áp dụng Bộ số", "Số nhỏ nhất dùng cho Bộ số. Bộ số chỉ được cấp khi bấm Lưu đơn hàng (đơn chuyển sang trạng thái Sản xuất) và giữ nguyên sau đó."],
             ["Đơn giá cửa theo Khuôn", "Giá gốc lấy từ Giá đại lý của Model. Khuôn được làm tròn theo nấc cấu hình (mặc định 10 mm) rồi cộng phụ thu."],
             ["Mốc Khuôn", "Mặc định ≤140 mm không phụ thu; 150–170 mm cộng 10.000đ/m² mỗi 10 mm; 180–250 mm cộng cố định 110.000đ/m²; trên 250 mm tiếp tục cộng 10.000đ/m² mỗi 10 mm."],
             ["Bộ cửa chính", "Dùng công thức Cao × Rộng / 1.000.000 hoặc chọn Nhập tay nếu cần."],

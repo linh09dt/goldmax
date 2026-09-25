@@ -1,5 +1,5 @@
-GOLDMAX door-production — GÓI DELTA V90 (sửa lỗi trùng Model khi khác Bộ cửa chính)
-==================================================================================
+GOLDMAX door-production — GÓI DELTA V91 (2 trạng thái + 2 hành động lưu)
+========================================================================
 
 Gói này CHỈ chứa các file thay đổi so với bản door-production.zip gốc (24/09/2026).
 Cách áp dụng: copy đè toàn bộ nội dung gói này vào thư mục gốc dự án (giữ nguyên cây thư mục).
@@ -7,16 +7,25 @@ Cách áp dụng: copy đè toàn bộ nội dung gói này vào thư mục gố
 DANH SÁCH FILE
 --------------
 Sửa:
-  src/lib/calculation-config.ts           khoá so trùng dùng chung + validateCalculationConfig() (đã tính cột Bộ cửa chính)
-  src/app/api/calculation-config/route.ts bỏ hàm validateConfig cục bộ, gọi hàm trong lib
+  src/lib/order-form.ts                   2 trạng thái + orderStatusLabel/isProductionStatus/statusAfterSave
+  src/lib/order-persistence.ts            chuẩn hoá mã trạng thái cũ khi ghi DB
+  src/lib/set-number.ts                   cập nhật quy tắc Bộ số theo luồng lưu mới
+  src/components/order-form.tsx           ô Trạng thái chỉ hiển thị + 2 nút Lưu nháp / Lưu đơn hàng
+  src/components/customer-directory.tsx   dùng chung nhãn trạng thái
+  src/components/calculation-config.tsx   cập nhật câu chữ "Cơ chế Bộ số"
+  src/app/orders/page.tsx                 badge trạng thái còn 2 màu
+  src/app/orders/[id]/page.tsx            dùng chung nhãn trạng thái
+  src/app/api/orders/route.ts             ghi chú Bộ số
+  src/app/api/orders/[id]/route.ts        ghi chú Bộ số
+  src/app/api/orders/export-list/route.ts dùng chung nhãn trạng thái
+  src/app/guide/page.tsx                  cập nhật Hướng dẫn sử dụng
 Mới:
-  CALCULATION_DUPLICATE_PARENT_V90.md     tài liệu chi tiết + bảng kiểm chứng
+  ORDER_STATUS_SAVE_ACTIONS_V91.md        tài liệu chi tiết + bảng kiểm chứng
 
 QUAN HỆ VỚI CÁC GÓI TRƯỚC
 -------------------------
-- src/lib/calculation-config.ts trong gói này ĐÃ BAO GỒM thay đổi của V88 và V89.
-- src/app/api/calculation-config/route.ts chỉ đổi ở V90.
-- ⚠ KHÔNG copy gói V88/V89 lên sau gói này — sẽ ghi đè và làm mất phần sửa trùng.
+src/components/calculation-config.tsx trong gói này đã bao gồm cả V88/V89.
+⚠ KHÔNG copy gói V88/V89/V90 lên sau gói này với các file trùng tên.
 
 BẮT BUỘC SAU KHI COPY
 ---------------------
@@ -24,10 +33,11 @@ BẮT BUỘC SAU KHI COPY
        rmdir /s /q .next
        del /s /q python\__pycache__ api\__pycache__
 2. Chạy lại: npm run build (hoặc npm run dev).
-3. Mở Cấu hình → Cấu hình tính toán → bấm "Lưu cấu hình": các rule cùng Model nhưng
-   khác cột "Bộ cửa chính" sẽ lưu được (trước đây báo "Cấu hình đang bị trùng: PR").
+3. Mở tab Tạo đơn hàng: ô Trạng thái không còn chọn tay, dưới cùng có 2 nút
+   "Lưu nháp" và "Lưu đơn hàng".
 
 GHI CHÚ
 -------
-- KHÔNG cần migration DB.
+- KHÔNG cần migration DB. Đơn cũ giữ nguyên; khi mở sửa và lưu, mã trạng thái cũ
+  tự được quy về 2 mã chuẩn (NHAP / CHUYEN_SAN_XUAT).
 - Gói đầy đủ (nếu cần) xem door-production-logo-v87.zip.
