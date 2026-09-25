@@ -1,41 +1,44 @@
-GOLDMAX door-production — GÓI DELTA V95 (bảng rule: không kéo ngang, chữ xuống dòng)
-====================================================================================
+GOLDMAX door-production — GÓI DELTA V97 (tiêu đề file xuất: ĐƠN ĐẶT HÀNG)
+========================================================================
 
 Gói này CHỈ chứa các file thay đổi so với bản door-production.zip gốc (24/09/2026).
 Cách áp dụng: copy đè toàn bộ nội dung gói này vào thư mục gốc dự án (giữ nguyên cây thư mục).
 
 NỘI DUNG
 --------
-Bảng rule KH/Lượng trong tab Cấu hình tính toán:
-- KHÔNG còn kéo ngang: bỏ bề rộng tối thiểu px của V94, cột quay lại chia % (tổng 100%).
-- Nhãn trong ô chọn TỰ XUỐNG DÒNG nên hiển thị đầy đủ thông tin (trước đây <select>
-  1 dòng nên bị cắt chữ: "Khuôn biệt thự…", "PR - Phào mặt t…").
-- Ô chọn mới tự mở lên trên khi ở gần đáy màn hình; đóng khi bấm ra ngoài hoặc Esc.
+Đổi "THÔNG TIN ĐƠN HÀNG" thành "ĐƠN ĐẶT HÀNG" trên tài liệu xuất:
+- PDF V2 + PDF mẫu (tiêu đề, metadata, chân trang)
+- Excel V1 + V2 (tiêu đề trong bảng, chân trang, tên sheet)
+- Trang in / Lưu PDF
+- Tên file PDF dự phòng khi tải
 
 DANH SÁCH FILE
 --------------
 Sửa:
-  src/components/settings/settings-ui.tsx  thêm WrapSelect (ô chọn nhãn xuống dòng)
-  src/components/calculation-config.tsx    thay 8 loại ô chọn trong bảng rule + cột quay lại %
+  python/reportlab_order_v2.py            hằng TITLE + chân trang + metadata
+  python/reportlab_order_preview.py       tiêu đề PDF mẫu
+  src/lib/order-export.ts                 tiêu đề ô C2 + tên sheet
+  src/lib/order-export-v2.ts              tiêu đề ô M1 + chân trang + tên sheet
+  src/app/orders/[id]/print/page.tsx      tiêu đề trang in
+  src/components/order-export-buttons.tsx tên file PDF dự phòng
 Mới:
-  CALCULATION_TABLE_WRAP_V95.md            tài liệu chi tiết + bảng kiểm chứng
+  EXPORT_TITLE_DON_DAT_HANG_V97.md        tài liệu + bảng kiểm chứng
 
 QUAN HỆ VỚI CÁC GÓI TRƯỚC
 -------------------------
-- Gói này áp SAU V94 và THAY cách làm mục 3 của V94 (bỏ bề rộng px + kéo ngang).
-- 2 file trong gói đã bao gồm thay đổi của V88/V89/V94.
-- ⚠ KHÔNG copy các gói V88/V89/V94 lên sau gói này với các file trùng tên.
+- python/reportlab_order_v2.py trong gói này ĐÃ BAO GỒM thay đổi logo V87 (base64 logo mới).
+- ⚠ KHÔNG copy gói logo V87 lên sau gói này (sẽ đè lại file Python cũ).
 
 BẮT BUỘC SAU KHI COPY
 ---------------------
 1. Xoá cache build:
        rmdir /s /q .next
        del /s /q python\__pycache__ api\__pycache__
-2. Chạy lại: npm run build (hoặc npm run dev).
-3. Mở Cấu hình → Cấu hình tính toán: bảng rule phải vừa khung (không có thanh cuộn ngang)
-   và các nhãn dài phải xuống dòng, hiển thị đủ.
+2. Chạy lại: npm run build (hoặc npm run dev), deploy lại Python function.
+3. Xuất thử PDF V2 / Excel V2 và mở trang in để kiểm tra tiêu đề "ĐƠN ĐẶT HÀNG".
 
 GHI CHÚ
 -------
-- Chỉ đổi giao diện, không đổi dữ liệu/cấu hình, không cần migration.
-- Gói đầy đủ (nếu cần) xem door-production-logo-v87.zip.
+- Giao diện trong app (màn Tạo đơn, Chi tiết đơn) vẫn ghi "Thông tin đơn hàng" — chưa đổi.
+- Tên file tải về vẫn là Bao-gia-V2-... (đang là "Báo giá") — chưa đổi.
+- Không đổi dữ liệu/DB, không cần migration.

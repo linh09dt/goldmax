@@ -81,7 +81,7 @@ export function OrderExportButtons({
     const objectUrl = URL.createObjectURL(blob);
     const disposition = response.headers.get("content-disposition") || "";
     const match = disposition.match(/filename="?([^";]+)"?/i);
-    const filename = match?.[1] || `Thong-tin-don-hang-V2-${orderId}.pdf`;
+    const filename = match?.[1] || `Don-dat-hang-V2-${orderId}.pdf`;
     const link = document.createElement("a");
     link.href = objectUrl;
     link.download = filename;

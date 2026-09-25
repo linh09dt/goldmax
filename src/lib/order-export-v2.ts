@@ -60,7 +60,7 @@ export async function buildOrderExcelV2(order: ExportableOrderV2, exportNote = "
   workbook.company = "GOLDMAX";
   workbook.created = new Date();
 
-  const ws = workbook.addWorksheet("Thông tin đơn hàng V2", {
+  const ws = workbook.addWorksheet("Đơn đặt hàng V2", {
     pageSetup: {
       paperSize: 9,
       orientation: "landscape",
@@ -121,7 +121,7 @@ export async function buildOrderExcelV2(order: ExportableOrderV2, exportNote = "
   ws.pageSetup.printTitlesRow = "12:13";
   ws.pageSetup.printArea = `A1:S${rowNo}`;
   ws.views = [{ state: "frozen", ySplit: 13, showGridLines: false }];
-  ws.headerFooter.oddFooter = `&L Công ty TNHH SXTM GoldMax Việt Nam - Thông tin Đơn hàng #${order.orderCode}&R Trang &P / &N`;
+  ws.headerFooter.oddFooter = `&L Công ty TNHH SXTM GoldMax Việt Nam - Đơn đặt hàng #${order.orderCode}&R Trang &P / &N`;
 
   const buffer = await workbook.xlsx.writeBuffer();
   return Buffer.from(buffer);
@@ -137,7 +137,7 @@ function setupColumns(ws: Worksheet) {
 }
 
 async function writeTopBanner(ws: Worksheet, workbook: ExcelJS.Workbook, order: ExportableOrderV2) {
-  // Bố cục V2: Logo | thông tin công ty từng dòng | THÔNG TIN ĐƠN HÀNG.
+  // Bố cục V2: Logo | thông tin công ty từng dòng | ĐƠN ĐẶT HÀNG.
   ws.mergeCells("A1:C6");
   ws.mergeCells("D1:L1");
   ws.mergeCells("M1:S2");
@@ -174,7 +174,7 @@ async function writeTopBanner(ws: Worksheet, workbook: ExcelJS.Workbook, order: 
 
   // V65: ghi vào ô gốc của vùng merge M1:S2 / M3:S3 (trước đây ghi L1/L3 — là ô con của
   // vùng D1:L1 / D3:L3 nên ghi đè mất tên công ty và dòng "VP Miền Bắc").
-  ws.getCell("M1").value = "THÔNG TIN ĐƠN HÀNG";
+  ws.getCell("M1").value = "ĐƠN ĐẶT HÀNG";
   ws.getCell("M1").font = { ...BASE_FONT, bold: true, size: 16, color: { argb: NAVY } };
   ws.getCell("M1").alignment = { horizontal: "right", vertical: "middle", shrinkToFit: true };
   ws.getCell("M3").value = `Mã ĐH: ${order.orderCode}`;

@@ -51,7 +51,7 @@ export async function buildOrderExcel(order: ExportableOrder, exportNote = ""): 
   workbook.modified = new Date();
   workbook.calcProperties.fullCalcOnLoad = true;
 
-  const ws = workbook.addWorksheet("Thông tin đơn hàng", {
+  const ws = workbook.addWorksheet("Đơn đặt hàng", {
     pageSetup: {
       paperSize: 9,
       orientation: "landscape",
@@ -132,7 +132,7 @@ async function writeHeader(ws: Worksheet, workbook: ExcelJS.Workbook, order: Exp
   ws.getCell("C1").alignment = CENTER;
 
   ws.mergeCells("C2:P2");
-  ws.getCell("C2").value = "THÔNG TIN ĐƠN HÀNG";
+  ws.getCell("C2").value = "ĐƠN ĐẶT HÀNG";
   ws.getCell("C2").font = { ...BODY_FONT, size: 17, bold: true, color: { argb: "FF003399" } };
   ws.getCell("C2").alignment = CENTER;
 

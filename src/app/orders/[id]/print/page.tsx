@@ -41,7 +41,7 @@ export default async function PrintOrderPage({
           </div>
           <div className="order-print-title">
             <h1>CÔNG TY TNHH SXTM GOLDMAX VIỆT NAM</h1>
-            <h2>THÔNG TIN ĐƠN HÀNG</h2>
+            <h2>ĐƠN ĐẶT HÀNG</h2>
           </div>
           <div className="order-print-badge">MẪU CỬA</div>
 

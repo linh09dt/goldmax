@@ -71,7 +71,7 @@ COMPANY_LINES = [
 COMPANY_LINE = "\n".join(COMPANY_LINES)
 # V64: tỷ lệ bề rộng cột thông tin công ty trong header (dùng chung cho bảng + auto-fit).
 COMPANY_COL_RATIO = 123 / 273
-TITLE = "THÔNG TIN ĐƠN HÀNG"
+TITLE = "ĐƠN ĐẶT HÀNG"
 
 # V53/V54: hộp ghi chú nhỏ in ở góc dưới bên trái trang cuối (khung + nền nhạt nhạt, chữ nhỏ, không làm nổi bật).
 FOOTNOTE_FILL = colors.HexColor("#F8FAFC")
@@ -585,7 +585,7 @@ def _draw_footer(canvas: pdfcanvas.Canvas, doc: SimpleDocTemplate, order_code: s
     canvas.line(LEFT, y + 4 * mm, PAGE_W - RIGHT, y + 4 * mm)
     canvas.setFillColor(MUTED)
     canvas.setFont(FONTS["regular"], 8.5)
-    canvas.drawString(LEFT, y, f"{COMPANY} - Thông tin Đơn hàng #{order_code}")
+    canvas.drawString(LEFT, y, f"{COMPANY} - Đơn đặt hàng #{order_code}")
     canvas.drawRightString(PAGE_W - RIGHT, y, f"Trang {canvas.getPageNumber()}")
     canvas.restoreState()
 
@@ -609,7 +609,7 @@ def build_order_pdf(order: dict[str, Any], output: str | os.PathLike[str] | io.B
         bottomMargin=BOTTOM,
         title=f"{TITLE} - {order_code}",
         author=COMPANY,
-        subject="Thông tin đơn hàng GOLDMAX V2",
+        subject="Đơn đặt hàng GOLDMAX V2",
     )
 
     story: list[Any] = []

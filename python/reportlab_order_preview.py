@@ -343,9 +343,9 @@ def _header(order: dict[str, Any], order_code: str) -> list[Any]:
         Spacer(1, 0.6 * mm),
         _company_lines_flowable(company_width),
     ]
-    # Giữ form mẫu, nhưng phần đầu theo form hiện tại: THÔNG TIN ĐƠN HÀNG + Mã ĐH.
+    # Giữ form mẫu, nhưng phần đầu theo form hiện tại: ĐƠN ĐẶT HÀNG + Mã ĐH.
     quote_box = Table([
-        [para("THÔNG TIN ĐƠN HÀNG", "title")],
+        [para("ĐƠN ĐẶT HÀNG", "title")],
         [para(f"Mã ĐH: {order_code}", "order_code")],
     ], colWidths=[100 * mm])
     quote_box.setStyle(TableStyle([
