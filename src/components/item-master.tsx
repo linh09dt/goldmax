@@ -1,6 +1,5 @@
 "use client";
 
-import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   SettingsBadge,
@@ -46,11 +45,32 @@ type RebuildSummary = {
 };
 
 
-type ItemGroup = {
+type ItemSection = {
   key: string;
-  name: string;
+  label: string;
+  tone: "cyan" | "amber";
+  hint: string;
   items: Item[];
 };
+
+/**
+ * V84: danh sách hàng hóa không còn gom theo TENHANG nữa — mỗi MODEL là một dòng chi tiết.
+ * Bảng chỉ chia 2 khối lớn: CỬA (TENHANG bắt đầu bằng “Cửa”) và PHỤ KIỆN (mọi TENHANG còn lại),
+ * đúng theo quy ước phân loại đang dùng ở view Tạo đơn hàng (isDoorCatalogItem).
+ */
+type ListRow =
+  | {
+      kind: "section";
+      key: string;
+      label: string;
+      tone: "cyan" | "amber";
+      hint: string;
+      total: number;
+      activeCount: number;
+      tenhangCount: number;
+      expanded: boolean;
+    }
+  | { kind: "item"; item: Item; stt: number };
 
 const cellInputClass = "w-full rounded-md border border-slate-300 px-2 py-1 text-[12.5px] outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-100";
 
@@ -74,8 +94,8 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
   const [newRetailPrice, setNewRetailPrice] = useState("");
   const [adding, setAdding] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [groupedView, setGroupedView] = useState(true);
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  // V84: chỉ còn 2 khối Cửa / Phụ kiện, mặc định mở hết để thấy toàn bộ dòng chi tiết.
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
@@ -119,45 +139,60 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
     onSummary?.(`${items.length} hàng hóa`);
   }, [items.length, onSummary]);
 
-  const itemGroups = useMemo<ItemGroup[]>(() => {
-    const map = new Map<string, ItemGroup>();
-    for (const item of items) {
-      const normalizedName = normalizeGroupKey(item.name);
-      const existing = map.get(normalizedName);
-      if (existing) {
-        existing.items.push(item);
-      } else {
-        map.set(normalizedName, { key: normalizedName, name: item.name.trim() || "Chưa phân nhóm", items: [item] });
-      }
-    }
-
-    return Array.from(map.values())
-      .map((group) => ({ ...group, items: [...group.items].sort((a, b) => a.code.localeCompare(b.code, "vi")) }))
-      .sort((a, b) => a.name.localeCompare(b.name, "vi"));
-  }, [items]);
-
   const activeCount = useMemo(() => items.filter((item) => item.active).length, [items]);
   const isSearching = search.trim().length > 0;
 
-  function isGroupExpanded(groupKey: string) {
-    return isSearching || expandedGroups.has(groupKey);
-  }
+  const doorItems = useMemo(() => items.filter((item) => isDoorTenhang(item.name)), [items]);
+  const accessoryItems = useMemo(() => items.filter((item) => !isDoorTenhang(item.name)), [items]);
 
-  function toggleGroup(groupKey: string) {
-    setExpandedGroups((current) => {
+  const sections = useMemo<ItemSection[]>(() => {
+    // Trong mỗi khối: sắp theo TENHANG rồi theo MODEL, để các MODEL cùng loại nằm liền nhau.
+    const byTenhangThenModel = (list: Item[]) => [...list].sort((a, b) =>
+      normalizeGroupKey(a.name).localeCompare(normalizeGroupKey(b.name), "vi") || a.code.localeCompare(b.code, "vi"));
+
+    return [
+      { key: "CUA", label: "CỬA", tone: "cyan" as const, hint: "Dùng làm bộ cửa trong đơn", items: byTenhangThenModel(doorItems) },
+      { key: "PHU_KIEN", label: "PHỤ KIỆN", tone: "amber" as const, hint: "Dùng làm dòng phụ kiện / chi tiết trong đơn", items: byTenhangThenModel(accessoryItems) },
+    ].filter((section) => section.items.length > 0);
+  }, [doorItems, accessoryItems]);
+
+  const listRows = useMemo<ListRow[]>(() => {
+    const rows: ListRow[] = [];
+    let stt = 0;
+    for (const section of sections) {
+      const expanded = isSearching || !collapsedSections.has(section.key);
+      rows.push({
+        kind: "section",
+        key: section.key,
+        label: section.label,
+        tone: section.tone,
+        hint: section.hint,
+        total: section.items.length,
+        activeCount: section.items.filter((item) => item.active).length,
+        tenhangCount: new Set(section.items.map((item) => normalizeGroupKey(item.name))).size,
+        expanded,
+      });
+      if (!expanded) continue;
+      for (const item of section.items) rows.push({ kind: "item", item, stt: stt++ });
+    }
+    return rows;
+  }, [sections, collapsedSections, isSearching]);
+
+  function toggleSection(sectionKey: string) {
+    setCollapsedSections((current) => {
       const next = new Set(current);
-      if (next.has(groupKey)) next.delete(groupKey);
-      else next.add(groupKey);
+      if (next.has(sectionKey)) next.delete(sectionKey);
+      else next.add(sectionKey);
       return next;
     });
   }
 
-  function expandAllGroups() {
-    setExpandedGroups(new Set(itemGroups.map((group) => group.key)));
+  function expandAllSections() {
+    setCollapsedSections(new Set());
   }
 
-  function collapseAllGroups() {
-    setExpandedGroups(new Set());
+  function collapseAllSections() {
+    setCollapsedSections(new Set(sections.map((section) => section.key)));
   }
 
   async function rebuildMaster(file: File) {
@@ -283,13 +318,13 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
     }
   }
 
-  function renderItemRow(item: Item, index: number, grouped: boolean) {
+  function renderItemRow(item: Item, index: number) {
     const editing = editingId === item.id;
     return (
       <tr key={item.id} className={item.active ? "bg-white" : "bg-slate-50 text-slate-500"}>
         <td className="erp-td-num w-14 text-slate-500">{index + 1}</td>
         <td className="min-w-56 font-medium text-slate-800">
-          {editing ? <input className={cellInputClass} value={editName} onChange={(e) => setEditName(e.target.value)} /> : grouped ? <span className="text-slate-400">↳ {item.name}</span> : item.name}
+          {editing ? <input className={cellInputClass} value={editName} onChange={(e) => setEditName(e.target.value)} /> : item.name}
         </td>
         <td className="min-w-80 max-w-xl text-slate-600">
           {editing ? <textarea className={`${cellInputClass} min-h-16`} value={editProductDescription} onChange={(e) => setEditProductDescription(e.target.value)} /> : item.productDescription || "—"}
@@ -345,7 +380,7 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
       <SettingsSectionHeader
         code="A1"
         title="Danh mục hàng hóa"
-        description="Master Data dùng khi lập đơn: TENHANG là nhóm cửa, MODEL là mã hàng, kèm ĐVT và giá đại lý / giá bán lẻ."
+        description="Master Data dùng khi lập đơn: mỗi MODEL là một dòng hàng hóa, kèm TENHANG, ĐVT và giá đại lý / giá bán lẻ."
         actions={
           <>
             <label className={`erp-button-secondary cursor-pointer ${busy ? "pointer-events-none opacity-60" : ""}`}>
@@ -430,7 +465,8 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
               <h3 className="erp-subsection-title">Danh sách hàng hóa</h3>
               <SettingsBadge tone="cyan">{items.length} MODEL</SettingsBadge>
               <SettingsBadge>{activeCount} đang sử dụng</SettingsBadge>
-              {groupedView ? <SettingsBadge>{itemGroups.length} nhóm TENHANG</SettingsBadge> : null}
+              <SettingsBadge tone="cyan">Cửa {doorItems.length}</SettingsBadge>
+              <SettingsBadge tone="amber">Phụ kiện {accessoryItems.length}</SettingsBadge>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <input
@@ -444,21 +480,14 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
                 <option value="active">Đang sử dụng</option>
                 <option value="inactive">Ngưng sử dụng</option>
               </select>
-              <button
-                type="button"
-                className={`rounded-lg border px-3 py-2 text-[13px] font-semibold ${groupedView ? "border-sky-300 bg-sky-50 text-sky-800" : "border-slate-300 bg-white text-slate-700"}`}
-                onClick={() => setGroupedView((value) => !value)}
-              >
-                {groupedView ? "Đang nhóm theo TENHANG" : "Nhóm theo TENHANG"}
-              </button>
-              {groupedView ? (
-                <>
-                  <button type="button" className="erp-button-secondary" onClick={expandAllGroups}>Mở tất cả</button>
-                  <button type="button" className="erp-button-secondary" onClick={collapseAllGroups}>Thu gọn</button>
-                </>
-              ) : null}
+              <button type="button" className="erp-button-secondary" onClick={expandAllSections}>Mở tất cả</button>
+              <button type="button" className="erp-button-secondary" onClick={collapseAllSections}>Thu gọn</button>
             </div>
           </div>
+          <p className="erp-hint">
+            Liệt kê chi tiết từng MODEL, không gom theo TENHANG. Chỉ chia 2 khối: <b>CỬA</b> (TENHANG bắt đầu bằng “Cửa”)
+            và <b>PHỤ KIỆN</b> (mọi TENHANG còn lại).
+          </p>
         </div>
 
         <SettingsTable minWidthClass="min-w-[1240px]">
@@ -479,42 +508,35 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
           <tbody>
             {loading ? (
               <tr><td colSpan={10} className="px-3 py-8 text-center text-slate-500">Đang tải...</td></tr>
-            ) : items.length === 0 ? (
+            ) : listRows.length === 0 ? (
               <tr><td colSpan={10} className="px-3 py-8 text-center text-slate-500">Chưa có Master Data hàng hóa.</td></tr>
-            ) : groupedView ? (
-              itemGroups.flatMap((group) => {
-                const expanded = isGroupExpanded(group.key);
-                const groupActiveCount = group.items.filter((item) => item.active).length;
-                const rows: ReactNode[] = [
-                  <tr key={`group-${group.key}`} className="bg-slate-100 hover:bg-slate-100">
+            ) : (
+              listRows.map((row) => {
+                if (row.kind === "item") return renderItemRow(row.item, row.stt);
+                return (
+                  <tr key={`section-${row.key}`} className="bg-slate-100 hover:bg-slate-100">
                     <td className="text-center">
                       <button
                         type="button"
                         className="inline-flex h-6 w-6 items-center justify-center rounded border border-slate-300 bg-white text-[13px] font-bold text-slate-700 hover:bg-slate-50"
-                        onClick={() => toggleGroup(group.key)}
-                        aria-label={expanded ? `Thu gọn ${group.name}` : `Mở nhóm ${group.name}`}
+                        onClick={() => toggleSection(row.key)}
+                        aria-label={row.expanded ? `Thu gọn khối ${row.label}` : `Mở khối ${row.label}`}
                       >
-                        {expanded ? "−" : "+"}
+                        {row.expanded ? "−" : "+"}
                       </button>
                     </td>
                     <td colSpan={2}>
                       <div className="flex flex-wrap items-center gap-2">
-                        <button type="button" className="font-bold text-slate-900 hover:text-sky-700" onClick={() => toggleGroup(group.key)}>{group.name}</button>
-                        <SettingsBadge tone="cyan">{group.items.length} MODEL</SettingsBadge>
-                        {groupActiveCount !== group.items.length ? <span className="text-[11.5px] text-slate-500">{groupActiveCount} đang sử dụng</span> : null}
+                        <button type="button" className="font-bold tracking-wide text-slate-900 hover:text-sky-700" onClick={() => toggleSection(row.key)}>{row.label}</button>
+                        <SettingsBadge tone={row.tone}>{row.total} MODEL</SettingsBadge>
+                        <SettingsBadge>{row.tenhangCount} TENHANG</SettingsBadge>
+                        {row.activeCount !== row.total ? <span className="text-[11.5px] text-slate-500">{row.activeCount} đang sử dụng</span> : null}
                       </div>
                     </td>
-                    <td colSpan={7} className="text-right text-[11px] uppercase tracking-wide text-slate-400">Nhóm TENHANG</td>
-                  </tr>,
-                ];
-
-                if (expanded) {
-                  group.items.forEach((item) => rows.push(renderItemRow(item, items.indexOf(item), true)));
-                }
-                return rows;
+                    <td colSpan={7} className="text-right text-[11px] uppercase tracking-wide text-slate-400">{row.hint}</td>
+                  </tr>
+                );
               })
-            ) : (
-              items.map((item, index) => renderItemRow(item, index, false))
             )}
           </tbody>
         </SettingsTable>
@@ -589,4 +611,24 @@ function formatDateTime(value: string) {
 
 function normalizeGroupKey(value: string) {
   return value.trim().replace(/\s+/g, " ").toLocaleUpperCase("vi-VN");
+}
+
+/** V84: bỏ dấu + hạ chữ thường để so khớp TENHANG (giống normalizeText ở view Tạo đơn hàng). */
+function normalizeText(value: string) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .trim()
+    .toLocaleLowerCase("vi");
+}
+
+/**
+ * V84: quy ước phân loại Cửa / Phụ kiện — dùng đúng logic của view Tạo đơn hàng
+ * (`isDoorCatalogItem` bên order-form.tsx): TENHANG bắt đầu bằng “Cửa” là bộ cửa, còn lại là phụ kiện.
+ */
+function isDoorTenhang(value: string) {
+  const name = normalizeText(value);
+  return name.startsWith("cua ") || name === "cua";
 }
