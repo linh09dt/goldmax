@@ -2,19 +2,12 @@ import ExcelJS from "exceljs";
 import type { SalesOrderGetPayload } from "@/generated/prisma/models/SalesOrder";
 import { prisma } from "@/lib/prisma";
 import { orderStatusLabel } from "@/lib/order-form";
+import { buildOrderListWhere, type OrderListQuery } from "@/lib/order-list-filters";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type OrderQuery = {
-  date?: string;
-  month?: string;
-  year?: string;
-  from?: string;
-  to?: string;
-  dealer?: string;
-  customer?: string;
-};
+type OrderQuery = OrderListQuery;
 
 export async function GET(request: Request) {
   try {
@@ -27,22 +20,15 @@ export async function GET(request: Request) {
       to: url.searchParams.get("to") ?? undefined,
       dealer: url.searchParams.get("dealer") ?? undefined,
       customer: url.searchParams.get("customer") ?? undefined,
+      q: url.searchParams.get("q") ?? undefined,
+      status: url.searchParams.get("status") ?? undefined,
     };
 
-    const dateFilter = resolveDateFilter(query);
-    const dealerFilter = parseDealerFilter(query.dealer);
-    const customerFilter = clean(query.customer);
+    // V100: dùng chung bộ lọc với màn Quản lý đơn hàng (gồm cả tìm nhanh và lọc trạng thái).
+    const { where } = buildOrderListWhere(query);
 
     const orders = await prisma.salesOrder.findMany({
-      where: {
-        ...(dateFilter ? { orderDate: dateFilter } : {}),
-        ...(dealerFilter
-          ? dealerFilter.kind === "code"
-            ? { customerCode: dealerFilter.value }
-            : { customerName: dealerFilter.value }
-          : {}),
-        ...(customerFilter ? { receiverName: customerFilter } : {}),
-      },
+      where,
       orderBy: [{ requiredDeliveryDate: "asc" }, { id: "desc" }],
       include: {
         items: {
@@ -328,67 +314,3 @@ function statusLabel(value: string) {
   return orderStatusLabel(value);
 }
 
-function parseDealerFilter(value: unknown) {
-  const text = clean(value);
-  if (!text) return null;
-  if (text.startsWith("C:")) return { kind: "code" as const, value: text.slice(2) };
-  if (text.startsWith("N:")) return { kind: "name" as const, value: text.slice(2) };
-  return { kind: "code" as const, value: text };
-}
-
-function resolveDateFilter(query: OrderQuery) {
-  const from = parseIsoDate(query.from);
-  const to = parseIsoDate(query.to);
-  if (from || to) {
-    return {
-      ...(from ? { gte: from } : {}),
-      ...(to ? { lte: to } : {}),
-    };
-  }
-
-  const exact = parseIsoDate(query.date);
-  if (exact) return { equals: exact };
-
-  const monthText = clean(query.month);
-  const monthMatch = /^(\d{4})-(\d{2})$/.exec(monthText);
-  if (monthMatch) {
-    const year = Number(monthMatch[1]);
-    const month = Number(monthMatch[2]);
-    if (month >= 1 && month <= 12) {
-      return {
-        gte: new Date(Date.UTC(year, month - 1, 1)),
-        lt: new Date(Date.UTC(year, month, 1)),
-      };
-    }
-  }
-
-  const year = Number(clean(query.year));
-  if (Number.isInteger(year) && year >= 2000 && year <= 2100) {
-    return {
-      gte: new Date(Date.UTC(year, 0, 1)),
-      lt: new Date(Date.UTC(year + 1, 0, 1)),
-    };
-  }
-
-  return null;
-}
-
-function parseIsoDate(value: unknown) {
-  const text = clean(value);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
-  const [year, month, day] = text.split("-").map(Number);
-  if (!year || !month || !day) return null;
-  const date = new Date(Date.UTC(year, month - 1, day));
-  if (
-    date.getUTCFullYear() !== year ||
-    date.getUTCMonth() !== month - 1 ||
-    date.getUTCDate() !== day
-  ) return null;
-  return date;
-}
-
-function clean(value: unknown) {
-  if (value === null || value === undefined) return "";
-  const text = String(value).trim();
-  return text === "-" || text === "—" ? "" : text;
-}

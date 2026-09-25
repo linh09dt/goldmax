@@ -1,44 +1,46 @@
-GOLDMAX door-production — GÓI DELTA V97 (tiêu đề file xuất: ĐƠN ĐẶT HÀNG)
-========================================================================
+GOLDMAX door-production — GÓI DELTA V100 (danh sách đơn hàng chia 2 cột — Phương án B)
+======================================================================================
 
 Gói này CHỈ chứa các file thay đổi so với bản door-production.zip gốc (24/09/2026).
 Cách áp dụng: copy đè toàn bộ nội dung gói này vào thư mục gốc dự án (giữ nguyên cây thư mục).
 
 NỘI DUNG
 --------
-Đổi "THÔNG TIN ĐƠN HÀNG" thành "ĐƠN ĐẶT HÀNG" trên tài liệu xuất:
-- PDF V2 + PDF mẫu (tiêu đề, metadata, chân trang)
-- Excel V1 + V2 (tiêu đề trong bảng, chân trang, tên sheet)
-- Trang in / Lưu PDF
-- Tên file PDF dự phòng khi tải
+Màn Quản lý đơn hàng (/orders) chuyển sang bố cục 2 cột:
+- Cột trái: tab trạng thái (Tất cả / Đơn hàng mẫu / Sản xuất) + 3 chỉ số (tổng đơn,
+  tổng tiền, quá hạn) + danh sách đơn gọn + PHÂN TRANG 20 đơn/trang.
+- Cột phải: chi tiết đơn đang chọn (thông tin nhận hàng, 4 ô tổng, bảng hàng hóa 13 cột,
+  nút Sửa / Xuất Excel / Xuất PDF / Xóa, link In và xem đầy đủ 23 cột). Không cần mở trang mới.
+- Thanh lọc: thêm TÌM NHANH + chip khoảng ngày (Hôm nay/Tuần/Tháng/Quý/Năm) + LỌC TRẠNG THÁI.
+- Nút "Xuất Excel danh sách" giờ lọc đúng như trên màn (dùng chung bộ lọc).
+
+SỬA KÈM: ngày đơn/hạn giao trước đây hiển thị lệch 1 ngày (format theo giờ máy chủ) — nay format theo UTC.
 
 DANH SÁCH FILE
 --------------
-Sửa:
-  python/reportlab_order_v2.py            hằng TITLE + chân trang + metadata
-  python/reportlab_order_preview.py       tiêu đề PDF mẫu
-  src/lib/order-export.ts                 tiêu đề ô C2 + tên sheet
-  src/lib/order-export-v2.ts              tiêu đề ô M1 + chân trang + tên sheet
-  src/app/orders/[id]/print/page.tsx      tiêu đề trang in
-  src/components/order-export-buttons.tsx tên file PDF dự phòng
 Mới:
-  EXPORT_TITLE_DON_DAT_HANG_V97.md        tài liệu + bảng kiểm chứng
+  src/components/order-list/order-list-pane.tsx     cột trái
+  src/components/order-list/order-detail-pane.tsx   cột phải
+  src/components/order-list/format.ts               định dạng ngày/tiền dùng chung
+  src/lib/order-list-filters.ts                     bộ lọc dùng chung + dựng query
+  ORDER_LIST_SPLIT_VIEW_V100.md                     tài liệu + bảng kiểm chứng
+Sửa:
+  src/app/orders/page.tsx                           bố cục 2 cột + truy vấn phân trang
+  src/app/api/orders/export-list/route.ts           dùng chung bộ lọc (thêm q/status)
 
-QUAN HỆ VỚI CÁC GÓI TRƯỚC
--------------------------
-- python/reportlab_order_v2.py trong gói này ĐÃ BAO GỒM thay đổi logo V87 (base64 logo mới).
-- ⚠ KHÔNG copy gói logo V87 lên sau gói này (sẽ đè lại file Python cũ).
+KHÔNG cần migration DB. Không đổi cấu trúc bảng dữ liệu.
 
 BẮT BUỘC SAU KHI COPY
 ---------------------
 1. Xoá cache build:
        rmdir /s /q .next
        del /s /q python\__pycache__ api\__pycache__
-2. Chạy lại: npm run build (hoặc npm run dev), deploy lại Python function.
-3. Xuất thử PDF V2 / Excel V2 và mở trang in để kiểm tra tiêu đề "ĐƠN ĐẶT HÀNG".
+2. Chạy lại: npm run build (hoặc npm run dev).
+3. Mở /orders: bấm 1 đơn ở cột trái → chi tiết hiện ngay cột phải; thử tìm nhanh,
+   chip khoảng ngày, đổi tab trạng thái và phân trang.
 
 GHI CHÚ
 -------
-- Giao diện trong app (màn Tạo đơn, Chi tiết đơn) vẫn ghi "Thông tin đơn hàng" — chưa đổi.
-- Tên file tải về vẫn là Bao-gia-V2-... (đang là "Báo giá") — chưa đổi.
-- Không đổi dữ liệu/DB, không cần migration.
+- Bảng 23 cột đầy đủ vẫn còn ở trang chi tiết đơn và trong file Excel xuất danh sách.
+- Chưa làm: Kanban, Lịch giao hàng, nút "▶ Sang Sản xuất" (là P1/P2 — nói nếu muốn làm tiếp).
+- Gói đầy đủ (nếu cần) xem door-production-logo-v87.zip.
