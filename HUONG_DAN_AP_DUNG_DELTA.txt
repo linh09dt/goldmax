@@ -1,0 +1,29 @@
+GOLDMAX door-production — GÓI DELTA V88 (thêm 3 công thức KH/Lượng)
+==================================================================
+
+Gói này CHỈ chứa các file thay đổi so với bản door-production.zip gốc (24/09/2026).
+Cách áp dụng: copy đè toàn bộ nội dung gói này vào thư mục gốc dự án (giữ nguyên cây thư mục).
+
+DANH SÁCH FILE
+--------------
+Sửa:
+  src/lib/calculation-config.ts          thêm 3 mã rule mới (PERIMETER_LINEAR, DOUBLE_HEIGHT_LINEAR, WIDTH_LINEAR)
+  src/components/calculation-config.tsx  thêm 3 lựa chọn vào dropdown CÁCH TÍNH KH/LƯỢNG
+  src/components/order-form.tsx          tính KH/Lượng cho 3 công thức mới
+  src/app/guide/page.tsx                 bổ sung dòng "Công thức KH/Lượng" trong Hướng dẫn sử dụng
+Mới:
+  CALCULATION_KHLUONG_FORMULAS_V88.md    tài liệu chi tiết + bảng kiểm chứng
+
+BẮT BUỘC SAU KHI COPY
+---------------------
+1. Xoá cache build của Next.js để chắc chắn dùng code mới:
+       rmdir /s /q .next
+       del /s /q python\__pycache__ api\__pycache__
+2. Chạy lại: npm run build (hoặc npm run dev) rồi mở tab Cấu hình → Cấu hình tính toán,
+   kiểm tra dropdown CÁCH TÍNH KH/LƯỢNG có đủ 5 công thức theo kích thước.
+
+GHI CHÚ
+-------
+- KHÔNG cần migration DB. Cấu hình đã lưu giữ nguyên; muốn dùng công thức mới thì đổi
+  cột CÁCH TÍNH KH/LƯỢNG ở rule tương ứng rồi bấm "Lưu cấu hình".
+- Gói đầy đủ (nếu cần) xem door-production-logo-v87.zip.

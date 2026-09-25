@@ -38,6 +38,10 @@ const PRICING_OPTIONS: Array<{ value: PricingQuantityRule; label: string }> = [
   { value: "MANUAL", label: "Nhập tay" },
   { value: "DOOR_AREA", label: "Cao × Rộng / 1.000.000" },
   { value: "TRIM_LINEAR", label: "(Cao × 2 + Rộng) / 1.000" },
+  // V88: 3 công thức chọn thêm cho KH/Lượng (nhóm Phào/Phao và các nhóm tính theo mm).
+  { value: "PERIMETER_LINEAR", label: "(Cao × 2 + Rộng × 2) / 1.000" },
+  { value: "DOUBLE_HEIGHT_LINEAR", label: "Cao × 2 / 1.000" },
+  { value: "WIDTH_LINEAR", label: "Rộng / 1.000" },
   // V85: rút gọn nhãn để không bị cắt trong bảng rule ở màn hẹp (1TK/2TK/3TK/4TK đã có ở khối ví dụ bên dưới).
   { value: "PANEL_COUNT", label: "Theo số TK ô thoáng" },
   { value: "PARENT_QUANTITY", label: "Theo SL bộ cửa cha" },

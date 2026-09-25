@@ -137,6 +137,7 @@ export default function GuidePage() {
             ["Bộ cửa chính", "Dùng công thức Cao × Rộng / 1.000.000 hoặc chọn Nhập tay nếu cần."],
             ["Theo nhóm hàng", "Áp một công thức chung cho toàn bộ Model thuộc Nhóm hàng, ví dụ Phào / Ô thoáng / Khóa."],
             ["Theo Model / hàng hóa", "Gán rule riêng cho đúng Model. Có thể kế thừa công thức KH/Lượng từ Nhóm nhưng cấu hình Cao/Rộng riêng."],
+            ["Công thức KH/Lượng", "Cột CÁCH TÍNH KH/LƯỢNG chọn 1 trong: Cao × Rộng / 1.000.000 · (Cao × 2 + Rộng) / 1.000 · (Cao × 2 + Rộng × 2) / 1.000 · Cao × 2 / 1.000 · Rộng / 1.000 · Nhập tay · Theo số TK ô thoáng · Theo SL bộ cửa cha."],
             ["Đề xuất Cao / Rộng", "Chọn Cao cửa, Rộng cửa, Để trống hoặc Nhập tay / giữ nguyên. Đề xuất chỉ điền khi chọn hàng hóa và vẫn sửa tay được."],
             ["Tạo lại cấu hình gợi ý", "Quét Danh mục hàng hóa để tạo mẫu cho Phào, Ô thoáng, Khóa và các loại Phào rời / biệt thự."],
             ["Lưu cấu hình", "Áp dụng rule mới cho màn Tạo/Sửa đơn hàng. Không thay đổi dữ liệu đơn đã lưu."],

@@ -1,11 +1,24 @@
 export const CALCULATION_CONFIG_SETTING_KEY = "ORDER_CALCULATION_CONFIG_V1";
 
 export type CalculationScope = "MAIN" | "GROUP" | "ITEM";
+
+/**
+ * Cách tính KH/Lượng theo kích thước (mm). Kết quả là mét dài hoặc m²:
+ * - DOOR_AREA: Cao × Rộng / 1.000.000 — diện tích (m²), dùng cho Bộ cửa chính.
+ * - TRIM_LINEAR: (Cao × 2 + Rộng) / 1.000 — 2 cạnh dọc + 1 cạnh ngang, dùng cho Phào/Phao.
+ * - V88 thêm 3 công thức chọn thêm cho Phào/Phao và các nhóm tính theo mm:
+ *   PERIMETER_LINEAR: (Cao × 2 + Rộng × 2) / 1.000 — chu vi (4 cạnh).
+ *   DOUBLE_HEIGHT_LINEAR: Cao × 2 / 1.000 — chỉ 2 cạnh dọc.
+ *   WIDTH_LINEAR: Rộng / 1.000 — chỉ cạnh ngang.
+ */
 export type PricingQuantityRule =
   | "INHERIT"
   | "MANUAL"
   | "DOOR_AREA"
   | "TRIM_LINEAR"
+  | "PERIMETER_LINEAR"
+  | "DOUBLE_HEIGHT_LINEAR"
+  | "WIDTH_LINEAR"
   | "PANEL_COUNT"
   | "PARENT_QUANTITY";
 export type InputSuggestionRule =
@@ -136,6 +149,10 @@ const PRICING_RULES = new Set<PricingQuantityRule>([
   "MANUAL",
   "DOOR_AREA",
   "TRIM_LINEAR",
+  // V88: 3 công thức chọn thêm cho cách tính KH/Lượng.
+  "PERIMETER_LINEAR",
+  "DOUBLE_HEIGHT_LINEAR",
+  "WIDTH_LINEAR",
   "PANEL_COUNT",
   "PARENT_QUANTITY",
 ]);

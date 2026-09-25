@@ -1291,6 +1291,26 @@ function calculatePricingQuantityByRule(
     return formatPricingQuantityExact(((height ?? 0) * 2 + (width ?? 0)) / 1000);
   }
 
+  // V88: 3 công thức chiều dài chọn thêm (nhóm Phào/Phao và các nhóm tính theo mm).
+  if (rule === "PERIMETER_LINEAR") {
+    const height = positiveNumber(line.heightMm);
+    const width = positiveNumber(line.widthMm);
+    if (height === null && width === null) return "";
+    return formatPricingQuantityExact((((height ?? 0) * 2) + (width ?? 0) * 2) / 1000);
+  }
+
+  if (rule === "DOUBLE_HEIGHT_LINEAR") {
+    const height = positiveNumber(line.heightMm);
+    if (height === null) return "";
+    return formatPricingQuantityExact((height * 2) / 1000);
+  }
+
+  if (rule === "WIDTH_LINEAR") {
+    const width = positiveNumber(line.widthMm);
+    if (width === null) return "";
+    return formatPricingQuantityExact(width / 1000);
+  }
+
   if (rule === "PANEL_COUNT") return panelCountFromDoor(parent.panelInfo);
 
   const quantity = positiveNumber(parent.quantity);
