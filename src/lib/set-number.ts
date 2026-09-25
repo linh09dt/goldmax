@@ -10,9 +10,9 @@ import { SET_NUMBER_STATUSES } from "@/lib/order-form";
  * V75: Bộ số do hệ thống tự tăng dần, người dùng không nhập tay.
  *
  * Quy tắc:
- * - Đơn ở trạng thái Đơn hàng mẫu (Lưu nháp): Bộ số CHƯA được tạo (để trống).
- * - Bộ số chỉ được tạo khi bấm Lưu đơn hàng — đơn chuyển sang trạng thái Sản xuất
- *   (gồm cả mã cũ "Đã xác nhận" của đơn đã lưu trước đây).
+ * - Đơn ở trạng thái Đơn nháp (bấm Lưu nháp): Bộ số CHƯA được tạo (để trống).
+ * - V112: Bộ số chỉ được tạo khi bấm Lưu đơn hàng — đơn chuyển sang trạng thái Đã xác nhận,
+ *   áp dụng cho MỌI loại đơn (Đơn hàng mẫu / Sản xuất / Đơn làm lại).
  * - Đơn đã có Bộ số thì không bao giờ đổi số.
  * - Số bắt đầu lấy từ cấu hình tính toán (CalculationConfig.setNumberStart).
  * - Không dùng lại số đã cấp: bộ đếm lưu ở SystemSetting, đồng thời luôn lớn hơn
@@ -21,10 +21,10 @@ import { SET_NUMBER_STATUSES } from "@/lib/order-form";
 
 export const SET_NUMBER_COUNTER_KEY = "ORDER_SET_NUMBER_COUNTER";
 
-/** Chỉ hai trạng thái này mới sinh Bộ số. */
+/** V112: chỉ trạng thái "Đã xác nhận" mới sinh Bộ số (mọi loại đơn). */
 export const SET_NUMBER_ASSIGN_STATUSES: readonly string[] = SET_NUMBER_STATUSES;
 
-/** Trạng thái đang hiển thị Bộ số trên màn Tạo đơn / Chi tiết đơn. */
+/** Trạng thái đang hiển thị Bộ số trên màn Tạo đơn / Chi tiết đơn (V112: đã xác nhận). */
 export function canAssignSetNumbers(status: string | null | undefined) {
   return SET_NUMBER_ASSIGN_STATUSES.includes(String(status ?? "").trim());
 }

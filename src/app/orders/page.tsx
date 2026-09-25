@@ -6,8 +6,6 @@ import { OrderListPane, type OrderListRow } from "@/components/order-list/order-
 import { OrderDetailPane, type OrderDetailData } from "@/components/order-list/order-detail-pane";
 import {
   ORDER_LIST_PAGE_SIZE,
-  PRODUCTION_STATUS_CODES,
-  SAMPLE_STATUS_CODES,
   buildOrderListQueryString,
   buildOrderListWhere,
   clean,
@@ -33,10 +31,12 @@ export default async function OrdersPage({
   const now = new Date();
   const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
+  // V112: bỏ điều kiện LỌC LOẠI ĐƠN để đếm số đơn của từng loại.
   const withoutStatus = { ...where };
+  delete (withoutStatus as { orderType?: unknown }).orderType;
   delete (withoutStatus as { status?: unknown }).status;
 
-  const [totalCount, totalAggregate, orders, overdueCount, countAll, countSample, countProd, dealerRows, customerRows] = await Promise.all([
+  const [totalCount, totalAggregate, orders, overdueCount, countAll, countMau, countSanXuat, countLamLai, dealerRows, customerRows] = await Promise.all([
     prisma.salesOrder.count({ where }),
     prisma.salesOrder.aggregate({ where, _sum: { totalAfterDiscount: true } }),
     prisma.salesOrder.findMany({
@@ -48,6 +48,7 @@ export default async function OrdersPage({
       select: {
         id: true,
         orderCode: true,
+        orderType: true,
         status: true,
         orderDate: true,
         requiredDeliveryDate: true,
@@ -62,8 +63,9 @@ export default async function OrdersPage({
     }),
     prisma.salesOrder.count({ where: { ...where, requiredDeliveryDate: { lt: startOfToday } } }),
     prisma.salesOrder.count({ where: withoutStatus }),
-    prisma.salesOrder.count({ where: { ...withoutStatus, status: { in: SAMPLE_STATUS_CODES } } }),
-    prisma.salesOrder.count({ where: { ...withoutStatus, status: { in: PRODUCTION_STATUS_CODES } } }),
+    prisma.salesOrder.count({ where: { ...withoutStatus, orderType: "MAU" } }),
+    prisma.salesOrder.count({ where: { ...withoutStatus, orderType: "SAN_XUAT" } }),
+    prisma.salesOrder.count({ where: { ...withoutStatus, orderType: "LAM_LAI" } }),
     prisma.salesOrder.findMany({ distinct: ["customerCode"], select: { customerCode: true, customerName: true }, orderBy: { customerCode: "asc" } }),
     prisma.salesOrder.findMany({ distinct: ["receiverName"], select: { receiverName: true }, orderBy: { receiverName: "asc" } }),
   ]);
@@ -72,6 +74,7 @@ export default async function OrdersPage({
   const rows: OrderListRow[] = orders.map((order) => ({
     id: order.id,
     orderCode: order.orderCode,
+    orderType: order.orderType,
     status: order.status,
     orderDate: order.orderDate,
     requiredDeliveryDate: order.requiredDeliveryDate,
@@ -124,8 +127,8 @@ export default async function OrdersPage({
         <OrderListPane
           orders={rows}
           selectedId={selectedId}
-          baseQuery={{ ...query, status: statusFilter === "all" ? "" : statusFilter }}
-          statusCounts={{ all: countAll, sample: countSample, prod: countProd }}
+          baseQuery={{ ...query, type: statusFilter === "all" ? "" : statusFilter, status: "" }}
+          statusCounts={{ all: countAll, mau: countMau, san_xuat: countSanXuat, lam_lai: countLamLai }}
           totalCount={totalCount}
           totalValue={totalAggregate._sum.totalAfterDiscount}
           overdueCount={overdueCount}

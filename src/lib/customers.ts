@@ -9,6 +9,8 @@ import { prisma } from "@/lib/prisma";
 export type CustomerOrderSummary = {
   id: number;
   orderCode: string;
+  /** V112: loại đơn (MAU | SAN_XUAT | LAM_LAI). */
+  orderType: string | null;
   status: string;
   orderDate: string | null;
   amount: number;
@@ -47,6 +49,7 @@ export async function loadCustomerDirectory(): Promise<CustomerDirectory> {
       select: {
         id: true,
         orderCode: true,
+        orderType: true,
         status: true,
         orderDate: true,
         customerCode: true,
@@ -70,6 +73,7 @@ export async function loadCustomerDirectory(): Promise<CustomerDirectory> {
     const summary: CustomerOrderSummary = {
       id: order.id,
       orderCode: order.orderCode,
+      orderType: order.orderType,
       status: order.status,
       orderDate: toDateString(order.orderDate),
       amount,

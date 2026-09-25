@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { isProductionStatus, orderStatusLabel } from "@/lib/order-form";
+import { isConfirmedStatus, orderStatusLabel, orderTypeLabel } from "@/lib/order-form";
 import {
   ORDER_LIST_PAGE_SIZE,
   ORDER_LIST_STATUS_FILTERS,
   buildOrderListQueryString,
+  normalizeOrderListType,
   type OrderListQuery,
 } from "@/lib/order-list-filters";
 import { deliveryHint, formatDate, formatMoney, formatMoneyShort, textOrDash } from "@/components/order-list/format";
@@ -17,6 +18,8 @@ import { deliveryHint, formatDate, formatMoney, formatMoneyShort, textOrDash } f
 export type OrderListRow = {
   id: number;
   orderCode: string;
+  /** V112: loại đơn — MAU | SAN_XUAT | LAM_LAI. */
+  orderType: string;
   status: string;
   orderDate: Date | null;
   requiredDeliveryDate: Date | null;
@@ -44,14 +47,14 @@ export function OrderListPane({
   orders: OrderListRow[];
   selectedId: number | null;
   baseQuery: OrderListQuery;
-  statusCounts: { all: number; sample: number; prod: number };
+  statusCounts: { all: number; mau: number; san_xuat: number; lam_lai: number };
   totalCount: number;
   totalValue: unknown;
   overdueCount: number;
   page: number;
   pageCount: number;
 }) {
-  const statusFilter = baseQuery.status === "sample" || baseQuery.status === "prod" ? baseQuery.status : "all";
+  const statusFilter = normalizeOrderListType(baseQuery.type ?? baseQuery.status);
   const firstIndex = totalCount === 0 ? 0 : (page - 1) * ORDER_LIST_PAGE_SIZE + 1;
   const lastIndex = Math.min(page * ORDER_LIST_PAGE_SIZE, totalCount);
 
@@ -61,11 +64,11 @@ export function OrderListPane({
       <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200 bg-slate-50 px-2.5 py-2">
         {ORDER_LIST_STATUS_FILTERS.map((option) => {
           const active = statusFilter === option.value;
-          const count = option.value === "all" ? statusCounts.all : option.value === "sample" ? statusCounts.sample : statusCounts.prod;
+          const count = option.value === "all" ? statusCounts.all : statusCounts[option.value];
           return (
             <Link
               key={option.value}
-              href={`/orders${buildOrderListQueryString(baseQuery, { status: option.value === "all" ? "" : option.value, page: "" })}`}
+              href={`/orders${buildOrderListQueryString(baseQuery, { type: option.value === "all" ? "" : option.value, status: "", page: "" })}`}
               className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-[11.5px] font-semibold transition ${
                 active ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
               }`}
@@ -105,9 +108,13 @@ export function OrderListPane({
 
         {orders.map((order) => {
           const selected = selectedId === order.id;
-          const production = isProductionStatus(order.status);
+          const confirmed = isConfirmedStatus(order.status);
           const hint = deliveryHint(order.requiredDeliveryDate);
-          const subParts = [textOrDash(order.customerName || order.customerCode), `${order.itemCount} bộ cửa`];
+          const subParts = [
+            orderTypeLabel(order.orderType),
+            textOrDash(order.customerName || order.customerCode),
+            `${order.itemCount} bộ cửa`,
+          ];
           return (
             <Link
               key={order.id}
@@ -116,7 +123,10 @@ export function OrderListPane({
                 selected ? "bg-cyan-50 shadow-[inset_3px_0_0_#0e7490]" : "bg-white hover:bg-cyan-50/50"
               }`}
             >
-              <span className={`h-2 w-2 rounded-full ${production ? "bg-emerald-500" : "bg-slate-400"}`} title={orderStatusLabel(order.status)} />
+              <span
+                className={`h-2 w-2 rounded-full ${confirmed ? "bg-emerald-500" : "bg-amber-400"}`}
+                title={`${orderTypeLabel(order.orderType)} · ${orderStatusLabel(order.status)}`}
+              />
               <span className="min-w-0">
                 <span className="block truncate text-[12.5px] font-bold text-cyan-700">{order.orderCode}</span>
                 <span className="mt-0.5 block truncate text-[11px] text-slate-600">

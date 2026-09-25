@@ -95,6 +95,7 @@ export function parseOrderInputTemplate(buffer: Buffer, fileName = ""): ParsedOr
 
   const form: OrderFormData = {
     orderCode,
+    orderType: "MAU",
     status: "NHAP",
     customerCode,
     customerName,

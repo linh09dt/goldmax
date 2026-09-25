@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { normalizeOrderPayload } from "@/lib/order-persistence";
 import { resolveSetNumbers } from "@/lib/set-number";
 import { ORDER_WRITE_TRANSACTION } from "@/lib/db-transaction";
+import { isConfirmedStatus } from "@/lib/order-form";
 
 export const runtime = "nodejs";
 
@@ -30,19 +31,37 @@ async function updateOrder(request: Request, context: { params: Promise<{ id: st
     // create từng dòng — trước đây mỗi bộ cửa là 2 lượt round trip nên đơn lớn vượt hạn mức
     // 5 giây của transaction khi DB ở xa ("expired transaction").
     const assignedSetNumbers = await prisma.$transaction(async (tx) => {
+      // V112: đọc trạng thái + Bộ số hiện có TRƯỚC khi xoá để hai việc dưới đây không phụ thuộc client:
+      //  - không cho hạ cấp đơn đã xác nhận về nháp;
+      //  - giữ nguyên Bộ số đã cấp kể cả khi payload không gửi kèm.
+      const current = await tx.salesOrder.findUnique({
+        where: { id: orderId },
+        select: { status: true },
+      });
+      const existingItems = await tx.salesOrderItem.findMany({
+        where: { orderId },
+        select: { lineNo: true, setNo: true },
+      });
+      const keptSetNoByLineNo = new Map(existingItems.map((item) => [item.lineNo, item.setNo]));
+
+      const incomingStatus = normalized.orderData.status;
+      const nextStatus = isConfirmedStatus(current?.status) && !isConfirmedStatus(incomingStatus)
+        ? String(current?.status)
+        : incomingStatus;
+
+      // V75/V91/V112: giữ nguyên Bộ số đã cấp; chỉ sinh số mới cho bộ cửa chưa có số
+      // khi đơn đã xác nhận (bấm Lưu đơn hàng).
+      const setNumbers = await resolveSetNumbers(tx, {
+        status: nextStatus,
+        incoming: normalized.items.map((item) => item.data.setNo ?? keptSetNoByLineNo.get(item.lineNo) ?? null),
+      });
+
       await tx.salesOrderRequirement.deleteMany({ where: { orderId } });
       await tx.salesOrderItem.deleteMany({ where: { orderId } });
 
-      // V75/V91: giữ nguyên Bộ số đã cấp; chỉ sinh số mới cho bộ cửa chưa có số khi
-      // đơn ở trạng thái Sản xuất (bấm Lưu đơn hàng).
-      const setNumbers = await resolveSetNumbers(tx, {
-        status: normalized.orderData.status,
-        incoming: normalized.items.map((item) => item.data.setNo),
-      });
-
       await tx.salesOrder.update({
         where: { id: orderId },
-        data: { orderCode: normalized.orderCode, ...normalized.orderData },
+        data: { orderCode: normalized.orderCode, ...normalized.orderData, status: nextStatus },
       });
 
       const createdItems = await tx.salesOrderItem.createManyAndReturn({

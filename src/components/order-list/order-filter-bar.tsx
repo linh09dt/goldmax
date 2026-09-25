@@ -3,7 +3,7 @@ import {
   ORDER_LIST_PRESETS,
   buildOrderListQueryString,
   clean,
-  normalizeOrderListStatus,
+  normalizeOrderListType,
   resolveDatePreset,
   type OrderListQuery,
 } from "@/lib/order-list-filters";
@@ -35,7 +35,7 @@ export function OrderFilterBar({
   customers: string[];
   exportHref: string;
 }) {
-  const statusFilter = normalizeOrderListStatus(query.status);
+  const statusFilter = normalizeOrderListType(query.status);
 
   return (
     <form method="GET" className="erp-card mt-5 px-3 py-3">

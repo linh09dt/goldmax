@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { OrderDeleteButton } from "@/components/order-delete-button";
 import { OrderExportButtons } from "@/components/order-export-buttons";
-import { isProductionStatus, orderStatusLabel, showsSetNumber } from "@/lib/order-form";
+import { isConfirmedStatus, orderStatusLabel, orderTypeLabel, showsSetNumber } from "@/lib/order-form";
 import { formatDate, formatDecimal, formatMoney, formatNumber, textOrDash } from "@/components/order-list/format";
 
 /**
@@ -35,6 +35,7 @@ export type OrderDetailLine = {
 export type OrderDetailData = {
   id: number;
   orderCode: string;
+  orderType: string | null;
   status: string;
   orderDate: Date | null;
   requiredDeliveryDate: Date | null;
@@ -75,7 +76,7 @@ export function OrderDetailPane({ order }: { order: OrderDetailData | null }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <Link className="text-[15px] font-bold text-cyan-700 hover:underline" href={`/orders/${order.id}`}>{order.orderCode}</Link>
-            <StatusBadge value={order.status} />
+            <StatusBadge orderType={order.orderType} status={order.status} />
           </div>
           <div className="mt-1 text-[11.5px] text-slate-600">
             Đặt {formatDate(order.orderDate)} · Hạn giao <b className="text-slate-800">{formatDate(order.requiredDeliveryDate)}</b>
@@ -183,14 +184,32 @@ export function OrderDetailPane({ order }: { order: OrderDetailData | null }) {
   );
 }
 
-function StatusBadge({ value }: { value: string }) {
-  const label = orderStatusLabel(value);
-  const style = isProductionStatus(value)
+/**
+ * V112: hiện đủ 2 thông tin — LOẠI ĐƠN (Đơn hàng mẫu / Sản xuất / Đơn làm lại)
+ * và TRẠNG THÁI (Đơn nháp / Đã xác nhận).
+ */
+function StatusBadge({ orderType, status }: { orderType: string | null | undefined; status: string }) {
+  const statusLabel = orderStatusLabel(status);
+  const statusStyle = isConfirmedStatus(status)
     ? "border-emerald-300 bg-emerald-50 text-emerald-800"
-    : label === "Đã hủy"
+    : statusLabel === "Đã hủy"
       ? "border-red-300 bg-red-50 text-red-700"
+      : "border-amber-300 bg-amber-50 text-amber-800";
+  const typeStyle = orderTypeLabel(orderType) === "Sản xuất"
+    ? "border-cyan-300 bg-cyan-50 text-cyan-800"
+    : orderTypeLabel(orderType) === "Đơn làm lại"
+      ? "border-violet-300 bg-violet-50 text-violet-800"
       : "border-slate-300 bg-slate-100 text-slate-700";
-  return <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] font-bold ${style}`}>● {label}</span>;
+  return (
+    <span className="inline-flex flex-wrap items-center justify-end gap-1">
+      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10.5px] font-bold ${typeStyle}`}>
+        {orderTypeLabel(orderType)}
+      </span>
+      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10.5px] font-bold ${statusStyle}`}>
+        ● {statusLabel}
+      </span>
+    </span>
+  );
 }
 
 function DetailField({ label, value }: { label: string; value: string }) {

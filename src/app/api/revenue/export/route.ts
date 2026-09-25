@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
-import { PRODUCTION_STATUS_CODES, orderStatusLabel } from "@/lib/order-form";
+import { CONFIRMED_STATUS_CODES, orderTypeLabel } from "@/lib/order-form";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -68,7 +68,8 @@ export async function GET(request: Request) {
     const orders = await prisma.salesOrder.findMany({
       where: {
         // V103: file xuất cũng chỉ gồm đơn đã vào sản xuất, khớp với màn doanh thu.
-        status: { in: PRODUCTION_STATUS_CODES },
+        orderType: "SAN_XUAT",
+        status: { in: CONFIRMED_STATUS_CODES },
         ...(dateFilter ? { orderDate: dateFilter } : {}),
         ...(dealerFilter
           ? dealerFilter.kind === "code"
@@ -191,7 +192,7 @@ export async function GET(request: Request) {
         customerCode: row.order.customerCode ?? "",
         customerName: row.order.customerName ?? "",
         orderCode: row.order.orderCode,
-        orderType: orderStatusLabel(row.order.status),
+        orderType: orderTypeLabel(row.order.orderType),
         goodsTotal: row.goodsTotal,
         shippingFee: row.shippingFee,
         total: row.total,

@@ -2,11 +2,13 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { orderStatusLabel } from "@/lib/order-form";
+import { isConfirmedStatus, orderStatusLabel, orderTypeLabel } from "@/lib/order-form";
 
 type CustomerOrder = {
   id: number;
   orderCode: string;
+  /** V112: loại đơn (MAU | SAN_XUAT | LAM_LAI). */
+  orderType: string | null;
   status: string;
   orderDate: string | null;
   amount: number;
@@ -198,6 +200,7 @@ export function CustomerDirectory() {
                                       <Link className="font-semibold text-cyan-700 hover:underline" href={`/orders/${order.id}`}>{order.orderCode}</Link>
                                     </td>
                                     <td className="px-2 py-1.5 tabular-nums text-slate-600">{order.orderDate ? formatDate(order.orderDate) : "—"}</td>
+                                    <td className="px-2 py-1.5 text-slate-600">{orderTypeLabel(order.orderType)}</td>
                                     <td className="px-2 py-1.5 text-slate-600">{orderStatusLabel(order.status)}</td>
                                     <td className="px-2 py-1.5 text-right tabular-nums text-slate-700">{formatMoney(order.amount)}đ</td>
                                   </tr>

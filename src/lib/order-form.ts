@@ -2,33 +2,66 @@ import { DEFAULT_DISCOUNT_PERCENT } from "@/lib/order-output";
 export { DEFAULT_DISCOUNT_PERCENT };
 
 /**
- * V91: đơn hàng chỉ còn 2 trạng thái — Đơn hàng mẫu (đang nhập / lưu nháp) và Sản xuất.
- * Trạng thái do HÀNH ĐỘNG khi lưu quyết định (Lưu nháp / Lưu đơn hàng), không chọn tay trên form.
+ * V112 — Tách rõ hai khái niệm (trước V112 bị gộp trong một ô `status`):
+ *
+ * 1. **LOẠI ĐƠN** (`orderType`) — chọn khi tạo đơn, có 3 loại:
+ *      - `MAU`      = Đơn hàng mẫu
+ *      - `SAN_XUAT` = Sản xuất
+ *      - `LAM_LAI`  = Đơn làm lại
+ * 2. **TRẠNG THÁI** (`status`) — mọi loại đơn đều có 2 trạng thái, do nút Lưu quyết định:
+ *      - `NHAP`        = Đơn nháp       (bấm "Lưu nháp")
+ *      - `DA_XAC_NHAN` = Đã xác nhận    (bấm "Lưu đơn hàng")
+ *    **Bộ số chỉ được cấp khi đơn đã xác nhận** (bất kể loại đơn nào).
  */
-export const ORDER_STATUS_OPTIONS = [
-  { value: "NHAP", label: "Đơn hàng mẫu" },
-  { value: "CHUYEN_SAN_XUAT", label: "Sản xuất" },
+export const ORDER_TYPE_OPTIONS = [
+  { value: "MAU", label: "Đơn hàng mẫu" },
+  { value: "SAN_XUAT", label: "Sản xuất" },
+  { value: "LAM_LAI", label: "Đơn làm lại" },
 ] as const;
 
-/** Mã trạng thái đơn hàng mẫu (chưa vào sản xuất). */
-export const ORDER_STATUS_SAMPLE = "NHAP";
-/** Mã trạng thái đã vào sản xuất. */
-export const ORDER_STATUS_PRODUCTION = "CHUYEN_SAN_XUAT";
+export type OrderTypeCode = (typeof ORDER_TYPE_OPTIONS)[number]["value"];
+
+export const ORDER_TYPE_SAMPLE = "MAU";
+export const ORDER_TYPE_PRODUCTION = "SAN_XUAT";
+export const ORDER_TYPE_REMAKE = "LAM_LAI";
+export const DEFAULT_ORDER_TYPE: OrderTypeCode = ORDER_TYPE_SAMPLE;
+
+export function orderTypeLabel(value: string | null | undefined) {
+  const code = String(value ?? "").trim();
+  const option = ORDER_TYPE_OPTIONS.find((item) => item.value === code);
+  return option?.label ?? (code || "—");
+}
+
+/** Mã loại đơn luôn hợp lệ để ghi DB (mã lạ → Đơn hàng mẫu). */
+export function normalizeOrderType(value: string | null | undefined): OrderTypeCode {
+  const code = String(value ?? "").trim();
+  const option = ORDER_TYPE_OPTIONS.find((item) => item.value === code);
+  return option ? option.value : DEFAULT_ORDER_TYPE;
+}
+
+export const ORDER_STATUS_OPTIONS = [
+  { value: "NHAP", label: "Đơn nháp" },
+  { value: "DA_XAC_NHAN", label: "Đã xác nhận" },
+] as const;
+
+/** Đơn nháp (chưa xác nhận) — chưa có Bộ số. */
+export const ORDER_STATUS_DRAFT = "NHAP";
+/** Đơn đã xác nhận — đã có Bộ số. */
+export const ORDER_STATUS_CONFIRMED = "DA_XAC_NHAN";
+
+/** Mã dùng để truy vấn: chỉ còn "Đã xác nhận" (kèm mã cũ trước V112 để dữ liệu cũ vẫn lọc được). */
+export const CONFIRMED_STATUS_CODES: string[] = [ORDER_STATUS_CONFIRMED, "CHUYEN_SAN_XUAT", "DA_XAC_NHAN"];
+export const DRAFT_STATUS_CODES: string[] = [ORDER_STATUS_DRAFT, "CHO_XAC_NHAN"];
+/** Loại đơn tính vào doanh thu: chỉ đơn Sản xuất. */
+export const PRODUCTION_ORDER_TYPES: string[] = [ORDER_TYPE_PRODUCTION];
 
 /**
- * V103: danh sách mã trạng thái dùng cho truy vấn (gồm cả mã cũ trước V91) — một nơi duy nhất
- * cho mọi màn, tránh mỗi chỗ khai báo một kiểu.
- */
-export const SAMPLE_STATUS_CODES: string[] = [ORDER_STATUS_SAMPLE, "CHO_XAC_NHAN"];
-export const PRODUCTION_STATUS_CODES: string[] = [ORDER_STATUS_PRODUCTION, "DA_XAC_NHAN"];
-
-/**
- * V91: đơn lưu trước đây còn mã trạng thái cũ → quy về 2 trạng thái mới khi hiển thị.
- * "Đã hủy" giữ riêng để đơn đã hủy không bị hiển thị nhầm thành đang sản xuất.
+ * Nhãn trạng thái. Đơn lưu trước V112 còn mã gộp (`CHUYEN_SAN_XUAT` = vừa là loại vừa là trạng thái)
+ * nên vẫn quy đổi khi hiển thị; "Đã hủy" giữ riêng để đơn đã huỷ không bị hiện nhầm.
  */
 const LEGACY_STATUS_LABELS: Record<string, string> = {
-  CHO_XAC_NHAN: "Đơn hàng mẫu",
-  DA_XAC_NHAN: "Sản xuất",
+  CHUYEN_SAN_XUAT: "Đã xác nhận",
+  CHO_XAC_NHAN: "Đơn nháp",
   HUY: "Đã hủy",
 };
 
@@ -39,29 +72,27 @@ export function orderStatusLabel(status: string | null | undefined) {
   return LEGACY_STATUS_LABELS[value] ?? (value || "—");
 }
 
-/** Đơn đã vào sản xuất (gồm cả mã cũ "Đã xác nhận"). */
-export function isProductionStatus(status: string | null | undefined) {
+/** Đơn đã xác nhận (gồm mã cũ trước V112). */
+export function isConfirmedStatus(status: string | null | undefined) {
   const value = String(status ?? "").trim();
-  return value === ORDER_STATUS_PRODUCTION || value === "DA_XAC_NHAN";
+  return value === ORDER_STATUS_CONFIRMED || value === "CHUYEN_SAN_XUAT" || value === "DA_XAC_NHAN";
 }
 
 export type OrderSaveAction = "DRAFT" | "ORDER";
 
 /**
- * V91: trạng thái sau khi lưu.
- * - Lưu đơn hàng → Sản xuất.
- * - Lưu nháp → giữ Đơn hàng mẫu; đơn đã vào sản xuất thì KHÔNG bị hạ cấp về mẫu.
+ * V112: trạng thái sau khi lưu — do hành động bấm nút quyết định.
+ * - "Lưu đơn hàng" (ORDER)   → Đã xác nhận.
+ * - "Lưu nháp" (DRAFT)       → Đơn nháp; đơn đã xác nhận thì KHÔNG bị hạ cấp về nháp
+ *                              (tránh việc sửa nhỏ rồi lưu nháp làm mất hiệu lực đơn đã xác nhận).
  */
 export function statusAfterSave(currentStatus: string | null | undefined, action: OrderSaveAction) {
-  if (action === "ORDER") return ORDER_STATUS_PRODUCTION;
-  return isProductionStatus(currentStatus) ? ORDER_STATUS_PRODUCTION : ORDER_STATUS_SAMPLE;
+  if (action === "ORDER") return ORDER_STATUS_CONFIRMED;
+  return isConfirmedStatus(currentStatus) ? ORDER_STATUS_CONFIRMED : ORDER_STATUS_DRAFT;
 }
 
-/**
- * V75: Bộ số do hệ thống tự tăng dần khi đơn đã vào sản xuất (gồm mã cũ "Đã xác nhận").
- * Đơn ở trạng thái Đơn hàng mẫu chưa có Bộ số nên không hiển thị.
- */
-export const SET_NUMBER_STATUSES: readonly string[] = ["DA_XAC_NHAN", "CHUYEN_SAN_XUAT"];
+/** V112: Bộ số chỉ có khi đơn ĐÃ XÁC NHẬN (mọi loại đơn). */
+export const SET_NUMBER_STATUSES: readonly string[] = [ORDER_STATUS_CONFIRMED, "CHUYEN_SAN_XUAT", "DA_XAC_NHAN"];
 
 export function showsSetNumber(status: string | null | undefined) {
   return SET_NUMBER_STATUSES.includes(String(status ?? "").trim());
@@ -129,6 +160,9 @@ export type RequirementForm = {
 
 export type OrderFormData = {
   orderCode: string;
+  /** V112: loại đơn — chọn khi tạo đơn (MAU | SAN_XUAT | LAM_LAI). */
+  orderType: string;
+  /** V112: trạng thái — do nút Lưu quyết định (NHAP | DA_XAC_NHAN). */
   status: string;
   customerCode: string;
   customerName: string;
@@ -210,7 +244,8 @@ export function createDefaultOrderForm(): OrderFormData {
   const now = new Date();
   return {
     orderCode: draftOrderCode(now),
-    status: "NHAP",
+    orderType: DEFAULT_ORDER_TYPE,
+    status: ORDER_STATUS_DRAFT,
     customerCode: "",
     customerName: "",
     salesEmployeeCode: "",

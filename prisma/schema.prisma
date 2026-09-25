@@ -20,6 +20,9 @@ model SystemSetting {
 model SalesOrder {
   id                        Int                     @id @default(autoincrement())
   orderCode                 String                  @unique @map("order_code") @db.VarChar(120)
+  /** V112: LOẠI ĐƠN — MAU (Đơn hàng mẫu) | SAN_XUAT (Sản xuất) | LAM_LAI (Đơn làm lại). Chọn khi tạo đơn. */
+  orderType                 String                  @default("MAU") @map("order_type") @db.VarChar(30)
+  /** V112: TRẠNG THÁI — NHAP (Đơn nháp) | DA_XAC_NHAN (Đã xác nhận). Do nút Lưu quyết định. */
   status                    String                  @default("NHAP") @db.VarChar(30)
   customerCode              String?                 @map("customer_code") @db.VarChar(60)
   customerName              String?                 @map("customer_name") @db.VarChar(200)
@@ -58,6 +61,7 @@ model SalesOrder {
   @@index([customerCode])
   @@index([requiredDeliveryDate])
   @@index([status])
+  @@index([orderType])
   @@index([lastImportedAt])
   @@map("sales_orders")
 }

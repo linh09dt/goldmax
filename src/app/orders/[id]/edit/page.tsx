@@ -24,6 +24,7 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
 
   const initialData: OrderFormData = {
     orderCode: order.orderCode,
+    orderType: order.orderType,
     status: order.status,
     customerCode: order.customerCode ?? "",
     customerName: order.customerName ?? "",

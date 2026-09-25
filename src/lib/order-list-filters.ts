@@ -15,7 +15,9 @@ export type OrderListQuery = {
   customer?: string;
   /** Tìm nhanh: mã đơn, khách hàng, mã đại lý, người nhận, số điện thoại. */
   q?: string;
-  /** all | sample | prod */
+  /** V112: lọc theo LOẠI ĐƠN — all | mau | san_xuat | lam_lai */
+  type?: string;
+  /** Mã cũ trước V112 (all | sample | prod) — vẫn nhận để link cũ không hỏng. */
   status?: string;
   page?: string;
   /** Đơn đang chọn ở cột chi tiết (dạng chia 2 cột). */
@@ -26,27 +28,34 @@ export type OrderListQuery = {
 
 export const ORDER_LIST_PAGE_SIZE = 20;
 
-/** Trạng thái đơn cũ vẫn nằm trong dữ liệu nên lọc theo nhóm mã thay vì 1 mã. */
-import { PRODUCTION_STATUS_CODES, SAMPLE_STATUS_CODES } from "@/lib/order-form";
-
-export { PRODUCTION_STATUS_CODES, SAMPLE_STATUS_CODES };
-
-export const ORDER_LIST_STATUS_FILTERS = [
+/**
+ * V112: bộ lọc "loại đơn" (Đơn hàng mẫu / Sản xuất / Đơn làm lại). Giá trị `sample`/`prod`
+ * của bản cũ vẫn được quy đổi để link đã lưu không hỏng.
+ */
+export const ORDER_LIST_TYPE_FILTERS = [
   { value: "all", label: "Tất cả" },
-  { value: "sample", label: "Đơn hàng mẫu" },
-  { value: "prod", label: "Sản xuất" },
+  { value: "mau", label: "Đơn hàng mẫu" },
+  { value: "san_xuat", label: "Sản xuất" },
+  { value: "lam_lai", label: "Đơn làm lại" },
 ] as const;
 
-export type OrderListStatusFilter = (typeof ORDER_LIST_STATUS_FILTERS)[number]["value"];
+export type OrderListTypeFilter = (typeof ORDER_LIST_TYPE_FILTERS)[number]["value"];
 
-export function normalizeOrderListStatus(value: unknown): OrderListStatusFilter {
+/** Giữ tên cũ để màn danh sách không phải đổi import. */
+export const ORDER_LIST_STATUS_FILTERS = ORDER_LIST_TYPE_FILTERS;
+
+export function normalizeOrderListType(value: unknown): OrderListTypeFilter {
   const text = clean(value);
-  return text === "sample" || text === "prod" ? text : "all";
+  if (text === "mau" || text === "san_xuat" || text === "lam_lai") return text;
+  if (text === "sample") return "mau";
+  if (text === "prod") return "san_xuat";
+  return "all";
 }
 
-function statusCodes(filter: OrderListStatusFilter): string[] | null {
-  if (filter === "sample") return SAMPLE_STATUS_CODES;
-  if (filter === "prod") return PRODUCTION_STATUS_CODES;
+function typeCodes(filter: OrderListTypeFilter): string[] | null {
+  if (filter === "mau") return ["MAU"];
+  if (filter === "san_xuat") return ["SAN_XUAT"];
+  if (filter === "lam_lai") return ["LAM_LAI"];
   return null;
 }
 
@@ -161,7 +170,7 @@ export const ORDER_LIST_PRESETS = [
 /** Điều kiện truy vấn dùng chung cho trang danh sách và xuất Excel. */
 export function buildOrderListWhere(query: OrderListQuery): {
   where: Prisma.SalesOrderWhereInput;
-  statusFilter: OrderListStatusFilter;
+  statusFilter: OrderListTypeFilter;
   keyword: string;
   page: number;
 } {
@@ -169,8 +178,9 @@ export function buildOrderListWhere(query: OrderListQuery): {
   const dealerFilter = parseDealerFilter(query.dealer);
   const customerFilter = clean(query.customer);
   const keyword = clean(query.q);
-  const statusFilter = normalizeOrderListStatus(query.status);
-  const codes = statusCodes(statusFilter);
+  // V112: lọc theo LOẠI ĐƠN (nhận cả tham số `status` cũ).
+  const statusFilter = normalizeOrderListType(query.type ?? query.status);
+  const codes = typeCodes(statusFilter);
   const page = Math.max(1, Math.floor(Number(clean(query.page)) || 1));
 
   const where: Prisma.SalesOrderWhereInput = {
@@ -181,7 +191,7 @@ export function buildOrderListWhere(query: OrderListQuery): {
         : { customerName: dealerFilter.value }
       : {}),
     ...(customerFilter ? { receiverName: customerFilter } : {}),
-    ...(codes ? { status: { in: codes } } : {}),
+    ...(codes ? { orderType: { in: codes } } : {}),
     ...(keyword
       ? {
           OR: [

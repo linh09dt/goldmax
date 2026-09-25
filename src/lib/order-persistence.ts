@@ -34,6 +34,9 @@ export type NormalizedOrderLine = {
 export type NormalizedOrder = {
   orderCode: string;
   orderData: {
+    /** V112: loại đơn (MAU | SAN_XUAT | LAM_LAI) — chọn khi tạo đơn. */
+    orderType: string;
+    /** V112: trạng thái (NHAP | DA_XAC_NHAN) — do hành động lưu quyết định. */
     status: string;
     customerCode: string | null;
     customerName: string | null;
@@ -129,6 +132,7 @@ export function normalizeOrderPayload(input: unknown): NormalizedOrder {
   return {
     orderCode,
     orderData: {
+      orderType: normalizeOrderType(input.orderType),
       status: requiredInfo.status,
       customerCode: requiredInfo.customerCode,
       customerName: requiredInfo.customerName,
@@ -268,14 +272,22 @@ function optionalText(value: unknown) {
 }
 
 /**
- * V91: đơn hàng chỉ còn 2 trạng thái (Đơn hàng mẫu / Sản xuất).
- * Đơn lưu trước đây còn mã cũ → quy về trạng thái tương ứng khi ghi vào DB.
- * "Đã hủy" (HUY) giữ nguyên nếu được gửi tới, để không tự ý khôi phục đơn đã hủy.
+ * V112: trạng thái đơn chỉ còn 2 giá trị — NHAP (Đơn nháp) / DA_XAC_NHAN (Đã xác nhận).
+ * Mã cũ trước V112 (CHUYEN_SAN_XUAT, CHO_XAC_NHAN) được quy về đúng 2 giá trị này khi ghi vào DB.
  */
+/**
+ * V112: mã loại đơn hợp lệ; mã lạ/rỗng → Đơn hàng mẫu (dùng cho cả payload cũ chưa gửi orderType).
+ */
+function normalizeOrderType(value: unknown) {
+  const text = String(value ?? "").trim();
+  return ["MAU", "SAN_XUAT", "LAM_LAI"].includes(text) ? text : "MAU";
+}
+
 function normalizeOrderStatus(value: string) {
   const text = value.trim();
-  if (text === "CHUYEN_SAN_XUAT" || text === "DA_XAC_NHAN") return "CHUYEN_SAN_XUAT";
+  if (text === "CHUYEN_SAN_XUAT" || text === "DA_XAC_NHAN") return "DA_XAC_NHAN";
   if (text === "NHAP" || text === "CHO_XAC_NHAN") return "NHAP";
+  // "HUY" (đơn đã huỷ) giữ nguyên, không tự khôi phục.
   return text;
 }
 

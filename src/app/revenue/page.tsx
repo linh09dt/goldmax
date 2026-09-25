@@ -1,9 +1,15 @@
 import Link from "next/link";
 import { ErpShell } from "@/components/erp-shell";
 import { prisma } from "@/lib/prisma";
-import { PRODUCTION_STATUS_CODES, isProductionStatus, orderStatusLabel } from "@/lib/order-form";
+import { CONFIRMED_STATUS_CODES, orderTypeLabel } from "@/lib/order-form";
 
 export const dynamic = "force-dynamic";
+
+/** V112: doanh thu chỉ gồm đơn LOẠI "Sản xuất" ở trạng thái ĐÃ XÁC NHẬN. */
+const ORDER_REVENUE_WHERE = {
+  orderType: "SAN_XUAT",
+  status: { in: CONFIRMED_STATUS_CODES },
+} as const;
 
 type RevenueQuery = {
   date?: string;
@@ -60,8 +66,8 @@ export default async function RevenuePage({
   const customerFilter = clean(query.customer);
 
   const filterSource = await prisma.salesOrder.findMany({
-    // V103: danh sách đại lý / khách hàng cũng chỉ lấy đơn đã vào sản xuất cho khớp bảng.
-    where: { status: { in: PRODUCTION_STATUS_CODES } },
+    // V112: danh sách đại lý / khách hàng cũng chỉ lấy đơn Sản xuất đã xác nhận cho khớp bảng.
+    where: ORDER_REVENUE_WHERE,
     orderBy: [{ orderDate: "desc" }, { id: "desc" }],
     select: {
       customerCode: true,
@@ -72,8 +78,9 @@ export default async function RevenuePage({
 
   const orders = await prisma.salesOrder.findMany({
     where: {
-      // V103: doanh thu CHỈ tính đơn đã vào sản xuất — đơn hàng mẫu / đơn đã hủy không hiện.
-      status: { in: PRODUCTION_STATUS_CODES },
+      // V112: doanh thu CHỈ tính đơn loại "Sản xuất" và đã xác nhận —
+      // đơn hàng mẫu / đơn làm lại / đơn nháp / đơn đã huỷ không hiện.
+      ...ORDER_REVENUE_WHERE,
       ...(dateFilter ? { orderDate: dateFilter } : {}),
       ...(dealerFilter
         ? dealerFilter.kind === "code"
@@ -386,7 +393,8 @@ function RevenueOrderRows({
     order: {
       id: number;
       orderCode: string;
-      /** V102: dùng để hiện cột "Loại ĐH" theo trạng thái thật của đơn. */
+      /** V112: dùng để hiện cột "Loại ĐH" theo LOẠI ĐƠN thật của đơn. */
+      orderType: string | null;
       status: string | null;
       customerCode: string | null;
       customerName: string | null;
@@ -414,7 +422,7 @@ function RevenueOrderRows({
         </Link>
       </td>
       <td className="text-center">
-        <StatusTag value={row.order.status} />
+        <StatusTag value={row.order.orderType} />
       </td>
       <td className="erp-td-num font-semibold text-slate-900">{formatMoney(row.total)}</td>
       <td className="erp-td-num">
@@ -619,15 +627,14 @@ function roundMoney(value: number) {
 }
 
 /**
- * V102: nhãn "Loại ĐH" lấy theo TRẠNG THÁI THẬT của đơn (Đơn hàng mẫu / Sản xuất / Đã hủy),
- * không mặc định là "Sản xuất" như trước.
+ * V112: cột "Loại ĐH" lấy đúng trường LOẠI ĐƠN của đơn (Sản xuất / Đơn hàng mẫu / Đơn làm lại).
  */
 function StatusTag({ value }: { value: string | null | undefined }) {
-  const label = orderStatusLabel(value);
-  const style = isProductionStatus(value)
+  const label = orderTypeLabel(value);
+  const style = label === "Sản xuất"
     ? "border-emerald-300 bg-emerald-50 text-emerald-800"
-    : label === "Đã hủy"
-      ? "border-red-300 bg-red-50 text-red-700"
+    : label === "Đơn làm lại"
+      ? "border-violet-300 bg-violet-50 text-violet-800"
       : "border-slate-300 bg-slate-100 text-slate-700";
   return (
     <span className={`inline-flex items-center whitespace-nowrap rounded border px-1.5 py-0.5 text-[9px] font-bold 2xl:text-[10px] ${style}`}>

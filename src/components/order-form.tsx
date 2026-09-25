@@ -6,7 +6,9 @@ import {
   createDefaultOrderForm,
   createOrderItem,
   localTodayInput,
-  isProductionStatus,
+  isConfirmedStatus,
+  orderTypeLabel,
+  ORDER_TYPE_OPTIONS,
   newClientId,
   orderStatusLabel,
   reindexItems,
@@ -55,7 +57,8 @@ type Props = {
 
 type SaveOrderResponse = { ok: boolean; id?: number; error?: string; setNumbers?: Array<string | null> };
 
-// V91: trạng thái do nút Lưu quyết định (Lưu nháp = Đơn hàng mẫu, Lưu đơn hàng = Sản xuất) nên
+// V112: LOẠI ĐƠN chọn trên form; TRẠNG THÁI do nút Lưu quyết định (Lưu nháp = Đơn nháp,
+// Lưu đơn hàng = Đã xác nhận) nên
 // không còn là trường người dùng phải nhập.
 const REQUIRED_ORDER_INFO_FIELDS = [
   { key: "customerCode", label: "Mã Đại Lý" },
@@ -178,7 +181,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
 
   const totals = useMemo(() => calculateTotals(form), [form]);
   const detailCount = useMemo(() => form.items.reduce((sum, item) => sum + item.details.length, 0), [form.items]);
-  // V75/V91: Bộ số chỉ hiện khi đơn đã vào Sản xuất (bấm Lưu đơn hàng).
+  // V112: Bộ số chỉ hiện khi đơn ĐÃ XÁC NHẬN (bấm "Lưu đơn hàng"), mọi loại đơn.
   const setNumberVisible = useMemo(() => showsSetNumber(form.status), [form.status]);
 
   function setField<K extends keyof OrderFormData>(key: K, value: OrderFormData[K]) {
@@ -390,8 +393,8 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
 
   /**
    * V91: chỉ còn 2 hành động lưu.
-   * - "DRAFT" (Lưu nháp): đơn giữ/trở về trạng thái Đơn hàng mẫu.
-   * - "ORDER" (Lưu đơn hàng): chuyển đơn sang trạng thái Sản xuất.
+   * - "DRAFT" (Lưu nháp): đơn ở trạng thái Đơn nháp (đơn đã xác nhận thì không bị hạ cấp).
+   * - "ORDER" (Lưu đơn hàng): chuyển đơn sang trạng thái Đã xác nhận và cấp Bộ số.
    * V93: lưu xong (cả 2 hành động) đều mở trang chi tiết đơn.
    */
   async function save(action: OrderSaveAction) {
@@ -439,7 +442,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
       }
       setMessage({
         type: "ok",
-        text: `${targetOrderId ? "Đã cập nhật" : "Đã tạo"} đơn hàng — trạng thái ${orderStatusLabel(nextStatus)}.`,
+        text: `${targetOrderId ? "Đã cập nhật" : "Đã tạo"} đơn hàng — loại ${orderTypeLabel(form.orderType)}, trạng thái ${orderStatusLabel(nextStatus)}.`,
       });
       // V93: sau khi lưu, cả Lưu nháp và Lưu đơn hàng đều mở trang chi tiết đơn.
       router.push(`/orders/${result.id}`);
@@ -482,13 +485,26 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
         <div className="p-2.5">
           <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-[8fr_12.4fr_6.8fr_7.2fr_minmax(52px,5.6fr)_9.1fr_6.8fr_7.2fr_6.8fr_6.4fr_11.4fr_4.7fr_3.1fr]">
             <Field label="Mã đơn hàng" required invalid={invalidOrderInfoFields.has("orderCode")}><TextInput value={form.orderCode} onChange={(v) => setField("orderCode", v)} /></Field>
-            <Field label="Trạng thái">
-              {/* V91: trạng thái do nút Lưu quyết định — chỉ hiển thị để biết, không chọn tay. */}
-              <span
-                className={`erp-input flex items-center gap-1.5 font-semibold ${isProductionStatus(form.status) ? "text-emerald-700" : "text-slate-700"}`}
-                title="Lưu nháp = Đơn hàng mẫu · Lưu đơn hàng = Sản xuất"
+            <Field label="Loại đơn">
+              {/* V112: loại đơn chọn khi tạo đơn (Đơn hàng mẫu / Sản xuất / Đơn làm lại). */}
+              <select
+                className="erp-input font-semibold"
+                value={form.orderType}
+                onChange={(event) => setField("orderType", event.target.value)}
+                title="Loại đơn hàng"
               >
-                <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${isProductionStatus(form.status) ? "bg-emerald-500" : "bg-slate-400"}`} />
+                {ORDER_TYPE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Trạng thái">
+              {/* V112: trạng thái do nút Lưu quyết định — Lưu nháp = Đơn nháp, Lưu đơn hàng = Đã xác nhận. */}
+              <span
+                className={`erp-input flex items-center gap-1.5 font-semibold ${isConfirmedStatus(form.status) ? "text-emerald-700" : "text-slate-700"}`}
+                title="Lưu nháp = Đơn nháp · Lưu đơn hàng = Đã xác nhận (khi đó mới có Bộ số)"
+              >
+                <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${isConfirmedStatus(form.status) ? "bg-emerald-500" : "bg-amber-400"}`} />
                 <span className="truncate">{orderStatusLabel(form.status)}</span>
               </span>
             </Field>
@@ -583,13 +599,14 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
           {message ? <span className={message.type === "ok" ? "text-emerald-700" : "text-red-700"}>{message.text}</span> : null}
         </div>
         <div className="flex items-center gap-2">
-          {/* V91: 2 hành động lưu — Lưu nháp giữ đơn ở trạng thái Đơn hàng mẫu, Lưu đơn hàng chuyển sang Sản xuất. */}
+          {/* V112: 2 hành động lưu — Lưu nháp → trạng thái Đơn nháp (chưa có Bộ số);
+              Lưu đơn hàng → Đã xác nhận và cấp Bộ số. LOẠI ĐƠN chọn riêng ở ô "Loại đơn". */}
           <button
             className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             type="button"
             disabled={busy}
             onClick={() => void save("DRAFT")}
-            title="Lưu nháp — giữ đơn ở trạng thái Đơn hàng mẫu, sau đó mở trang chi tiết đơn"
+            title="Lưu nháp — đơn ở trạng thái Đơn nháp (chưa có Bộ số), sau đó mở trang chi tiết đơn"
           >
             {busy ? "Đang lưu..." : "Lưu nháp"}
           </button>
@@ -598,7 +615,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
             type="button"
             disabled={busy}
             onClick={() => void save("ORDER")}
-            title="Lưu và chuyển đơn sang trạng thái Sản xuất"
+            title="Lưu đơn hàng — chuyển đơn sang trạng thái Đã xác nhận và cấp Bộ số tự động"
           >
             {busy ? "Đang lưu..." : "Lưu đơn hàng"}
           </button>
@@ -747,7 +764,7 @@ function DoorSetCard({
                 placeholder="Tự động"
                 title={showSetNumber
                   ? (item.setNo ? `Bộ số ${item.setNo} do hệ thống cấp tự động` : "Bộ số sẽ được tạo tự động khi bấm Lưu đơn hàng")
-                  : "Bộ số sẽ được tạo tự động khi bấm Lưu đơn hàng (trạng thái Sản xuất)"}
+                  : "Bộ số sẽ được tạo tự động khi bấm Lưu đơn hàng (đơn chuyển sang Đã xác nhận)"}
               />
             </CardField>
             <CardField label="Nhóm cửa">

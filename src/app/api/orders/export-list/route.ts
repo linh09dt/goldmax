@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import type { SalesOrderGetPayload } from "@/generated/prisma/models/SalesOrder";
 import { prisma } from "@/lib/prisma";
-import { orderStatusLabel } from "@/lib/order-form";
+import { orderStatusLabel, orderTypeLabel } from "@/lib/order-form";
 import { buildOrderListWhere, type OrderListQuery } from "@/lib/order-list-filters";
 
 export const runtime = "nodejs";
@@ -53,7 +53,8 @@ export async function GET(request: Request) {
       { header: "Ngày đơn hàng", key: "orderDate", width: 14 },
       { header: "Số đơn hàng", key: "orderCode", width: 22 },
       { header: "Hạn giao hàng", key: "requiredDeliveryDate", width: 14 },
-      { header: "Trạng thái", key: "status", width: 18 },
+      { header: "Loại đơn hàng", key: "orderType", width: 16 },
+      { header: "Trạng thái", key: "status", width: 14 },
       { header: "Mã Đại Lý", key: "customerCode", width: 15 },
       { header: "Tên khách hàng", key: "customerName", width: 24 },
       { header: "Mã NV bán hàng", key: "salesEmployeeCode", width: 16 },
@@ -237,6 +238,7 @@ function addExportRow(sheet: ExcelJS.Worksheet, input: ExportRowInput) {
     orderDate: order.orderDate ?? null,
     orderCode: order.orderCode,
     requiredDeliveryDate: order.requiredDeliveryDate ?? null,
+    orderType: orderTypeLabel(order.orderType),
     status: statusLabel(order.status),
     customerCode: order.customerCode ?? "",
     customerName: order.customerName ?? "",
@@ -309,7 +311,7 @@ function toNumber(value: unknown) {
   return Number.isFinite(n) ? n : null;
 }
 
-// V91: nhãn trạng thái dùng chung với màn đơn hàng (2 trạng thái: Đơn hàng mẫu / Sản xuất).
+// V112: nhãn trạng thái dùng chung với màn đơn hàng (Đơn nháp / Đã xác nhận).
 function statusLabel(value: string) {
   return orderStatusLabel(value);
 }

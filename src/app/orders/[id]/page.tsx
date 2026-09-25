@@ -5,7 +5,7 @@ import { OrderDeleteButton } from "@/components/order-delete-button";
 import { OrderExportButtons } from "@/components/order-export-buttons";
 import { prisma } from "@/lib/prisma";
 import { resolveOrderItemDetails } from "@/lib/order-detail";
-import { showsSetNumber, orderStatusLabel } from "@/lib/order-form";
+import { showsSetNumber, orderStatusLabel, orderTypeLabel } from "@/lib/order-form";
 import { buildOutputGroups, calculateOutputTotals, hasPricingQuantity } from "@/lib/order-output";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +27,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
   const outputGroups = buildOutputGroups(order.items as any, resolveOrderItemDetails as any);
   const outputTotals = calculateOutputTotals(outputGroups, order);
-  // V75/V91: Bộ số chỉ hiển thị khi đơn đã vào Sản xuất (bấm Lưu đơn hàng).
+  // V112: Bộ số chỉ hiển thị khi đơn ĐÃ XÁC NHẬN (bấm "Lưu đơn hàng").
   const showSetNumber = showsSetNumber(order.status);
   const visibleItems = order.items.flatMap((item) => {
     const detailRows = resolveOrderItemDetails(item).filter((row) => hasPricingQuantity(row.pricingQuantity));
@@ -56,6 +56,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         <div className="p-2.5">
           <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-[1.18fr_0.88fr_0.96fr_1.05fr_1.12fr_1.28fr_0.96fr_1.02fr_0.98fr_0.88fr_1.42fr_0.78fr_0.82fr]">
             <OrderInfoField label="Mã đơn hàng" value={order.orderCode} required />
+            <OrderInfoField label="Loại đơn" value={orderTypeLabel(order.orderType)} required />
             <OrderInfoField label="Trạng thái" value={statusLabel(order.status)} required />
             <OrderInfoField label="Ngày cập nhật" value={formatDate(order.excelUpdateDate)} required />
             <OrderInfoField label="NVKD phụ trách" value={order.salesEmployeeCode || "—"} required />
