@@ -366,6 +366,55 @@ export function normalizeLookup(value: unknown) {
     .trim();
 }
 
+/**
+ * V90: khoá so trùng rule — cùng phạm vi VÀ cùng điều kiện "bộ cửa chính" thì mới coi là trùng.
+ * Nhờ vậy cùng một Model phụ kiện (ví dụ Phào rời PR) vẫn tạo được nhiều rule cho các loại cửa
+ * khác nhau (Cửa Đi 1 Cánh / Cửa Đi 2 Cánh / Cửa sổ ...).
+ * Dùng chung cho `dedupeRules()` và `validateCalculationConfig()` để hai chỗ không lệch nhau.
+ */
+export function calculationRuleKey(rule: CalculationRule) {
+  if (rule.scope === "MAIN") return "MAIN";
+  return [
+    rule.scope,
+    normalizeLookup(rule.scope === "GROUP" ? rule.groupName : rule.itemCode),
+    normalizeLookup(rule.parentGroupName),
+    normalizeLookup(rule.parentItemCode),
+  ].join(":");
+}
+
+/** Nhãn rule dùng trong thông báo lỗi khi lưu cấu hình. */
+export function calculationRuleLabel(rule: CalculationRule) {
+  const base = rule.scope === "ITEM" ? rule.itemCode : rule.groupName || "Bộ cửa chính";
+  if (rule.scope === "MAIN") return base;
+  const parent = rule.parentGroupName
+    ? `${rule.parentGroupName}${rule.parentItemCode ? ` · ${rule.parentItemCode}` : ""}`
+    : "mọi bộ cửa";
+  return `${base} (bộ cửa chính: ${parent})`;
+}
+
+/**
+ * Kiểm tra cấu hình trước khi lưu (đồng bộ với quy tắc ở bảng Cấu hình tính toán).
+ * V90: chuyển từ API route vào lib để dùng chung khoá so trùng với `dedupeRules()` và test được.
+ */
+export function validateCalculationConfig(config: CalculationConfig) {
+  const frame = config.framePrice;
+  if (frame.roundToMm <= 0 || frame.stepMm <= 0) throw new Error("Nấc làm tròn Khuôn và nấc tính phụ thu phải lớn hơn 0.");
+  if (frame.standardMaxMm >= frame.doubleMinMm) throw new Error("Mốc Khuôn thường phải nhỏ hơn mốc bắt đầu Khuôn kép.");
+  if (frame.doubleMinMm > frame.doubleMaxMm) throw new Error("Mốc bắt đầu Khuôn kép không được lớn hơn mốc kết thúc Khuôn kép.");
+
+  const activeMain = config.rules.filter((rule) => rule.active && rule.scope === "MAIN");
+  if (activeMain.length > 1) throw new Error("Chỉ được có 1 cấu hình đang dùng cho Bộ cửa chính.");
+
+  const seen = new Set<string>();
+  for (const rule of config.rules.filter((item) => item.active)) {
+    const key = calculationRuleKey(rule);
+    if (seen.has(key)) {
+      throw new Error(`Cấu hình đang bị trùng: ${calculationRuleLabel(rule)} — đã có rule khác cùng phạm vi và cùng bộ cửa chính. Khác bộ cửa chính thì tạo được nhiều rule.`);
+    }
+    seen.add(key);
+  }
+}
+
 function normalizeFramePriceConfig(value: unknown, fallback: FramePriceConfig): FramePriceConfig {
   const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
   return {
@@ -462,16 +511,9 @@ function safeId(value: string) {
 function dedupeRules(rules: CalculationRule[]) {
   const seen = new Set<string>();
   return rules.filter((rule) => {
-    // V89: điều kiện bộ cửa chính nằm trong khoá, để cùng một phụ kiện vẫn giữ được
+    // V89/V90: điều kiện bộ cửa chính nằm trong khoá, để cùng một phụ kiện vẫn giữ được
     // nhiều rule cho các loại cửa khác nhau (ví dụ Phào rời của cửa sổ và của cửa đi).
-    const key = rule.scope === "MAIN"
-      ? "MAIN"
-      : [
-          rule.scope,
-          rule.scope === "GROUP" ? normalizeLookup(rule.groupName) : normalizeLookup(rule.itemCode),
-          normalizeLookup(rule.parentGroupName),
-          normalizeLookup(rule.parentItemCode),
-        ].join(":");
+    const key = calculationRuleKey(rule);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;

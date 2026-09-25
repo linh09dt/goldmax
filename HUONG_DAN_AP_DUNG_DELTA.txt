@@ -1,5 +1,5 @@
-GOLDMAX door-production — GÓI DELTA V89 (rule theo Bộ cửa chính)
-================================================================
+GOLDMAX door-production — GÓI DELTA V90 (sửa lỗi trùng Model khi khác Bộ cửa chính)
+==================================================================================
 
 Gói này CHỈ chứa các file thay đổi so với bản door-production.zip gốc (24/09/2026).
 Cách áp dụng: copy đè toàn bộ nội dung gói này vào thư mục gốc dự án (giữ nguyên cây thư mục).
@@ -7,30 +7,27 @@ Cách áp dụng: copy đè toàn bộ nội dung gói này vào thư mục gố
 DANH SÁCH FILE
 --------------
 Sửa:
-  src/lib/calculation-config.ts          rule có thêm điều kiện bộ cửa chính (parentGroupName / parentItemCode)
-  src/components/calculation-config.tsx  bảng rule thêm cột "Bộ cửa chính" (nhóm hàng + model của cửa cha)
-  src/components/order-form.tsx          truyền cửa cha vào lúc tính KH/Lượng và đề xuất Cao/Rộng
-  src/app/guide/page.tsx                 bổ sung dòng "Bộ cửa chính" trong Hướng dẫn sử dụng
+  src/lib/calculation-config.ts           khoá so trùng dùng chung + validateCalculationConfig() (đã tính cột Bộ cửa chính)
+  src/app/api/calculation-config/route.ts bỏ hàm validateConfig cục bộ, gọi hàm trong lib
 Mới:
-  CALCULATION_PARENT_DOOR_V89.md         tài liệu chi tiết + bảng kiểm chứng
+  CALCULATION_DUPLICATE_PARENT_V90.md     tài liệu chi tiết + bảng kiểm chứng
 
-QUAN HỆ VỚI GÓI V88 (3 công thức KH/Lượng)
-------------------------------------------
-4 file trùng với gói delta V88. Nội dung trong gói này ĐÃ BAO GỒM cả thay đổi của V88,
-nên nếu chưa áp V88 thì chỉ cần áp gói này là đủ.
-
-  ⚠ KHÔNG copy gói V88 lên sau gói này — sẽ ghi đè và làm mất cột "Bộ cửa chính".
+QUAN HỆ VỚI CÁC GÓI TRƯỚC
+-------------------------
+- src/lib/calculation-config.ts trong gói này ĐÃ BAO GỒM thay đổi của V88 và V89.
+- src/app/api/calculation-config/route.ts chỉ đổi ở V90.
+- ⚠ KHÔNG copy gói V88/V89 lên sau gói này — sẽ ghi đè và làm mất phần sửa trùng.
 
 BẮT BUỘC SAU KHI COPY
 ---------------------
-1. Xoá cache build để chắc chắn dùng code mới:
+1. Xoá cache build:
        rmdir /s /q .next
        del /s /q python\__pycache__ api\__pycache__
 2. Chạy lại: npm run build (hoặc npm run dev).
-3. Mở Cấu hình → Cấu hình tính toán: bảng rule có thêm cột "Bộ cửa chính".
-   Đặt điều kiện cho rule cần giới hạn theo loại cửa rồi bấm "Lưu cấu hình".
+3. Mở Cấu hình → Cấu hình tính toán → bấm "Lưu cấu hình": các rule cùng Model nhưng
+   khác cột "Bộ cửa chính" sẽ lưu được (trước đây báo "Cấu hình đang bị trùng: PR").
 
 GHI CHÚ
 -------
-- KHÔNG cần migration DB. Cấu hình đã lưu giữ nguyên; cột mới để trống = áp dụng cho mọi bộ cửa.
+- KHÔNG cần migration DB.
 - Gói đầy đủ (nếu cần) xem door-production-logo-v87.zip.
