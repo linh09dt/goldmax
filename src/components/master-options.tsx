@@ -100,7 +100,7 @@ export function MasterOptions({ onSummary }: { onSummary?: (text: string) => voi
       />
 
       <div className="erp-card">
-        <div className="erp-scrollbar flex items-stretch gap-2 overflow-x-auto p-2">
+        <div className="grid gap-2 p-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
           {GROUPS.map((item) => {
             const active = group === item.code;
             const total = items.filter((row) => row.groupCode === item.code).length;
@@ -111,7 +111,7 @@ export function MasterOptions({ onSummary }: { onSummary?: (text: string) => voi
                 type="button"
                 onClick={() => setGroup(item.code)}
                 aria-current={active ? "true" : undefined}
-                className={`min-w-[188px] shrink-0 rounded-lg border px-3 py-2 text-left transition ${
+                className={`rounded-lg border px-3 py-2 text-left transition ${
                   active ? "border-cyan-400 bg-cyan-50" : "border-slate-200 bg-white hover:bg-slate-50"
                 }`}
               >
@@ -156,15 +156,15 @@ export function MasterOptions({ onSummary }: { onSummary?: (text: string) => voi
           </div>
           <p className="erp-hint">Sửa trực tiếp trên bảng rồi bấm Lưu từng dòng.</p>
         </div>
-        <SettingsTable minWidthClass="min-w-[1000px]">
+        <SettingsTable>
           <thead>
             <tr>
-              <th className="min-w-40">Mã</th>
-              <th>Tên hiển thị</th>
-              <th className="w-28 text-right">Thứ tự</th>
-              <th className="w-40">Nguồn</th>
-              <th className="w-36">Trạng thái</th>
-              <th className="w-64">Thao tác</th>
+              <th className="w-[16%]">Mã</th>
+              <th className="w-[34%]">Tên hiển thị</th>
+              <th className="w-[9%] text-right">Thứ tự</th>
+              <th className="w-[17%]">Nguồn</th>
+              <th className="w-[11%]">Trạng thái</th>
+              <th className="w-[13%]">Thao tác</th>
             </tr>
           </thead>
           <tbody>
@@ -186,9 +186,9 @@ function OptionEditor({ item, onSave, onDelete }: { item: OptionRow; onSave: (it
   useEffect(() => { setCode(item.code); setName(item.name); setSortOrder(String(item.sortOrder)); }, [item]);
   return (
     <tr className={item.active ? "bg-white" : "bg-slate-50 text-slate-500"}>
-      <td><input className="w-full rounded-md border border-slate-300 px-2 py-1 text-[12.5px] font-semibold text-sky-900" value={code} onChange={(e) => setCode(e.target.value)} /></td>
-      <td><input className="w-full min-w-64 rounded-md border border-slate-300 px-2 py-1 text-[12.5px]" value={name} onChange={(e) => setName(e.target.value)} /></td>
-      <td className="erp-td-num"><input className="w-20 rounded-md border border-slate-300 px-2 py-1 text-right text-[12.5px] tabular-nums" type="number" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} /></td>
+      <td><input className="erp-cell-input font-semibold text-sky-900" value={code} onChange={(e) => setCode(e.target.value)} /></td>
+      <td><input className="erp-cell-input" value={name} onChange={(e) => setName(e.target.value)} /></td>
+      <td className="erp-td-num"><input className="erp-cell-input text-right tabular-nums" type="number" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} /></td>
       <td>
         <div className="text-[12.5px]">{item.source === "EXCEL_DON_GIA" ? "Excel đơn giá" : "Thủ công"}</div>
         {item.lastSourceFile ? <div className="mt-0.5 truncate text-[10.5px] text-slate-500" title={item.lastSourceFile}>{item.lastSourceFile}</div> : null}
@@ -197,7 +197,7 @@ function OptionEditor({ item, onSave, onDelete }: { item: OptionRow; onSave: (it
         <SettingsBadge tone={item.active ? "emerald" : "slate"}>{item.active ? "Đang sử dụng" : "Ngưng sử dụng"}</SettingsBadge>
       </td>
       <td>
-        <div className="flex flex-wrap gap-3 text-[12.5px]">
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[12px]">
           <button className="font-semibold text-sky-700 hover:text-sky-900" type="button" onClick={() => void onSave(item, { code, name, sortOrder: Number(sortOrder) || 0 })}>Lưu</button>
           <button className="font-semibold text-amber-700 hover:text-amber-900" type="button" onClick={() => void onSave(item, { active: !item.active })}>{item.active ? "Ngưng dùng" : "Kích hoạt"}</button>
           {onDelete ? <button className="font-semibold text-red-600 hover:text-red-800" type="button" onClick={() => void onDelete(item)}>Xóa</button> : null}

@@ -38,7 +38,8 @@ const PRICING_OPTIONS: Array<{ value: PricingQuantityRule; label: string }> = [
   { value: "MANUAL", label: "Nhập tay" },
   { value: "DOOR_AREA", label: "Cao × Rộng / 1.000.000" },
   { value: "TRIM_LINEAR", label: "(Cao × 2 + Rộng) / 1.000" },
-  { value: "PANEL_COUNT", label: "Theo Ô thoáng 1TK/2TK/3TK/4TK" },
+  // V85: rút gọn nhãn để không bị cắt trong bảng rule ở màn hẹp (1TK/2TK/3TK/4TK đã có ở khối ví dụ bên dưới).
+  { value: "PANEL_COUNT", label: "Theo số TK ô thoáng" },
   { value: "PARENT_QUANTITY", label: "Theo SL bộ cửa cha" },
 ];
 
@@ -242,18 +243,18 @@ export function CalculationConfigEditor() {
           </div>
           <button className="erp-button-secondary" type="button" onClick={addRule}>+ Thêm rule</button>
         </div>
-        <SettingsTable minWidthClass="min-w-[1560px]">
+        <SettingsTable>
           <thead>
             <tr>
-              <th className="w-44">Áp dụng cho</th>
-              <th className="w-56">Nhóm hàng</th>
-              <th className="w-72">Model / hàng hóa</th>
-              <th className="w-60">Cách tính KH/Lượng</th>
-              <th className="w-52">Đề xuất Cao</th>
-              <th className="w-52">Đề xuất Rộng</th>
-              <th className="min-w-72">Ghi chú</th>
-              <th className="w-20 text-center">Dùng</th>
-              <th className="w-20"></th>
+              <th className="w-[13%]">Áp dụng cho</th>
+              <th className="w-[10%]">Nhóm hàng</th>
+              <th className="w-[11%]">Model / hàng hóa</th>
+              <th className="w-[16%]">Cách tính KH/Lượng</th>
+              <th className="w-[15%]">Đề xuất Cao</th>
+              <th className="w-[15%]">Đề xuất Rộng</th>
+              <th className="w-[12%]">Ghi chú</th>
+              <th className="w-[3%] text-center">Dùng</th>
+              <th className="w-[5%]"></th>
             </tr>
           </thead>
           <tbody>
@@ -264,7 +265,7 @@ export function CalculationConfigEditor() {
               return (
                 <tr key={rule.id} className={rule.active ? "bg-white" : "bg-slate-50 text-slate-500"}>
                   <td>
-                    <select className="erp-input" value={rule.scope} onChange={(event) => {
+                    <select className="erp-cell-input" title={SCOPE_OPTIONS.find((option) => option.value === rule.scope)?.label ?? ""} value={rule.scope} onChange={(event) => {
                       const scope = event.target.value as CalculationScope;
                       patchRule(index, {
                         scope,
@@ -277,8 +278,8 @@ export function CalculationConfigEditor() {
                     </select>
                   </td>
                   <td>
-                    {rule.scope === "MAIN" ? <span className="inline-flex h-9 items-center text-[12px] text-slate-400">—</span> : (
-                      <select className="erp-input" value={rule.groupName} onChange={(event) => patchRule(index, { groupName: event.target.value, itemCode: rule.scope === "ITEM" ? "" : rule.itemCode })}>
+                    {rule.scope === "MAIN" ? <span className="text-[12px] text-slate-400">—</span> : (
+                      <select className="erp-cell-input" title={rule.groupName || "Chọn nhóm hàng"} value={rule.groupName} onChange={(event) => patchRule(index, { groupName: event.target.value, itemCode: rule.scope === "ITEM" ? "" : rule.itemCode })}>
                         <option value="">Chọn nhóm hàng</option>
                         {rule.groupName && !groups.some((group) => normalizeLookup(group) === normalizeLookup(rule.groupName)) ? <option value={rule.groupName}>{rule.groupName} (cũ)</option> : null}
                         {groups.map((group) => <option key={group} value={group}>{group}</option>)}
@@ -287,9 +288,9 @@ export function CalculationConfigEditor() {
                   </td>
                   <td>
                     {rule.scope !== "ITEM" ? (
-                      <span className="inline-flex h-9 items-center text-[12px] text-slate-400">{rule.scope === "GROUP" ? "Tất cả Model trong nhóm" : "—"}</span>
+                      <span className="text-[12px] text-slate-400">{rule.scope === "GROUP" ? "Tất cả Model trong nhóm" : "—"}</span>
                     ) : (
-                      <select className="erp-input" value={rule.itemCode} onChange={(event) => {
+                      <select className="erp-cell-input" title={rule.itemCode || "Chọn Model / hàng hóa"} value={rule.itemCode} onChange={(event) => {
                         const item = catalogItems.find((candidate) => candidate.code === event.target.value);
                         patchRule(index, { itemCode: event.target.value, groupName: item?.name ?? rule.groupName });
                       }}>
@@ -302,7 +303,16 @@ export function CalculationConfigEditor() {
                   <td><RuleSelect value={rule.pricingRule} options={PRICING_OPTIONS} onChange={(value) => patchRule(index, { pricingRule: value as PricingQuantityRule })} /></td>
                   <td><RuleSelect value={rule.heightSuggestion} options={INPUT_OPTIONS} onChange={(value) => patchRule(index, { heightSuggestion: value as InputSuggestionRule })} /></td>
                   <td><RuleSelect value={rule.widthSuggestion} options={INPUT_OPTIONS} onChange={(value) => patchRule(index, { widthSuggestion: value as InputSuggestionRule })} /></td>
-                  <td><input className="erp-input min-w-64" value={rule.note} onChange={(event) => patchRule(index, { note: event.target.value })} /></td>
+                  <td>
+                    {/* V85: Ghi chú là chuỗi dài → dùng textarea để tự xuống dòng, hiện đủ nội dung trong cột hẹp. */}
+                    <textarea
+                      className="erp-cell-input"
+                      rows={2}
+                      title={rule.note}
+                      value={rule.note}
+                      onChange={(event) => patchRule(index, { note: event.target.value })}
+                    />
+                  </td>
                   <td className="text-center">
                     <input className="h-4 w-4" type="checkbox" checked={rule.active} onChange={(event) => patchRule(index, { active: event.target.checked })} />
                   </td>
@@ -338,7 +348,9 @@ function NumberSetting({ label, value, onChange }: { label: string; value: numbe
 }
 
 function RuleSelect({ value, options, onChange }: { value: string; options: Array<{ value: string; label: string }>; onChange: (value: string) => void }) {
-  return <select className="erp-input" value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>;
+  // V85: title = nhãn đang chọn, để ở màn hẹp (cột hẹp nên chữ bị cắt) vẫn xem được đầy đủ khi rê chuột.
+  const label = options.find((option) => option.value === value)?.label ?? "";
+  return <select className="erp-cell-input" title={label} value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>;
 }
 
 function Example({ title, value }: { title: string; value: string }) {

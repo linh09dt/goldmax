@@ -123,10 +123,16 @@ export function SettingsBadge({
 }
 
 /** Bảng dữ liệu chuẩn: cuộn ngang trong khung, header đậm, số căn phải. */
-export function SettingsTable({ children, minWidthClass = "" }: { children: ReactNode; minWidthClass?: string }) {
+/**
+ * Bảng dữ liệu chuẩn cho tab CẤU HÌNH — chế độ **full view** từ V85:
+ * `table-layout: fixed` + `width: 100%` nên toàn bộ cột luôn nằm trong bề rộng khung,
+ * không cần kéo ngang. Bề rộng cột khai báo bằng % ở hàng `<th>` đầu tiên (tổng 100%).
+ * Giữ `overflow-x-auto` làm lưới an toàn nhưng bình thường sẽ không có gì để cuộn.
+ */
+export function SettingsTable({ children }: { children: ReactNode }) {
   return (
     <div className="erp-scrollbar overflow-x-auto">
-      <table className={`erp-table ${minWidthClass}`}>{children}</table>
+      <table className="erp-table erp-table-full">{children}</table>
     </div>
   );
 }

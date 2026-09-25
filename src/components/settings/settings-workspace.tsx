@@ -136,7 +136,7 @@ function SettingsQuickNav({
 }) {
   return (
     <div className="erp-card xl:hidden">
-      <div className="erp-scrollbar flex items-stretch gap-2 overflow-x-auto p-2">
+      <div className="grid gap-2 p-2 sm:grid-cols-2 xl:grid-cols-3">
         {SETTINGS_TAB_GROUPS.flatMap((group) =>
           group.tabs.map((item) => {
             const active = item.key === tab;
@@ -145,7 +145,7 @@ function SettingsQuickNav({
                 key={item.key}
                 type="button"
                 onClick={() => onSelect(item.key)}
-                className={`min-w-[190px] shrink-0 rounded-lg border px-3 py-2 text-left transition ${
+                className={`rounded-lg border px-3 py-2 text-left transition ${
                   active ? "border-cyan-400 bg-cyan-50" : "border-slate-200 bg-white"
                 }`}
               >

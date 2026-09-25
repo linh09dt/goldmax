@@ -72,7 +72,7 @@ type ListRow =
     }
   | { kind: "item"; item: Item; stt: number };
 
-const cellInputClass = "w-full rounded-md border border-slate-300 px-2 py-1 text-[12.5px] outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-100";
+const cellInputClass = "erp-cell-input";
 
 /** V76: khối A1 của tab CẤU HÌNH — Danh mục hàng hóa (Master Data). */
 export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void } = {}) {
@@ -322,26 +322,26 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
     const editing = editingId === item.id;
     return (
       <tr key={item.id} className={item.active ? "bg-white" : "bg-slate-50 text-slate-500"}>
-        <td className="erp-td-num w-14 text-slate-500">{index + 1}</td>
-        <td className="min-w-56 font-medium text-slate-800">
+        <td className="erp-td-num text-slate-500">{index + 1}</td>
+        <td className="font-medium text-slate-800">
           {editing ? <input className={cellInputClass} value={editName} onChange={(e) => setEditName(e.target.value)} /> : item.name}
         </td>
-        <td className="min-w-80 max-w-xl text-slate-600">
+        <td className="text-slate-600">
           {editing ? <textarea className={`${cellInputClass} min-h-16`} value={editProductDescription} onChange={(e) => setEditProductDescription(e.target.value)} /> : item.productDescription || "—"}
         </td>
-        <td className="min-w-52 font-semibold text-sky-900">
+        <td className="font-semibold text-sky-900">
           {editing ? <input className={cellInputClass} value={editCode} onChange={(e) => setEditCode(e.target.value)} /> : item.code}
         </td>
-        <td className="min-w-20 text-center">
+        <td className="text-center">
           {editing ? <input className={cellInputClass} value={editUnit} onChange={(e) => setEditUnit(e.target.value)} /> : item.unit || "—"}
         </td>
-        <td className="erp-td-num min-w-32">
+        <td className="erp-td-num">
           {editing ? <PriceInput value={editDealerPrice} onChange={setEditDealerPrice} compact /> : formatPrice(item.dealerPrice)}
         </td>
-        <td className="erp-td-num min-w-32">
+        <td className="erp-td-num">
           {editing ? <PriceInput value={editRetailPrice} onChange={setEditRetailPrice} compact /> : formatPrice(item.retailPrice)}
         </td>
-        <td className="w-32">
+        <td>
           {editing ? (
             <select className={cellInputClass} value={editActive ? "1" : "0"} onChange={(e) => setEditActive(e.target.value === "1")}>
               <option value="1">Đang sử dụng</option>
@@ -351,15 +351,15 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
             <SettingsBadge tone={item.active ? "emerald" : "slate"}>{item.active ? "Đang sử dụng" : "Ngưng sử dụng"}</SettingsBadge>
           )}
         </td>
-        <td className="w-28 text-slate-500">{item.source === "MASTER_FILE" ? "Master Excel" : "Thủ công"}</td>
-        <td className="w-32 whitespace-nowrap">
+        <td className="text-slate-500">{item.source === "MASTER_FILE" ? "Master Excel" : "Thủ công"}</td>
+        <td>
           {editing ? (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-x-3 gap-y-1">
               <button className="font-semibold text-sky-700" onClick={() => void saveEdit(item.id)}>Lưu</button>
               <button className="text-slate-500" onClick={() => setEditingId(null)}>Hủy</button>
             </div>
           ) : (
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <button className="font-semibold text-sky-700 hover:text-sky-900" onClick={() => startEdit(item)}>Sửa</button>
               <button
                 className="font-semibold text-red-600 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-50"
@@ -490,19 +490,19 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
           </p>
         </div>
 
-        <SettingsTable minWidthClass="min-w-[1240px]">
+        <SettingsTable>
           <thead>
             <tr>
-              <th className="w-14">STT</th>
-              <th>TENHANG</th>
-              <th>Tên sản phẩm diễn giải</th>
-              <th>MODEL</th>
-              <th className="text-center">ĐVT</th>
-              <th className="text-right">Giá đại lý</th>
-              <th className="text-right">Giá bán lẻ</th>
-              <th>Trạng thái</th>
-              <th>Nguồn</th>
-              <th>Thao tác</th>
+              <th className="w-[4%]">STT</th>
+              <th className="w-[12%]">TENHANG</th>
+              <th className="w-[22%]">Tên sản phẩm diễn giải</th>
+              <th className="w-[12%]">MODEL</th>
+              <th className="w-[5%] text-center">ĐVT</th>
+              <th className="w-[10%] text-right">Giá đại lý (đ)</th>
+              <th className="w-[10%] text-right">Giá bán lẻ (đ)</th>
+              <th className="w-[9%]">Trạng thái</th>
+              <th className="w-[9%]">Nguồn</th>
+              <th className="w-[7%]">Thao tác</th>
             </tr>
           </thead>
           <tbody>
@@ -525,7 +525,7 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
                         {row.expanded ? "−" : "+"}
                       </button>
                     </td>
-                    <td colSpan={2}>
+                    <td colSpan={2} className="col-span-cell">
                       <div className="flex flex-wrap items-center gap-2">
                         <button type="button" className="font-bold tracking-wide text-slate-900 hover:text-sky-700" onClick={() => toggleSection(row.key)}>{row.label}</button>
                         <SettingsBadge tone={row.tone}>{row.total} MODEL</SettingsBadge>
@@ -533,7 +533,7 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
                         {row.activeCount !== row.total ? <span className="text-[11.5px] text-slate-500">{row.activeCount} đang sử dụng</span> : null}
                       </div>
                     </td>
-                    <td colSpan={7} className="text-right text-[11px] uppercase tracking-wide text-slate-400">{row.hint}</td>
+                    <td colSpan={7} className="col-span-cell text-right text-[11px] uppercase tracking-wide text-slate-400">{row.hint}</td>
                   </tr>
                 );
               })
@@ -547,13 +547,13 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
         description="10 lần gần nhất, dùng để đối chiếu khi danh mục thay đổi."
         bodyClassName="p-0"
       >
-        <SettingsTable minWidthClass="min-w-[720px]">
+        <SettingsTable>
           <thead>
             <tr>
-              <th>Thời gian</th>
-              <th>File</th>
-              <th className="text-right">Số hàng</th>
-              <th className="text-right">Bỏ qua</th>
+              <th className="w-[22%]">Thời gian</th>
+              <th className="w-[48%]">File</th>
+              <th className="w-[15%] text-right">Số hàng</th>
+              <th className="w-[15%] text-right">Bỏ qua</th>
             </tr>
           </thead>
           <tbody>
@@ -590,7 +590,8 @@ function PriceInput({ value, onChange, placeholder, compact }: { value: string; 
 function formatPrice(value: string | number | null) {
   if (value === null || value === undefined || value === "") return "—";
   const n = Number(value);
-  return Number.isFinite(n) ? `${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(n)} đ` : "—";
+  // V85: đơn vị "đ" đưa lên tiêu đề cột (Giá đại lý (đ)) để cột giá không bị xuống dòng ở màn hẹp.
+  return Number.isFinite(n) ? new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(n) : "—";
 }
 
 function columnLetter(col: number) {

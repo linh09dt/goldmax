@@ -20,11 +20,16 @@ Gồm toàn bộ thay đổi kể từ file zip gốc:
 - **V84** — Khối **A1 — Danh mục hàng hóa**: **bỏ kiểu nhóm theo TENHANG**, liệt kê chi tiết từng MODEL thành một dòng riêng
   (kể cả 18 dòng khóa, trước đây bị gộp thành 1 nhóm “Khóa 18 MODEL”), chỉ chia **2 khối CỬA (52 MODEL) / PHỤ KIỆN (40 MODEL)**.
   Mặc định mở cả 2 khối; tìm kiếm tự mở khối có kết quả. Xem `ITEM_LIST_FLAT_V84.md`.
+- **V85** — **Full view toàn bộ tab CẤU HÌNH**: hết cuộn ngang ở A1 / A2 / B1.
+  Bảng dùng `table-layout: fixed` + chia % cột; bỏ mọi `min-width` cứng (bảng rule B1 từ **1560px → vừa khung**, trước đây kể cả màn 1920 vẫn tràn 864px);
+  dải 5 nút chọn nhóm ở A2 và thanh chọn A1/A2/B1 chuyển từ cuộn ngang sang lưới xuống dòng;
+  đơn vị “đ” ở A1 đưa lên tiêu đề cột; ghi chú B1 thành textarea; thêm tooltip cho select.
+  Xem `SETTINGS_FULLVIEW_V85.md`.
 
 ## Cách áp
 
 ```
-unzip -o door-production-changes-v84.zip -d <thư-mục-project>
+unzip -o door-production-changes-v85.zip -d <thư-mục-project>
 npm run db:generate
 npm run build
 npm run dev
@@ -37,4 +42,5 @@ Không cần `npm run db:migrate` (không đổi schema Prisma, không đổi d�
 - `src/app/customers/page.tsx`, `src/app/api/customers/route.ts`, `src/app/api/customers/export/route.ts`,
   `src/lib/customers.ts`, `src/components/customer-directory.tsx` — tab Thông tin khách hàng (từ V79).
 - `python/reportlab_order_v2.py`, `python/reportlab_order_preview.py` — nếu deploy Vercel có Python function thì nhớ deploy lại 2 file này để header PDF hiện Website (từ V79).
-- **V84 chỉ sửa 1 file: `src/components/item-master.tsx`.** Không cần migrate, không cần đổi cấu hình.
+- **V85 chỉ sửa giao diện tab CẤU HÌNH (6 file)**: `globals.css`, `settings-ui.tsx`, `settings-workspace.tsx`, `item-master.tsx`, `master-options.tsx`, `calculation-config.tsx`.
+  Không cần migrate, không cần đổi cấu hình.
