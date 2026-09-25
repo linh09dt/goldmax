@@ -1,5 +1,5 @@
-GOLDMAX door-production — GÓI DELTA V88 (thêm 3 công thức KH/Lượng)
-==================================================================
+GOLDMAX door-production — GÓI DELTA V89 (rule theo Bộ cửa chính)
+================================================================
 
 Gói này CHỈ chứa các file thay đổi so với bản door-production.zip gốc (24/09/2026).
 Cách áp dụng: copy đè toàn bộ nội dung gói này vào thư mục gốc dự án (giữ nguyên cây thư mục).
@@ -7,23 +7,30 @@ Cách áp dụng: copy đè toàn bộ nội dung gói này vào thư mục gố
 DANH SÁCH FILE
 --------------
 Sửa:
-  src/lib/calculation-config.ts          thêm 3 mã rule mới (PERIMETER_LINEAR, DOUBLE_HEIGHT_LINEAR, WIDTH_LINEAR)
-  src/components/calculation-config.tsx  thêm 3 lựa chọn vào dropdown CÁCH TÍNH KH/LƯỢNG
-  src/components/order-form.tsx          tính KH/Lượng cho 3 công thức mới
-  src/app/guide/page.tsx                 bổ sung dòng "Công thức KH/Lượng" trong Hướng dẫn sử dụng
+  src/lib/calculation-config.ts          rule có thêm điều kiện bộ cửa chính (parentGroupName / parentItemCode)
+  src/components/calculation-config.tsx  bảng rule thêm cột "Bộ cửa chính" (nhóm hàng + model của cửa cha)
+  src/components/order-form.tsx          truyền cửa cha vào lúc tính KH/Lượng và đề xuất Cao/Rộng
+  src/app/guide/page.tsx                 bổ sung dòng "Bộ cửa chính" trong Hướng dẫn sử dụng
 Mới:
-  CALCULATION_KHLUONG_FORMULAS_V88.md    tài liệu chi tiết + bảng kiểm chứng
+  CALCULATION_PARENT_DOOR_V89.md         tài liệu chi tiết + bảng kiểm chứng
+
+QUAN HỆ VỚI GÓI V88 (3 công thức KH/Lượng)
+------------------------------------------
+4 file trùng với gói delta V88. Nội dung trong gói này ĐÃ BAO GỒM cả thay đổi của V88,
+nên nếu chưa áp V88 thì chỉ cần áp gói này là đủ.
+
+  ⚠ KHÔNG copy gói V88 lên sau gói này — sẽ ghi đè và làm mất cột "Bộ cửa chính".
 
 BẮT BUỘC SAU KHI COPY
 ---------------------
-1. Xoá cache build của Next.js để chắc chắn dùng code mới:
+1. Xoá cache build để chắc chắn dùng code mới:
        rmdir /s /q .next
        del /s /q python\__pycache__ api\__pycache__
-2. Chạy lại: npm run build (hoặc npm run dev) rồi mở tab Cấu hình → Cấu hình tính toán,
-   kiểm tra dropdown CÁCH TÍNH KH/LƯỢNG có đủ 5 công thức theo kích thước.
+2. Chạy lại: npm run build (hoặc npm run dev).
+3. Mở Cấu hình → Cấu hình tính toán: bảng rule có thêm cột "Bộ cửa chính".
+   Đặt điều kiện cho rule cần giới hạn theo loại cửa rồi bấm "Lưu cấu hình".
 
 GHI CHÚ
 -------
-- KHÔNG cần migration DB. Cấu hình đã lưu giữ nguyên; muốn dùng công thức mới thì đổi
-  cột CÁCH TÍNH KH/LƯỢNG ở rule tương ứng rồi bấm "Lưu cấu hình".
+- KHÔNG cần migration DB. Cấu hình đã lưu giữ nguyên; cột mới để trống = áp dụng cho mọi bộ cửa.
 - Gói đầy đủ (nếu cần) xem door-production-logo-v87.zip.

@@ -45,6 +45,13 @@ export type CalculationRule = {
   scope: CalculationScope;
   groupName: string;
   itemCode: string;
+  /**
+   * V89: điều kiện "bộ cửa chính" cho rule áp lên dòng phụ kiện chi tiết — để cùng một phụ kiện
+   * (ví dụ Phào rời) dùng công thức khác nhau theo loại cửa cha (cửa sổ / cửa đi).
+   * Để trống = áp dụng cho mọi bộ cửa (giữ nguyên hành vi trước V89).
+   */
+  parentGroupName: string;
+  parentItemCode: string;
   pricingRule: PricingQuantityRule;
   heightSuggestion: InputSuggestionRule;
   widthSuggestion: InputSuggestionRule;
@@ -102,6 +109,8 @@ export const DEFAULT_CALCULATION_CONFIG: CalculationConfig = {
       scope: "MAIN",
       groupName: "",
       itemCode: "",
+      parentGroupName: "",
+      parentItemCode: "",
       pricingRule: "DOOR_AREA",
       heightSuggestion: "KEEP",
       widthSuggestion: "KEEP",
@@ -113,6 +122,8 @@ export const DEFAULT_CALCULATION_CONFIG: CalculationConfig = {
       scope: "GROUP",
       groupName: "Phào",
       itemCode: "",
+      parentGroupName: "",
+      parentItemCode: "",
       pricingRule: "TRIM_LINEAR",
       heightSuggestion: "KEEP",
       widthSuggestion: "KEEP",
@@ -124,6 +135,8 @@ export const DEFAULT_CALCULATION_CONFIG: CalculationConfig = {
       scope: "GROUP",
       groupName: "Ô Thoáng",
       itemCode: "",
+      parentGroupName: "",
+      parentItemCode: "",
       pricingRule: "PANEL_COUNT",
       heightSuggestion: "KEEP",
       widthSuggestion: "KEEP",
@@ -135,6 +148,8 @@ export const DEFAULT_CALCULATION_CONFIG: CalculationConfig = {
       scope: "GROUP",
       groupName: "Khóa",
       itemCode: "",
+      parentGroupName: "",
+      parentItemCode: "",
       pricingRule: "PARENT_QUANTITY",
       heightSuggestion: "KEEP",
       widthSuggestion: "KEEP",
@@ -214,6 +229,8 @@ export function buildSuggestedCalculationConfig(items: CalculationCatalogItem[])
       scope: "GROUP",
       groupName,
       itemCode: "",
+      parentGroupName: "",
+      parentItemCode: "",
       pricingRule,
       heightSuggestion: "KEEP",
       widthSuggestion: "KEEP",
@@ -248,6 +265,8 @@ export function buildSuggestedCalculationConfig(items: CalculationCatalogItem[])
       scope: "ITEM",
       groupName: item.name,
       itemCode: item.code,
+      parentGroupName: "",
+      parentItemCode: "",
       pricingRule: "INHERIT",
       heightSuggestion,
       widthSuggestion,
@@ -265,9 +284,18 @@ export function buildSuggestedCalculationConfig(items: CalculationCatalogItem[])
   };
 }
 
+export type CalculationTarget = {
+  scope: "MAIN" | "DETAIL";
+  groupName?: string | null;
+  itemCode?: string | null;
+  /** V89: nhóm hàng / model của BỘ CỬA CHÍNH (cha) — dùng để lọc rule theo loại cửa. */
+  parentGroupName?: string | null;
+  parentItemCode?: string | null;
+};
+
 export function resolveCalculationRule(
   config: CalculationConfig,
-  target: { scope: "MAIN" | "DETAIL"; groupName?: string | null; itemCode?: string | null },
+  target: CalculationTarget,
 ): ResolvedCalculationRule {
   let result: ResolvedCalculationRule = {
     pricingRule: "MANUAL",
@@ -280,12 +308,22 @@ export function resolveCalculationRule(
   const candidates = target.scope === "MAIN"
     ? activeRules.filter((rule) => rule.scope === "MAIN")
     : [
-        ...activeRules.filter((rule) => rule.scope === "GROUP" && groupMatches(rule.groupName, target.groupName ?? "")),
-        ...activeRules.filter((rule) => rule.scope === "ITEM" && sameLookup(rule.itemCode, target.itemCode ?? "")),
+        ...activeRules.filter((rule) => rule.scope === "GROUP" && groupMatches(rule.groupName, target.groupName ?? "") && parentMatches(rule, target)),
+        ...activeRules.filter((rule) => rule.scope === "ITEM" && sameLookup(rule.itemCode, target.itemCode ?? "") && parentMatches(rule, target)),
       ];
 
   for (const rule of candidates) result = applyRule(result, rule);
   return result;
+}
+
+/**
+ * V89: rule có điều kiện "bộ cửa chính" chỉ áp dụng khi bộ cửa cha khớp; để trống = áp cho mọi cửa.
+ * Rule ở phạm vi Bộ cửa chính (MAIN) không dùng điều kiện này.
+ */
+function parentMatches(rule: CalculationRule, target: CalculationTarget) {
+  if (rule.parentGroupName && !groupMatches(rule.parentGroupName, target.parentGroupName ?? "")) return false;
+  if (rule.parentItemCode && !sameLookup(rule.parentItemCode, target.parentItemCode ?? "")) return false;
+  return true;
 }
 
 export function roundFrameMm(frameMm: number, config: FramePriceConfig) {
@@ -366,6 +404,9 @@ function normalizeRule(value: unknown, index: number): CalculationRule | null {
     scope,
     groupName,
     itemCode,
+    // V89: điều kiện bộ cửa chính — cấu hình cũ (chưa có 2 field này) mặc định = mọi bộ cửa.
+    parentGroupName: String(source.parentGroupName ?? "").trim(),
+    parentItemCode: String(source.parentItemCode ?? "").trim(),
     pricingRule,
     heightSuggestion,
     widthSuggestion,
@@ -421,11 +462,16 @@ function safeId(value: string) {
 function dedupeRules(rules: CalculationRule[]) {
   const seen = new Set<string>();
   return rules.filter((rule) => {
+    // V89: điều kiện bộ cửa chính nằm trong khoá, để cùng một phụ kiện vẫn giữ được
+    // nhiều rule cho các loại cửa khác nhau (ví dụ Phào rời của cửa sổ và của cửa đi).
     const key = rule.scope === "MAIN"
       ? "MAIN"
-      : rule.scope === "GROUP"
-        ? `GROUP:${normalizeLookup(rule.groupName)}`
-        : `ITEM:${normalizeLookup(rule.itemCode)}`;
+      : [
+          rule.scope,
+          rule.scope === "GROUP" ? normalizeLookup(rule.groupName) : normalizeLookup(rule.itemCode),
+          normalizeLookup(rule.parentGroupName),
+          normalizeLookup(rule.parentItemCode),
+        ].join(":");
     if (seen.has(key)) return false;
     seen.add(key);
     return true;

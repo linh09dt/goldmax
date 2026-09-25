@@ -250,15 +250,17 @@ export function CalculationConfigEditor() {
         <SettingsTable>
           <thead>
             <tr>
-              <th className="w-[13%]">Áp dụng cho</th>
-              <th className="w-[10%]">Nhóm hàng</th>
-              <th className="w-[11%]">Model / hàng hóa</th>
-              <th className="w-[16%]">Cách tính KH/Lượng</th>
-              <th className="w-[15%]">Đề xuất Cao</th>
-              <th className="w-[15%]">Đề xuất Rộng</th>
-              <th className="w-[12%]">Ghi chú</th>
+              <th className="w-[12%]">Áp dụng cho</th>
+              <th className="w-[9%]">Nhóm hàng</th>
+              <th className="w-[10%]">Model / hàng hóa</th>
+              {/* V89: điều kiện bộ cửa chính — cùng một phụ kiện nhưng khác loại cửa cha thì khác công thức. */}
+              <th className="w-[13%]">Bộ cửa chính</th>
+              <th className="w-[15%]">Cách tính KH/Lượng</th>
+              <th className="w-[12%]">Đề xuất Cao</th>
+              <th className="w-[12%]">Đề xuất Rộng</th>
+              <th className="w-[10%]">Ghi chú</th>
               <th className="w-[3%] text-center">Dùng</th>
-              <th className="w-[5%]"></th>
+              <th className="w-[4%]"></th>
             </tr>
           </thead>
           <tbody>
@@ -266,6 +268,10 @@ export function CalculationConfigEditor() {
               const filteredItems = rule.groupName
                 ? catalogItems.filter((item) => normalizeLookup(item.name) === normalizeLookup(rule.groupName))
                 : catalogItems;
+              // V89: danh sách model của bộ cửa chính khi rule đã giới hạn theo nhóm hàng của cửa cha.
+              const parentGroupItems = rule.parentGroupName
+                ? catalogItems.filter((item) => normalizeLookup(item.name) === normalizeLookup(rule.parentGroupName))
+                : [];
               return (
                 <tr key={rule.id} className={rule.active ? "bg-white" : "bg-slate-50 text-slate-500"}>
                   <td>
@@ -275,6 +281,8 @@ export function CalculationConfigEditor() {
                         scope,
                         groupName: scope === "MAIN" ? "" : rule.groupName,
                         itemCode: scope === "ITEM" ? rule.itemCode : "",
+                        parentGroupName: scope === "MAIN" ? "" : rule.parentGroupName,
+                        parentItemCode: scope === "MAIN" ? "" : rule.parentItemCode,
                         pricingRule: scope === "MAIN" && rule.pricingRule === "INHERIT" ? "DOOR_AREA" : rule.pricingRule,
                       });
                     }}>
@@ -304,6 +312,37 @@ export function CalculationConfigEditor() {
                       </select>
                     )}
                   </td>
+                  {/* V89: chỉ áp dụng cho rule của dòng phụ kiện chi tiết (Theo nhóm hàng / Theo Model). */}
+                  <td>
+                    {rule.scope === "MAIN" ? (
+                      <span className="text-[12px] text-slate-400">—</span>
+                    ) : (
+                      <div className="flex flex-col gap-1">
+                        <select
+                          className="erp-cell-input"
+                          title={rule.parentGroupName ? `Chỉ khi bộ cửa chính thuộc nhóm: ${rule.parentGroupName}` : "Áp dụng cho mọi bộ cửa chính"}
+                          value={rule.parentGroupName}
+                          onChange={(event) => patchRule(index, { parentGroupName: event.target.value, parentItemCode: "" })}
+                        >
+                          <option value="">Mọi bộ cửa</option>
+                          {rule.parentGroupName && !groups.some((group) => normalizeLookup(group) === normalizeLookup(rule.parentGroupName)) ? <option value={rule.parentGroupName}>{rule.parentGroupName} (cũ)</option> : null}
+                          {groups.map((group) => <option key={group} value={group}>{group}</option>)}
+                        </select>
+                        {rule.parentGroupName ? (
+                          <select
+                            className="erp-cell-input"
+                            title={rule.parentItemCode || "Mọi model trong nhóm"}
+                            value={rule.parentItemCode}
+                            onChange={(event) => patchRule(index, { parentItemCode: event.target.value })}
+                          >
+                            <option value="">Mọi model trong nhóm</option>
+                            {rule.parentItemCode && !parentGroupItems.some((item) => item.code === rule.parentItemCode) ? <option value={rule.parentItemCode}>{rule.parentItemCode} (cũ)</option> : null}
+                            {parentGroupItems.map((item) => <option key={item.code} value={item.code}>{item.code}{item.productDescription ? ` · ${item.productDescription}` : ""}</option>)}
+                          </select>
+                        ) : null}
+                      </div>
+                    )}
+                  </td>
                   <td><RuleSelect value={rule.pricingRule} options={PRICING_OPTIONS} onChange={(value) => patchRule(index, { pricingRule: value as PricingQuantityRule })} /></td>
                   <td><RuleSelect value={rule.heightSuggestion} options={INPUT_OPTIONS} onChange={(value) => patchRule(index, { heightSuggestion: value as InputSuggestionRule })} /></td>
                   <td><RuleSelect value={rule.widthSuggestion} options={INPUT_OPTIONS} onChange={(value) => patchRule(index, { widthSuggestion: value as InputSuggestionRule })} /></td>
@@ -326,9 +365,17 @@ export function CalculationConfigEditor() {
                 </tr>
               );
             })}
-            {config.rules.length === 0 ? <tr><td className="px-3 py-8 text-center text-slate-500" colSpan={9}>Chưa có rule tính toán.</td></tr> : null}
+            {config.rules.length === 0 ? <tr><td className="px-3 py-8 text-center text-slate-500" colSpan={10}>Chưa có rule tính toán.</td></tr> : null}
           </tbody>
         </SettingsTable>
+        {/* V89: giải thích cột mới — cùng một phụ kiện nhưng khác loại cửa cha thì khác công thức. */}
+        <div className="px-3.5 pb-3.5 pt-1">
+          <SettingsNote tone="info" title="Cột “Bộ cửa chính”">
+            Để trống = áp dụng cho <b>mọi bộ cửa</b>. Chọn nhóm hàng (và model nếu cần) khi cùng một phụ kiện
+            dùng công thức khác nhau theo loại cửa — ví dụ <b>Phào rời của cửa sổ</b> và <b>Phào rời của cửa đi</b> dùng
+            2 rule khác nhau. Cột này chỉ áp dụng cho rule <b>Theo nhóm hàng</b> và <b>Theo Model / hàng hóa</b>.
+          </SettingsNote>
+        </div>
       </section>
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -376,6 +423,8 @@ function newRule(): CalculationRule {
     scope: "GROUP",
     groupName: "",
     itemCode: "",
+    parentGroupName: "",
+    parentItemCode: "",
     pricingRule: "MANUAL",
     heightSuggestion: "KEEP",
     widthSuggestion: "KEEP",

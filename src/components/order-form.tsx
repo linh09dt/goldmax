@@ -283,7 +283,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
         unitPrice: catalogDefaultPrice(catalog, currentDetail.unitPrice),
         // V59: đổi Model thì bỏ đánh dấu nhập tay để KH/Lượng tự tính lại theo cấu hình.
         pricingManual: "",
-      }, item, catalog, calculationConfig);
+      }, item, catalog, calculationConfig, parentDoorTarget(item, catalogItems));
       items[itemIndex] = recalculateAutomaticPricingQuantity({ ...item, details }, catalogItems, calculationConfig);
       return { ...current, items };
     });
@@ -1256,6 +1256,7 @@ function recalculateAutomaticPricingQuantity(item: OrderItemForm, catalogItems: 
       scope: "DETAIL",
       groupName: catalog?.name || detail.productName,
       itemCode: detail.productCode || detail.model,
+      ...parentDoorTarget(nextItem, catalogItems),
     });
     const calculated = calculatePricingQuantityByRule(resolved.pricingRule, detail, nextItem);
     if (calculated === null || detail.pricingQuantity === calculated) return detail;
@@ -1353,11 +1354,13 @@ function applyAccessoryDimensionSuggestion(
   parent: OrderItemForm,
   catalog: CatalogItem,
   calculationConfig: CalculationConfig,
+  parentDoor: { parentGroupName: string; parentItemCode: string },
 ): OrderLineForm {
   const resolved = resolveCalculationRule(calculationConfig, {
     scope: "DETAIL",
     groupName: catalog.name,
     itemCode: catalog.code,
+    ...parentDoor,
   });
 
   return {
@@ -1616,6 +1619,18 @@ function findCatalog(items: CatalogItem[], code: string) {
   const normalized = code.trim().toLocaleLowerCase("vi");
   if (!normalized) return undefined;
   return items.find((item) => item.code.trim().toLocaleLowerCase("vi") === normalized);
+}
+
+/**
+ * V89: xác định “bộ cửa chính” (cửa cha) của một dòng phụ kiện chi tiết để lọc rule theo loại cửa.
+ * Nhóm hàng lấy từ Danh mục hàng hóa theo model của cửa; nếu không tra được thì lấy tên hàng trên đơn.
+ */
+function parentDoorTarget(parent: OrderItemForm, catalogItems: CatalogItem[]) {
+  const catalog = findCatalog(catalogItems, parent.productCode || parent.model);
+  return {
+    parentGroupName: catalog?.name || parent.productName,
+    parentItemCode: parent.productCode || parent.model,
+  };
 }
 
 function catalogProductName(item: CatalogItem) {
