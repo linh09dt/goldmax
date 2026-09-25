@@ -25,11 +25,13 @@ Gồm toàn bộ thay đổi kể từ file zip gốc:
   dải 5 nút chọn nhóm ở A2 và thanh chọn A1/A2/B1 chuyển từ cuộn ngang sang lưới xuống dòng;
   đơn vị “đ” ở A1 đưa lên tiêu đề cột; ghi chú B1 thành textarea; thêm tooltip cho select.
   Xem `SETTINGS_FULLVIEW_V85.md`.
+- **V86** — **Menu trái**: bỏ chú thích dưới từng mục menu ("Tự động tổng hợp từ đơn hàng" dưới *Thông tin khách hàng*, "Hàng hóa · Thuộc tính · Tính toán" dưới *Cấu hình*);
+  mục menu canh giữa icon với tên. Xem `MENU_NO_HINT_V86.md`.
 
 ## Cách áp
 
 ```
-unzip -o door-production-changes-v85.zip -d <thư-mục-project>
+unzip -o door-production-changes-v86.zip -d <thư-mục-project>
 npm run db:generate
 npm run build
 npm run dev
@@ -42,5 +44,6 @@ Không cần `npm run db:migrate` (không đổi schema Prisma, không đổi d�
 - `src/app/customers/page.tsx`, `src/app/api/customers/route.ts`, `src/app/api/customers/export/route.ts`,
   `src/lib/customers.ts`, `src/components/customer-directory.tsx` — tab Thông tin khách hàng (từ V79).
 - `python/reportlab_order_v2.py`, `python/reportlab_order_preview.py` — nếu deploy Vercel có Python function thì nhớ deploy lại 2 file này để header PDF hiện Website (từ V79).
+- **V86 chỉ sửa 1 file: `src/components/erp-nav.tsx`.**
 - **V85 chỉ sửa giao diện tab CẤU HÌNH (6 file)**: `globals.css`, `settings-ui.tsx`, `settings-workspace.tsx`, `item-master.tsx`, `master-options.tsx`, `calculation-config.tsx`.
   Không cần migrate, không cần đổi cấu hình.

@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 type NavItem = {
   href: string;
   label: string;
-  hint?: string;
   icon: React.ReactNode;
   isActive: (pathname: string) => boolean;
 };
@@ -35,7 +34,6 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
       {
         href: "/customers",
         label: "Thông tin khách hàng",
-        hint: "Tự động tổng hợp từ đơn hàng",
         icon: <IconUsers />,
         isActive: (pathname) => pathname.startsWith("/customers"),
       },
@@ -53,7 +51,6 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
       {
         href: "/settings",
         label: "Cấu hình",
-        hint: "Hàng hóa · Thuộc tính · Tính toán",
         icon: <IconSettings />,
         isActive: (pathname) =>
           pathname.startsWith("/settings") ||
@@ -100,23 +97,17 @@ export function ErpNav() {
                   key={item.href}
                   href={item.href}
                   aria-current={active ? "page" : undefined}
-                  className={`group flex items-start gap-2.5 rounded-lg px-3 py-2.5 text-[13px] transition ${
+                  className={`group flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[13px] transition ${
                     active
                       ? "bg-cyan-500/15 text-white ring-1 ring-cyan-400/40"
                       : "text-slate-300 hover:bg-slate-800 hover:text-white"
                   }`}
                 >
-                  <span className={`mt-0.5 shrink-0 ${active ? "text-cyan-300" : "text-slate-500 group-hover:text-slate-300"}`}>
+                  <span className={`shrink-0 ${active ? "text-cyan-300" : "text-slate-500 group-hover:text-slate-300"}`}>
                     {item.icon}
                   </span>
-                  <span className="min-w-0">
-                    <span className="block font-medium leading-5">{item.label}</span>
-                    {item.hint ? (
-                      <span className={`mt-0.5 block text-[10px] leading-4 ${active ? "text-cyan-100/80" : "text-slate-500"}`}>
-                        {item.hint}
-                      </span>
-                    ) : null}
-                  </span>
+                  {/* V86: bỏ chú thích dưới từng mục menu — chỉ còn tên mục. */}
+                  <span className="min-w-0 truncate font-medium leading-5">{item.label}</span>
                 </Link>
               );
             })}
