@@ -4,7 +4,8 @@ import path from "node:path";
 import { resolveOrderItemDetails } from "@/lib/order-detail";
 import type { OutputGroup } from "@/lib/order-output";
 import { buildOutputGroups, calculateOutputTotals, cleanText, outputLineAmount, toNumber } from "@/lib/order-output";
-import { logoBox } from "@/lib/png-size";
+import { logoBox, readImageSize } from "@/lib/png-size";
+import { addProductImage, fitProductImageInCell } from "@/lib/excel-image-cell";
 
 const NAVY = "FF1E3A8A";
 const AMBER = "FFD97706";
@@ -24,6 +25,10 @@ const BASE_FONT = { name: "Arial", size: 11, color: { argb: TEXT } };
 // V87: bề rộng logo trong khối banner (vùng merge A1:C6). Chiều cao suy ra từ tỉ lệ thật
 // của file PNG nên logo GOLDMAX mới không bị kéo giãn dọc.
 const LOGO_WIDTH_PX = 170;
+// V110b: bề rộng các cột — cột cuối (S, index 0-based 18) là "Hình ảnh SP".
+const COLUMN_WIDTHS = [5, 9, 29, 19, 10, 7.5, 7.5, 9.5, 8, 8, 8, 8, 8, 5.5, 6.5, 10.5, 11.5, 12.5, 11];
+const IMAGE_COLUMN_INDEX = 18;
+const FALLBACK_IMAGE_ASPECT = 5 / 3;
 
 // V53/V54: hộp ghi chú nhỏ in ở góc dưới bên trái (khung + nền nhạt nhạt, chữ nhỏ màu xám, không làm nổi bật).
 const FOOTNOTE_FILL = "FFF8FAFC";
@@ -136,7 +141,7 @@ function setupColumns(ws: Worksheet) {
   // và chia lại bề rộng cho các cột còn lại; Excel tự fit 1 trang theo chiều ngang.
   // V70: đủ rộng để STT / BỘ SỐ / Ô THOÁNG / HƯỚNG / PHÀO / MÀU SƠN / KHUÔN nằm 1 dòng;
   // thu hẹp HÌNH ẢNH SP + ĐƠN GIÁ + THÀNH TIỀN (cho phép xuống dòng).
-  const widths = [5, 9, 29, 19, 10, 7.5, 7.5, 9.5, 8, 8, 8, 8, 8, 5.5, 6.5, 10.5, 11.5, 12.5, 11];
+  const widths = COLUMN_WIDTHS;
   widths.forEach((width, index) => { ws.getColumn(index + 1).width = width; });
 }
 
@@ -355,6 +360,8 @@ async function writeDataRow(
  * V109: gộp ô ẢNH SP của cả bộ cửa (merge S{first}:S{last}) và chỉ gắn MỘT ảnh
  * đã căn giữa theo chiều dọc của khối. Ảnh ưu tiên của dòng cửa, chưa có thì lấy
  * ảnh phụ kiện đầu tiên. Nếu không nhúng được ảnh thì để hyperlink "Xem ảnh".
+ * V110b: ảnh **lấp đầy ô** — rộng hết bề rộng cột, dòng đầu của bộ được nới thêm nếu khối
+ * chưa đủ cao (trước đây ảnh cỡ cứng 58 × 36 px nên nằm lọt thỏm trong ô).
  */
 async function writeGroupImage(
   ws: Worksheet,
@@ -379,13 +386,18 @@ async function writeGroupImage(
     const extension = contentType.includes("png") ? "png" : contentType.includes("jpeg") || contentType.includes("jpg") ? "jpeg" : null;
     if (!extension) return;
     const imageBuffer = Buffer.from(await response.arrayBuffer());
+    const size = readImageSize(imageBuffer);
+    const placement = fitProductImageInCell({
+      ws,
+      firstRow,
+      lastRow,
+      columnIndex: IMAGE_COLUMN_INDEX,
+      columnWidth: COLUMN_WIDTHS[IMAGE_COLUMN_INDEX],
+      aspect: size && size.height > 0 ? size.width / size.height : FALLBACK_IMAGE_ASPECT,
+    });
     const imageId = workbook.addImage({ buffer: imageBuffer as any, extension });
-    const rowsInBlock = Math.max(1, lastRow - firstRow + 1);
-    // Căn giữa theo chiều dọc khối: 1 dòng giữ nguyên như trước, nhiều dòng thì hạ xuống giữa khối.
-    const anchorRow = firstRow - 1 + (rowsInBlock - 1) / 2 + 0.1;
-    ws.addImage(imageId, { tl: { col: 18.12, row: anchorRow }, ext: { width: 58, height: 36 }, editAs: "oneCell" });
+    addProductImage(ws, imageId, placement);
     cell.value = null;
-    ws.getRow(firstRow).height = Math.max(ws.getRow(firstRow).height || 0, 34);
   } catch {
     // Giữ hyperlink nếu không thể tải ảnh.
   }

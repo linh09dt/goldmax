@@ -553,6 +553,16 @@ def _prefetch_product_images(groups: list[dict[str, Any]]) -> dict[str, bytes | 
     return cache
 
 
+def _product_image_max_width_mm() -> float:
+    """V110b: bề rộng tối đa của ảnh SP trong PDF, tính từ bề rộng cột "HÌNH ẢNH SP".
+
+    Trước đây ảnh bị vẽ cứng 11 mm trong khi cột rộng ~16 mm => ảnh chỉ chiếm ~2/3 ô
+    nên nhìn rất nhỏ. Nay lấy đúng bề rộng cột trừ padding trái/phải 2pt của bảng.
+    """
+    col_width = _order_col_widths()[-1]
+    return max(8.0, (col_width - 4) / mm)
+
+
 def _image_flowable(url: str, cache: dict[str, bytes | None]) -> Any:
     if not url:
         return para("", "center")
@@ -564,7 +574,9 @@ def _image_flowable(url: str, cache: dict[str, bytes | None]) -> Any:
     if not data:
         return para("", "center")
     try:
-        img = Image(io.BytesIO(data), width=11 * mm, height=11 * mm, kind="proportional")
+        # V110b: ảnh rộng hết ô HÌNH ẢNH SP (proportional giữ đúng tỉ lệ, không bóp méo).
+        max_w = _product_image_max_width_mm() * mm
+        img = Image(io.BytesIO(data), width=max_w, height=max_w, kind="proportional")
         img.hAlign = "CENTER"
         return img
     except Exception:

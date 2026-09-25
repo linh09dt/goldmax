@@ -4,7 +4,8 @@ import path from "node:path";
 import { resolveOrderItemDetails } from "@/lib/order-detail";
 import type { OutputGroup } from "@/lib/order-output";
 import { buildOutputGroups, calculateOutputTotals, cleanText, outputLineAmount, toNumber } from "@/lib/order-output";
-import { logoBox } from "@/lib/png-size";
+import { logoBox, readImageSize } from "@/lib/png-size";
+import { addProductImage, fitProductImageInCell } from "@/lib/excel-image-cell";
 
 const BORDER = { style: "thin" as const, color: { argb: "FF000000" } };
 const ALL_BORDERS = { top: BORDER, left: BORDER, bottom: BORDER, right: BORDER };
@@ -21,6 +22,10 @@ const LEFT = { horizontal: "left" as const, vertical: "middle" as const, wrapTex
 // V87: bề rộng logo trong khối header (ô A1:B2). Chiều cao suy ra từ tỉ lệ thật của file PNG
 // để logo mới không bị kéo giãn.
 const LOGO_WIDTH_PX = 92;
+// V110b: bề rộng các cột — cột cuối (T, index 0-based 19) là "Hình ảnh SP".
+const COLUMN_WIDTHS = [5, 10, 22, 20, 10, 8, 10, 9, 7.5, 7.5, 7.5, 7.5, 7.5, 9, 8, 10, 13, 15, 24, 16];
+const IMAGE_COLUMN_INDEX = 19;
+const FALLBACK_IMAGE_ASPECT = 5 / 3;
 
 export type ExportableOrder = {
   id: number;
@@ -108,8 +113,7 @@ export async function buildOrderExcel(order: ExportableOrder, exportNote = ""): 
 
 function setupColumns(ws: Worksheet) {
   // Bố cục bám file mẫu và giữ cột Hình ảnh SP ở cuối.
-  const widths = [5, 10, 22, 20, 10, 8, 10, 9, 7.5, 7.5, 7.5, 7.5, 7.5, 9, 8, 10, 13, 15, 24, 16];
-  widths.forEach((width, index) => { ws.getColumn(index + 1).width = width; });
+  COLUMN_WIDTHS.forEach((width, index) => { ws.getColumn(index + 1).width = width; });
 }
 
 async function writeHeader(ws: Worksheet, workbook: ExcelJS.Workbook, order: ExportableOrder) {
@@ -348,6 +352,8 @@ function writeNotes(ws: Worksheet, startRow: number, order: ExportableOrder) {
 
 /**
  * V109: file Excel V1 — gộp ô ảnh (cột T) của cả bộ cửa và chỉ gắn MỘT ảnh căn giữa khối.
+ * V110b: ảnh **lấp đầy ô** — rộng hết bề rộng cột, dòng đầu của bộ được nới thêm nếu khối
+ * chưa đủ cao (trước đây ảnh cỡ cứng 82 × 48 px nên nằm lọt thỏm trong ô).
  */
 async function writeGroupImageV1(
   ws: Worksheet,
@@ -372,12 +378,18 @@ async function writeGroupImageV1(
     const extension = contentType.includes("png") ? "png" : contentType.includes("jpeg") || contentType.includes("jpg") ? "jpeg" : null;
     if (!extension) return;
     const imageBuffer = Buffer.from(await response.arrayBuffer());
+    const size = readImageSize(imageBuffer);
+    const placement = fitProductImageInCell({
+      ws,
+      firstRow,
+      lastRow,
+      columnIndex: IMAGE_COLUMN_INDEX,
+      columnWidth: COLUMN_WIDTHS[IMAGE_COLUMN_INDEX],
+      aspect: size && size.height > 0 ? size.width / size.height : FALLBACK_IMAGE_ASPECT,
+    });
     const imageId = workbook.addImage({ buffer: imageBuffer as any, extension });
-    const rowsInBlock = Math.max(1, lastRow - firstRow + 1);
-    const anchorRow = firstRow - 1 + (rowsInBlock - 1) / 2 + 0.08;
-    ws.addImage(imageId, { tl: { col: 19.08, row: anchorRow }, ext: { width: 82, height: 48 }, editAs: "oneCell" });
+    addProductImage(ws, imageId, placement);
     cell.value = null;
-    ws.getRow(firstRow).height = Math.max(ws.getRow(firstRow).height || 0, 43);
   } catch {
     // Giữ hyperlink nếu không thể tải ảnh.
   }

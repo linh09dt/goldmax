@@ -32,6 +32,44 @@ export async function readPngSizeFromFile(filePath: string): Promise<ImageSize |
   }
 }
 
+const JPEG_SOF_MARKERS = new Set([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf]);
+
+/**
+ * V110b: đọc kích thước pixel của buffer JPEG (quét marker SOF) — dùng để biết tỉ lệ thật
+ * của ảnh sản phẩm trước khi đặt vào ô Excel, tránh kéo giãn/bóp méo. Không cần thư viện ảnh.
+ */
+export function readJpegSize(buffer: Buffer): ImageSize | null {
+  if (buffer.length < 4 || buffer[0] !== 0xff || buffer[1] !== 0xd8) return null;
+
+  let offset = 2;
+  while (offset + 8 < buffer.length) {
+    if (buffer[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+    const marker = buffer[offset + 1];
+    // Marker không có phần độ dài (khôi phục, RST, SOI/EOI).
+    if (marker === 0xff || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd9)) {
+      offset += 2;
+      continue;
+    }
+    const segmentLength = buffer.readUInt16BE(offset + 2);
+    if (segmentLength < 2) return null;
+    if (JPEG_SOF_MARKERS.has(marker)) {
+      const height = buffer.readUInt16BE(offset + 5);
+      const width = buffer.readUInt16BE(offset + 7);
+      return width > 0 && height > 0 ? { width, height } : null;
+    }
+    offset += 2 + segmentLength;
+  }
+  return null;
+}
+
+/** Kích thước pixel của buffer PNG hoặc JPEG; không đọc được (vd. WEBP) trả null. */
+export function readImageSize(buffer: Buffer): ImageSize | null {
+  return readPngSize(buffer) ?? readJpegSize(buffer);
+}
+
 /**
  * Kích thước hiển thị của logo trong file xuất: cố định bề rộng, chiều cao suy ra từ tỉ lệ thật.
  * `fallbackAspect` dùng khi không đọc được file PNG (giữ hành vi cũ, không chặn xuất file).
