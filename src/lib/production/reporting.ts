@@ -49,7 +49,9 @@ export type StageStat = {
   code: string;
   name: string;
   completedTasks: number;
-  quotedHours: number | null;
+  /** Số ngày định mức của công đoạn (V145 — danh mục lưu số ngày). */
+  quotedDays: number | null;
+  /** Số giờ thực tế trung bình giữa bắt đầu và xong (giờ đồng hồ). */
   avgActualHours: number | null;
   reworkTasks: number;
   waitHours: number | null;
@@ -282,7 +284,7 @@ export function buildProductionReport(input: {
         code: stage.code,
         name: stage.name,
         completedTasks: done.length,
-        quotedHours: stage.leadTimeHours,
+        quotedDays: stage.leadTimeDays,
         avgActualHours: hours.length ? hours.reduce((sum, value) => sum + value, 0) / hours.length : null,
         reworkTasks: stageTasks.filter((task) => task.isRework).length,
         waitHours: null,

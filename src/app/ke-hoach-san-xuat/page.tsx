@@ -463,9 +463,9 @@ export default async function ProductionPlanPage({ searchParams }: { searchParam
         <p className="erp-hint">
           Ngày làm việc theo cấu hình: {config.workingDays.join(", ")} (0 = Chủ nhật) — không tính Chủ nhật và ngày lễ.
           Đã trừ {config.deliveryBufferDays} ngày đệm vì hạn giao là ngày giao tới khách.
-          {config.overlapHoursPerStep > 0
-            ? ` Đang bật gối công đoạn ${config.overlapHoursPerStep} giờ/bước.`
-            : " Chưa bật gối công đoạn (đang cộng dồn thời lượng — cách tính an toàn)."}
+          {config.overlapDaysPerStep > 0
+            ? ` Đang bật gối công đoạn ${config.overlapDaysPerStep} ngày/bước.`
+            : " Chưa bật gối công đoạn (đang cộng dồn số ngày — cách tính an toàn)."}
         </p>
       </div>
     </ErpShell>

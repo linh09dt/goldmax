@@ -31,7 +31,7 @@ export type ProductionConfig = {
    * Gối công đoạn (giờ mỗi bước). C6: "thông thường chúng tôi gối công đoạn 1 ngày" → đặt 24 để bật.
    * 0 = cộng dồn toàn bộ thời lượng (cách tính an toàn, mặc định).
    */
-  overlapHoursPerStep: number;
+  overlapDaysPerStep: number;
   /** Ngưỡng cảnh báo vàng và đỏ cho toàn xưởng (KH6/KH7: quá 70 cánh/ngày là quá nhiều). */
   dailyWarnCanh: number;
   dailyMaxCanh: number;
@@ -71,7 +71,7 @@ export const DEFAULT_PRODUCTION_CONFIG: ProductionConfig = {
   capacityUnit: "CANH",
   // Giao tới khách bằng xe ghép nên chừa 1 ngày làm việc.
   deliveryBufferDays: 1,
-  overlapHoursPerStep: 0,
+  overlapDaysPerStep: 0,
   dailyWarnCanh: 70,
   dailyMaxCanh: 80,
   entryOrderTypes: ["MAU", "SAN_XUAT", "LAM_LAI"],
@@ -141,7 +141,7 @@ export function normalizeProductionConfig(
     planUnit: "BO",
     capacityUnit: "CANH",
     deliveryBufferDays: Math.round(clampNumber(source.deliveryBufferDays, 0, 30, fallback.deliveryBufferDays)),
-    overlapHoursPerStep: clampNumber(source.overlapHoursPerStep, 0, 24, fallback.overlapHoursPerStep),
+    overlapDaysPerStep: Math.round(clampNumber(source.overlapDaysPerStep, 0, 10, fallback.overlapDaysPerStep)),
     dailyWarnCanh: clampNumber(source.dailyWarnCanh, 1, 10_000, fallback.dailyWarnCanh),
     dailyMaxCanh: clampNumber(source.dailyMaxCanh, 1, 10_000, fallback.dailyMaxCanh),
     entryOrderTypes: entryOrderTypes.length ? entryOrderTypes : [...fallback.entryOrderTypes],
@@ -175,12 +175,9 @@ export function validateProductionConfig(config: ProductionConfig) {
   if (config.hoursPerShift * config.shiftsPerDay < 1) {
     throw new Error("Số giờ làm việc mỗi ngày phải lớn hơn 0.");
   }
-  // V144 — gối công đoạn nhỏ hơn 1 ngày làm việc thì không lùi được ngày nào (mốc tính theo NGÀY).
-  const perDay = config.hoursPerShift * config.shiftsPerDay;
-  if (config.overlapHoursPerStep > 0 && config.overlapHoursPerStep < perDay) {
-    throw new Error(
-      `Gối công đoạn phải là 0 hoặc ≥ ${perDay} giờ (1 ngày làm việc = ${config.shiftsPerDay} ca × ${config.hoursPerShift} giờ) — nhỏ hơn thì không lùi được ngày nào.`,
-    );
+  // V145 — gối công đoạn tính bằng NGÀY (số nguyên). 0 = không gối (cộng dồn, an toàn hơn).
+  if (!Number.isInteger(config.overlapDaysPerStep) || config.overlapDaysPerStep < 0) {
+    throw new Error("Gối công đoạn phải là số ngày nguyên ≥ 0 (0 = cộng dồn, không gối).");
   }
   const templateError = validateWorkOrderCodeTemplate(config.workOrderCodeTemplate ?? "");
   if (templateError) throw new Error(templateError);

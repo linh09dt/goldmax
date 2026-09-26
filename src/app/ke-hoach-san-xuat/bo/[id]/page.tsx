@@ -20,8 +20,8 @@ import {
   type ProductionSetRow,
   type ProductionTaskRow,
 } from "@/lib/production/catalog";
-import { hoursToWorkingDays, subtractWorkingDays, todayInVietnam, workingDaysBetween } from "@/lib/production/calendar";
-import { buildWarnings, buildWorkCenterLoad, missingInfoForPlanning, setLeadHoursFromTasks } from "@/lib/production/scheduling";
+import { subtractWorkingDays, todayInVietnam, workingDaysBetween } from "@/lib/production/calendar";
+import { buildWarnings, buildWorkCenterLoad, missingInfoForPlanning, setLeadDaysFromTasks } from "@/lib/production/scheduling";
 import { loadActiveWorkCenters, loadSetDetail, parseIsoDateStrict, previewSetStart, type StartPreview } from "@/lib/production/service";
 
 export const dynamic = "force-dynamic";
@@ -53,8 +53,8 @@ export default async function ProductionSetPage({
 
   const canh = Number(setRow.canhEquivalent) || 1;
   const missing = missingInfoForPlanning(setRow, config);
-  const leadHours = setLeadHoursFromTasks(tasks, stages, config);
-  const leadDays = hoursToWorkingDays(leadHours, config);
+  // V145: số ngày đường găng = tổng `lead_time_days` theo bước (cùng bước = song song, tính 1 lần).
+  const leadDays = setLeadDaysFromTasks(tasks, stages, config);
   const workshopDue = setRow.dueDate ? subtractWorkingDays(setRow.dueDate, config.deliveryBufferDays, calendar) : null;
   const modelHasProgram = programModels.has(String(setRow.model ?? "").trim().toUpperCase());
 
@@ -180,7 +180,7 @@ export default async function ProductionSetPage({
             hint={workshopDue ? `Xưởng phải xong trước ${formatDate(workshopDue)}` : "chưa có hạn giao"}
             tone={setRow.dueDate && setRow.dueDate.getTime() < todayInVietnam().getTime() ? "bad" : "neutral"}
           />
-          <ReportKpi label="Đường găng" value={`${formatNumber(leadDays)} ngày`} hint={`${formatNumber(leadHours)} giờ · ${tasks.length} công đoạn`} tone="neutral" />
+          <ReportKpi label="Đường găng" value={`${formatNumber(leadDays)} ngày`} hint={`${tasks.length} công đoạn · cùng bước tính 1 lần`} tone="neutral" />
           <ReportKpi
             label="Chương trình máy cắt"
             value={modelHasProgram ? "đã có" : "chưa có"}
@@ -233,7 +233,6 @@ export default async function ProductionSetPage({
                     <tr>
                       <th className="text-right">Bước</th>
                       <th>Công đoạn của bước (chạy song song, cùng ngày)</th>
-                      <th className="text-right">Giờ</th>
                       <th className="text-right">Số ngày</th>
                       <th>Mốc bắt đầu → xong</th>
                     </tr>
@@ -243,7 +242,6 @@ export default async function ProductionSetPage({
                       <tr key={step.seq}>
                         <td className="erp-td-num">{step.seq}</td>
                         <td>{step.codes.map((code) => stageByCode.get(code)?.name ?? code).join(" · ")}</td>
-                        <td className="erp-td-num">{step.hours}</td>
                         <td className="erp-td-num">{step.days}</td>
                         <td className="whitespace-nowrap">
                           {formatDate(new Date(`${step.start}T00:00:00.000Z`))}
@@ -422,7 +420,7 @@ export default async function ProductionSetPage({
                       <td className="text-[12px] text-slate-600">{STAGE_KIND_LABELS[task.stageKind] ?? task.stageKind}</td>
                       <td>{SCOPE_LABELS[task.scope] ?? task.scope}</td>
                       <td className="text-[12px] text-slate-600">{task.workCenterCode ? centerByCode.get(task.workCenterCode)?.name ?? task.workCenterCode : "—"}</td>
-                      <td className="erp-td-num">{stage?.leadTimeHours ? `${stage.leadTimeHours} giờ` : "—"}</td>
+                      <td className="erp-td-num">{stage?.leadTimeDays ? `${stage.leadTimeDays} ngày` : "—"}</td>
                       <td className="whitespace-nowrap text-[11.5px]">
                         {task.targetStart ? (
                           <>

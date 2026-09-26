@@ -81,7 +81,7 @@ export function StartProductionForm({
       <p className="erp-hint">
         Nhập <strong>một mốc</strong> rồi bấm <em>Xem mốc</em> để thấy mốc (target) của mọi công đoạn phía sau; bấm{" "}
         <em>Đưa vào sản xuất</em> thì bộ chuyển sang <strong>đang sản xuất</strong> ở công đoạn đầu tiên.
-        Số ngày mỗi bước = số giờ của bước ÷ giờ/ngày (2 ca × 8h = 16), bỏ Chủ nhật + ngày lễ; các công đoạn{" "}
+        Số ngày mỗi bước lấy từ cột &quot;Số ngày&quot; của công đoạn (Cấu hình → Công đoạn), bỏ Chủ nhật + ngày lễ; các công đoạn{" "}
         <strong>cùng bước chạy song song nên cùng ngày</strong>.
       </p>
     </div>

@@ -450,7 +450,7 @@ const isoDateOnly = (value: Date): string => value.toISOString().slice(0, 10);
 export type StartPlanStep = {
   seq: number;
   codes: string[];
-  hours: number;
+  /** SỐ NGÀY của bước (V145) */
   days: number;
   start: string;
   end: string;
@@ -517,7 +517,6 @@ function buildStartPreview(args: {
     steps: targets.map((step) => ({
       seq: step.seq,
       codes: step.codes,
-      hours: step.hours,
       days: step.days,
       start: isoDateOnly(step.start),
       end: isoDateOnly(step.end),

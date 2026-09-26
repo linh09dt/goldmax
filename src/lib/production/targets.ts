@@ -3,7 +3,7 @@
  *
  * Nhà máy chốt 26/09/2026: **không nhập ngày cho từng công đoạn**. Chỉ nhập ngày bắt đầu →
  * hệ thống đi theo THỨ TỰ BƯỚC (`seq`) và SỐ GIỜ của bước:
- *   - số ngày của bước = làm tròn lên(số giờ ÷ giờ-ngày), giờ-ngày = số ca × giờ/ca (2 × 8 = 16);
+ *   - số ngày của bước = chính cột `lead_time_days` của công đoạn (V145: nhập thẳng SỐ NGÀY);
  *   - bước sau bắt đầu NGÀY LÀM VIỆC kế tiếp sau khi bước trước xong (bỏ Chủ nhật + ngày lễ);
  *     nếu Cấu hình có "gối công đoạn" (giờ) thì lùi lại đúng số ngày gối;
  *   - các công đoạn CÙNG BƯỚC (Cắt khung/cánh/phào, Vân khung/cánh/phào…) → **cùng ngày**;
@@ -16,8 +16,6 @@
 import {
   addWorkingDays,
   countWorkingDays,
-  hoursPerWorkingDay,
-  hoursToWorkingDays,
   isWorkingDay,
   startOfDayUtc,
   subtractWorkingDays,
@@ -28,8 +26,8 @@ import type { ProductionConfig } from "./config";
 export type TargetStep = {
   /** bước trong danh mục công đoạn */
   seq: number;
-  /** giờ của bước (lấy theo công đoạn dài nhất trong bước) */
-  hours: number;
+  /** SỐ NGÀY của bước (lấy theo công đoạn dài nhất trong bước) */
+  days: number;
   /** các mã công đoạn của bước — cùng bước thì cùng ngày */
   codes: string[];
 };
@@ -41,25 +39,25 @@ export type StepTarget = TargetStep & {
   end: Date;
 };
 
-export type TargetConfig = Pick<ProductionConfig, "shiftsPerDay" | "hoursPerShift" | "overlapHoursPerStep">;
+export type TargetConfig = Pick<ProductionConfig, "overlapDaysPerStep">;
 
 /** Các bước cần tính của một bộ, suy từ chính công đoạn của bộ (bỏ công đoạn BỎ QUA). */
 export function targetStepsFromTasks(
   tasks: Array<{ stageCode: string; seq: number; status: string }>,
-  stageByCode: Map<string, { code: string; leadTimeHours: number | null }>,
+  stageByCode: Map<string, { code: string; leadTimeDays: number | null }>,
 ): TargetStep[] {
   const bySeq = new Map<number, TargetStep>();
   for (const task of tasks) {
     if (task.status === "BO_QUA") continue;
     const stage = stageByCode.get(task.stageCode);
     if (!stage) continue;
-    const hours = Math.max(0, Number(stage.leadTimeHours) || 0);
+    const days = Math.max(0, Math.floor(Number(stage.leadTimeDays) || 0));
     const current = bySeq.get(task.seq);
     if (current) {
-      current.hours = Math.max(current.hours, hours);
+      current.days = Math.max(current.days, days);
       if (!current.codes.includes(stage.code)) current.codes.push(stage.code);
     } else {
-      bySeq.set(task.seq, { seq: task.seq, hours, codes: [stage.code] });
+      bySeq.set(task.seq, { seq: task.seq, days, codes: [stage.code] });
     }
   }
   return Array.from(bySeq.values()).sort((a, b) => a.seq - b.seq);
@@ -86,18 +84,17 @@ export function computeStepTargets(args: {
   config: TargetConfig;
   calendar: WorkingCalendar;
 }): StepTarget[] {
-  const perDay = hoursPerWorkingDay(args.config);
-  const overlapDays = Math.max(0, Math.floor((Number(args.config.overlapHoursPerStep) || 0) / perDay));
+  const overlapDays = Math.max(0, Math.floor(Number(args.config.overlapDaysPerStep) || 0));
   const planStart = snapToWorkingDay(args.start, args.calendar);
   let cursor = planStart;
-  /** Ngày kết thúc của bước CÓ ngày gần nhất — bước 0 giờ dùng chung ngày này. */
+  /** Ngày kết thúc của bước CÓ ngày gần nhất — bước 0 ngày dùng chung ngày này. */
   let lastEnd: Date | null = null;
 
   const out: StepTarget[] = [];
   for (const step of args.steps.slice().sort((a, b) => a.seq - b.seq)) {
-    const days = hoursToWorkingDays(step.hours, args.config);
+    const days = Math.max(0, Math.floor(Number(step.days) || 0));
     if (days <= 0) {
-      // Bước 0 giờ KHÔNG chiếm ngày — nằm cùng ngày với bước liền trước (không đẩy ngày xong ra sau).
+      // Bước 0 NGÀY không chiếm ngày — nằm cùng ngày với bước liền trước (không đẩy ngày xong ra sau).
       const day = lastEnd ?? cursor;
       out.push({ ...step, days: 0, start: day, end: day });
       continue;

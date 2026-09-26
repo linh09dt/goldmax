@@ -13,7 +13,6 @@
 
 import {
   dateKeyUtc,
-  hoursToWorkingDays,
   latestStartDate,
   startOfDayUtc,
   subtractWorkingDays,
@@ -89,8 +88,8 @@ export function missingInfoForPlanning(
   return missing;
 }
 
-/** Thời lượng đường găng của một bộ, suy từ chính các công đoạn đã sinh. */
-export function setLeadHoursFromTasks(
+/** SỐ NGÀY đường găng của một bộ, suy từ chính các công đoạn đã sinh (V145). */
+export function setLeadDaysFromTasks(
   tasks: Array<Pick<ProductionTaskRow, "stageCode" | "seq" | "status">>,
   stages: ProductionStageRow[],
   config: ProductionConfig,
@@ -104,10 +103,10 @@ export function setLeadHoursFromTasks(
     seen.add(task.seq);
     const stage = byCode.get(task.stageCode);
     if (!stage) continue;
-    durations.push(Math.max(0, Number(stage.leadTimeHours) || 0));
+    durations.push(Math.max(0, Number(stage.leadTimeDays) || 0));
   }
   const total = durations.reduce((sum, value) => sum + value, 0);
-  const overlap = Math.max(0, Number(config.overlapHoursPerStep) || 0);
+  const overlap = Math.max(0, Number(config.overlapDaysPerStep) || 0);
   return Math.max(0, total - overlap * Math.max(0, durations.length - 1));
 }
 
@@ -418,15 +417,15 @@ export function buildWarnings(options: BuildWarningsOptions): ProductionWarning[
     }
 
     if (set.status === "CHO_XEP_LICH" && set.dueDate) {
-      const leadHours = setLeadHoursFromTasks(setTasks, stages, config);
-      const mustStart = latestStartDate(set.dueDate, leadHours, config, calendar);
+      const leadDays = setLeadDaysFromTasks(setTasks, stages, config);
+      const mustStart = latestStartDate(set.dueDate, leadDays, config, calendar);
       if (mustStart.getTime() < todayStart.getTime()) {
         const late = workingDaysBetween(mustStart, todayStart, calendar);
         warnings.push({
           kind: "SAP_TRE",
           level: "bad",
           title: `Bộ ${labelOf(set)} cần bắt đầu trước ${formatDay(mustStart)} (đã trễ ${late} ngày)`,
-          detail: `Hạn giao ${formatDay(set.dueDate)} · đường găng ${hoursToWorkingDays(leadHours, config)} ngày làm việc`,
+          detail: `Hạn giao ${formatDay(set.dueDate)} · đường găng ${leadDays} ngày làm việc`,
           setId: set.id,
           href: `/ke-hoach-san-xuat/bo/${set.id}`,
         });

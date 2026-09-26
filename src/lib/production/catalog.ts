@@ -41,7 +41,7 @@ export type ProductionStageRow = {
   scopeParts: string | null;
   workCenterCode: string | null;
   seq: number;
-  leadTimeHours: number | null;
+  leadTimeDays: number | null;
   setupMinutes: number | null;
   capacityPerDay: number | null;
   capacityUnit: string;

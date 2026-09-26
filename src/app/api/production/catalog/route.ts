@@ -119,7 +119,7 @@ export async function POST(request: Request) {
           workCenterCode: str(body.workCenterCode, 40),
           // "Bước" phải >= 1: bước 0 bị lệnh cha/lệnh con dùng (mã lệnh …-00B/00C/00K/00P).
           seq: Math.max(1, int(body.seq) ?? 1),
-          leadTimeHours: num(body.leadTimeHours),
+          leadTimeDays: num(body.leadTimeDays),
           setupMinutes: int(body.setupMinutes),
           capacityPerDay: num(body.capacityPerDay),
           capacityUnit: str(body.capacityUnit, 10) ?? "CANH",

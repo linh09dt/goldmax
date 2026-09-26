@@ -114,30 +114,19 @@ export function workingDaysBetween(from: Date, to: Date, calendar: WorkingCalend
   return total;
 }
 
-/** Giờ làm việc của một ngày (số ca × giờ/ca). */
-export function hoursPerWorkingDay(config: Pick<ProductionConfig, "shiftsPerDay" | "hoursPerShift">): number {
-  return Math.max(1, config.shiftsPerDay * config.hoursPerShift);
-}
-
-/** Quy đổi giờ → số ngày làm việc (làm tròn LÊN, tối thiểu 0). */
-export function hoursToWorkingDays(hours: number, config: Pick<ProductionConfig, "shiftsPerDay" | "hoursPerShift">): number {
-  const perDay = hoursPerWorkingDay(config);
-  if (!Number.isFinite(hours) || hours <= 0) return 0;
-  return Math.ceil(hours / perDay);
-}
-
 /**
  * Ngày cần bắt đầu MUỘN NHẤT để kịp hạn giao.
- * = hạn giao − đệm vận chuyển − tổng thời lượng (quy ra ngày làm việc).
+ * = hạn giao − đệm vận chuyển − tổng SỐ NGÀY của đường găng.
+ * (V145: đường găng tính bằng NGÀY — danh mục công đoạn lưu `lead_time_days`, không quy đổi giờ.)
  */
 export function latestStartDate(
   dueDate: Date,
-  totalLeadHours: number,
-  config: Pick<ProductionConfig, "shiftsPerDay" | "hoursPerShift" | "deliveryBufferDays">,
+  totalLeadDays: number,
+  config: Pick<ProductionConfig, "deliveryBufferDays">,
   calendar: WorkingCalendar,
 ): Date {
   const workshopDue = subtractWorkingDays(dueDate, config.deliveryBufferDays, calendar);
-  const leadDays = hoursToWorkingDays(totalLeadHours, config);
+  const leadDays = Math.max(0, Math.round(Number(totalLeadDays) || 0));
   return subtractWorkingDays(workshopDue, leadDays, calendar);
 }
 

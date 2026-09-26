@@ -55,7 +55,7 @@ export default async function ProductionConfigPage() {
           scopeParts: row.scopeParts,
           workCenterCode: row.workCenterCode,
           seq: row.seq,
-          leadTimeHours: row.leadTimeHours,
+          leadTimeDays: row.leadTimeDays,
           setupMinutes: row.setupMinutes,
           capacityPerDay: row.capacityPerDay,
           batchKey: row.batchKey,

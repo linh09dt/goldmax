@@ -39,7 +39,7 @@ export type StageRow = {
   scopeParts: string | null;
   workCenterCode: string | null;
   seq: number;
-  leadTimeHours: number | null;
+  leadTimeDays: number | null;
   setupMinutes: number | null;
   capacityPerDay: number | null;
   batchKey: string | null;
@@ -308,7 +308,7 @@ const STAGE_FIELDS: FieldSpec[] = [
   { key: "scopeMode", label: "Phạm vi", type: "select", options: SCOPE_MODE_OPTIONS, width: "120px" },
   { key: "scopeParts", label: "Bộ phận", placeholder: "KHUNG,CANH,PHAO", width: "140px" },
   { key: "workCenterCode", label: "Tổ", width: "100px" },
-  { key: "leadTimeHours", label: "Giờ", type: "number", width: "65px" },
+  { key: "leadTimeDays", label: "Số ngày", type: "number", width: "70px" },
   { key: "capacityPerDay", label: "Năng lực/ngày", type: "number", width: "105px" },
   { key: "capacityUnit", label: "ĐV", width: "60px" },
   { key: "setupMinutes", label: "Setup (phút)", type: "number", width: "90px" },
@@ -355,7 +355,7 @@ function GeneralConfig({ config }: { config: ProductionConfig }) {
     shiftsPerDay: String(config.shiftsPerDay),
     hoursPerShift: String(config.hoursPerShift),
     deliveryBufferDays: String(config.deliveryBufferDays),
-    overlapHoursPerStep: String(config.overlapHoursPerStep),
+    overlapDaysPerStep: String(config.overlapDaysPerStep),
     dailyWarnCanh: String(config.dailyWarnCanh),
     dailyMaxCanh: String(config.dailyMaxCanh),
     entryOrderTypes: config.entryOrderTypes,
@@ -387,7 +387,7 @@ function GeneralConfig({ config }: { config: ProductionConfig }) {
             shiftsPerDay: Number(draft.shiftsPerDay),
             hoursPerShift: Number(draft.hoursPerShift),
             deliveryBufferDays: Number(draft.deliveryBufferDays),
-            overlapHoursPerStep: Number(draft.overlapHoursPerStep),
+            overlapDaysPerStep: Number(draft.overlapDaysPerStep),
             dailyWarnCanh: Number(draft.dailyWarnCanh),
             dailyMaxCanh: Number(draft.dailyMaxCanh),
             entryOrderTypes: draft.entryOrderTypes,
@@ -463,9 +463,9 @@ function GeneralConfig({ config }: { config: ProductionConfig }) {
           <p className="erp-hint mt-1">Hạn giao là ngày giao TỚI KHÁCH (B6/GH2) → xưởng phải xong sớm hơn.</p>
         </label>
         <label className="block">
-          <span className="erp-field-label">Gối công đoạn (giờ/bước)</span>
-          <input className="erp-input" type="number" value={draft.overlapHoursPerStep} onChange={(e) => setDraft((c) => ({ ...c, overlapHoursPerStep: e.target.value }))} />
-          <p className="erp-hint mt-1">C6: xưởng gối 1 ngày → đặt 24. Để 0 = cộng dồn (an toàn hơn).</p>
+          <span className="erp-field-label">Gối công đoạn (ngày/bước)</span>
+          <input className="erp-input" type="number" value={draft.overlapDaysPerStep} onChange={(e) => setDraft((c) => ({ ...c, overlapDaysPerStep: e.target.value }))} />
+          <p className="erp-hint mt-1">C6: xưởng gối 1 ngày → đặt 1. Để 0 = cộng dồn (an toàn hơn).</p>
         </label>
         <label className="block">
           <span className="erp-field-label">Sơn: lô màu tối thiểu (cánh)</span>

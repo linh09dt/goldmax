@@ -112,10 +112,10 @@ export function buildTaskDrafts({ set, stages, config, modelHasProgram = false }
 }
 
 /**
- * Tổng thời lượng đường găng của một bộ (giờ) theo danh sách công đoạn áp dụng.
- * `overlapHoursPerStep` = gối công đoạn (C6 nói xưởng gối 1 ngày → đặt 24).
+ * Tổng SỐ NGÀY của đường găng một bộ theo danh sách công đoạn áp dụng (V145: tính bằng ngày).
+ * `overlapDaysPerStep` = gối công đoạn (C6: xưởng gối 1 ngày → đặt 1).
  */
-export function totalLeadTimeHours(
+export function totalLeadTimeDays(
   drafts: Array<Pick<TaskDraft, "stageCode" | "seq" | "status">>,
   stages: ProductionStageRow[],
   config: ProductionConfig,
@@ -130,10 +130,10 @@ export function totalLeadTimeHours(
     seen.add(draft.seq);
     const stage = byCode.get(draft.stageCode);
     if (!stage) continue;
-    durations.push(Math.max(0, Number(stage.leadTimeHours) || 0));
+    durations.push(Math.max(0, Number(stage.leadTimeDays) || 0));
   }
   const total = durations.reduce((sum, value) => sum + value, 0);
-  const overlap = Math.max(0, Number(config.overlapHoursPerStep) || 0);
+  const overlap = Math.max(0, Number(config.overlapDaysPerStep) || 0);
   const overlapTotal = overlap * Math.max(0, durations.length - 1);
   return Math.max(0, total - overlapTotal);
 }

@@ -185,24 +185,19 @@ export default async function ProductionReportPage() {
               <thead>
                 <tr>
                   <th>Công đoạn</th>
-                  <th className="text-right">Định mức (giờ)</th>
+                  <th className="text-right">Định mức (ngày)</th>
                   <th className="text-right">Thực tế TB (giờ)</th>
-                  <th className="text-right">Chênh</th>
                   <th className="text-right">Lượt xong</th>
                   <th className="text-right">Làm lại</th>
                 </tr>
               </thead>
               <tbody>
                 {report.byStage.map((row) => {
-                  const diff = row.quotedHours !== null && row.avgActualHours !== null ? row.avgActualHours - row.quotedHours : null;
                   return (
                     <tr key={row.code}>
                       <td className="erp-td-strong">{row.name}</td>
-                      <td className="erp-td-num">{row.quotedHours ?? "—"}</td>
+                      <td className="erp-td-num">{row.quotedDays ?? "—"}</td>
                       <td className="erp-td-num">{row.avgActualHours === null ? "—" : row.avgActualHours.toFixed(1)}</td>
-                      <td className={`erp-td-num ${diff === null ? "" : diff > 0 ? "text-red-700" : "text-emerald-700"}`}>
-                        {diff === null ? "—" : `${diff > 0 ? "+" : ""}${diff.toFixed(1)}`}
-                      </td>
                       <td className="erp-td-num">{formatNumber(row.completedTasks)}</td>
                       <td className={`erp-td-num ${row.reworkTasks ? "text-red-700" : ""}`}>{formatNumber(row.reworkTasks)}</td>
                     </tr>

@@ -435,8 +435,9 @@ model ProductionStage {
   scopeParts          String?  @map("scope_parts") @db.VarChar(60)
   workCenterCode      String?  @map("work_center_code") @db.VarChar(40)
   seq                 Int      @default(0)
-  /// Thời lượng chuẩn (giờ). 24 giờ = 1 ngày làm việc.
-  leadTimeHours       Float?   @map("lead_time_hours")
+  /// Số NGÀY làm việc của công đoạn (KHÔNG phải giờ). 0 = không chiếm ngày.
+  /// Công đoạn ở bước `seq` bắt đầu ngày X thì bước sau bắt đầu ngày X + số ngày này.
+  leadTimeDays        Float?   @map("lead_time_days")
   /// Setup/đổi (phút): chấn đổi khuôn 5', sơn đổi màu 120'.
   setupMinutes        Int?     @map("setup_minutes")
   capacityPerDay      Float?   @map("capacity_per_day")
