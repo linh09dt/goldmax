@@ -1822,7 +1822,10 @@ function ImageCell({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [aspect, setAspect] = useState(5 / 3);
+  const [focused, setFocused] = useState(false);
   const cellRef = useRef<HTMLDivElement>(null);
+  // V132.1: giữ bản mới nhất của handleImage để listener dán ở window không bị "closure cũ".
+  const handleImageRef = useRef<(file: File, source: "file" | "paste") => Promise<void>>(async () => {});
 
   const safeAspect = Number.isFinite(aspect) && aspect > 0.05 ? aspect : 5 / 3;
   const manualWidth = clampImageSize(width);
@@ -1905,6 +1908,28 @@ function ImageCell({
     }
   }
 
+  // V132.1: đồng bộ bản mới nhất của handleImage vào ref (không ghi ref khi render để hợp lint React).
+  useEffect(() => {
+    handleImageRef.current = handleImage;
+  });
+
+  // V132.1: khi ô ảnh đang được chọn, bắt sự kiện dán ở cấp window — Ctrl+V luôn ăn, kể cả khi
+  // trình duyệt không phát sự kiện paste cho thẻ div (không editable) như trước.
+  useEffect(() => {
+    if (!focused) return;
+    function onWindowPaste(event: ClipboardEvent) {
+      const items = event.clipboardData?.items;
+      if (!items) return;
+      const imageItem = Array.from(items).find((item) => item.kind === "file" && item.type.startsWith("image/"));
+      const file = imageItem?.getAsFile();
+      if (!file) return;
+      event.preventDefault();
+      void handleImageRef.current(file, "paste");
+    }
+    window.addEventListener("paste", onWindowPaste);
+    return () => window.removeEventListener("paste", onWindowPaste);
+  }, [focused]);
+
   /** V131.1: nút "Dán ảnh" — đọc ảnh ngay từ clipboard, không cần click vào ô rồi Ctrl+V. */
   async function pasteFromClipboard() {
     if (busy) return;
@@ -1939,19 +1964,8 @@ function ImageCell({
       title="Bấm vào ô rồi nhấn Ctrl+V để dán ảnh, hoặc dùng nút Dán ảnh / Tải ảnh bên dưới."
       aria-label="Hình ảnh sản phẩm. Bấm vào ô rồi nhấn Ctrl+V để dán ảnh, hoặc dùng nút bên dưới."
       onClick={() => cellRef.current?.focus()}
-      onPaste={(event) => {
-        if (busy) return;
-        const imageItem = Array.from(event.clipboardData.items).find(
-          (item) => item.kind === "file" && item.type.startsWith("image/"),
-        );
-        const file = imageItem?.getAsFile();
-        if (!file) {
-          setError("Clipboard không có ảnh để dán.");
-          return;
-        }
-        event.preventDefault();
-        void handleImage(file, "paste");
-      }}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
     >
       {path ? (
         <div className="relative" style={{ width: shownWidth, height: shownHeight, maxWidth: "100%" }}>
@@ -1967,9 +1981,7 @@ function ImageCell({
           />
           {canResize ? (
             <span
-              role="slider"
               aria-label="Kéo để đổi kích thước ảnh"
-              tabIndex={-1}
               title="Kéo để đổi kích thước ảnh"
               onPointerDown={startResize}
               className="absolute -bottom-1.5 -right-1.5 h-3.5 w-3.5 cursor-nwse-resize rounded-sm border border-white bg-cyan-600 shadow"
@@ -1977,8 +1989,14 @@ function ImageCell({
           ) : null}
         </div>
       ) : (
-        <span className="flex items-center justify-center rounded border border-dashed border-slate-300 text-slate-400" style={{ width: IMAGE_SIZE_DEFAULT_PX, height: Math.round(IMAGE_SIZE_DEFAULT_PX / safeAspect) }}>
-          ảnh
+        <span
+          className={`flex w-full flex-col items-center justify-center gap-0.5 rounded border border-dashed px-1 text-center leading-tight ${
+            focused ? "border-cyan-500 bg-cyan-50 text-cyan-700" : "border-slate-300 text-slate-400"
+          }`}
+          style={{ minHeight: compact ? 46 : 78 }}
+        >
+          <span className="text-[10px] font-semibold">{focused ? "Nhấn Ctrl+V để dán ảnh" : "Bấm vào đây để dán ảnh"}</span>
+          <span className="text-[9px]">Ctrl+V hoặc nút Dán ảnh / Tải ảnh bên dưới</span>
         </span>
       )}
 
@@ -2035,11 +2053,9 @@ function ImageCell({
 
       {/* V131.1: các nút nằm NGOÀI ô ảnh — bấm thoải mái, không mở link ảnh, không cản việc dán. */}
       <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
-        {path ? (
-          <button type="button" className={smallButtonClass} disabled={busy} onClick={() => void pasteFromClipboard()}>
-            Dán ảnh
-          </button>
-        ) : null}
+        <button type="button" className={smallButtonClass} disabled={busy} onClick={() => void pasteFromClipboard()}>
+          Dán ảnh
+        </button>
         <label className={`break-words text-[9.5px] font-medium text-cyan-700 hover:underline ${busy ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}>
           {path ? "Đổi ảnh" : "Tải ảnh"}
           <input
@@ -2070,7 +2086,6 @@ function ImageCell({
       </div>
 
       {busy ? <span className="font-semibold text-cyan-800">Đang tải...</span> : null}
-      {!busy && !path ? <span className="font-semibold text-cyan-800">Ctrl+V để dán</span> : null}
       {manual ? (
         <span className="text-[9.5px] text-slate-500">Xuất file theo {manualWidth} x {manualHeight} px</span>
       ) : (
