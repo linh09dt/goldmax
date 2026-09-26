@@ -1,14 +1,31 @@
 import Link from "next/link";
 import { ErpShell } from "@/components/erp-shell";
+import { GUIDE_STEPS } from "@/lib/guide-steps";
 
 const primaryButton = "inline-flex items-center justify-center rounded-lg bg-cyan-600 px-3 py-2 text-sm font-semibold text-white hover:bg-cyan-500";
 const secondaryButton = "inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50";
+
+const TOC_ITEMS: Array<{ id: string; label: string }> = [
+  { id: "quy-trinh", label: "Quy trình sử dụng nhanh" },
+  { id: "tung-buoc", label: "Hướng dẫn từng bước (có ảnh)" },
+  { id: "quy-tac", label: "Quy tắc nghiệp vụ" },
+  { id: "gioi-han", label: "Giới hạn hiện tại" },
+  { id: "ban-giao", label: "Bàn giao kỹ thuật" },
+];
 
 export default function GuidePage() {
   return (
     <ErpShell title="Hướng dẫn sử dụng">
       <div className="space-y-6">
-        <section className="erp-card p-5">
+        <nav className="erp-card p-4">
+          <div className="text-sm font-bold text-slate-900">Mục lục</div>
+          <div className="mt-2 flex flex-wrap gap-2 text-[12.5px]">
+            {TOC_ITEMS.map((item) => (
+              <a key={item.id} className={secondaryButton} href={`#${item.id}`}>{item.label}</a>
+            ))}
+          </div>
+        </nav>
+        <section id="quy-trinh" className="erp-card p-5">
           <h2 className="text-lg font-bold text-slate-950">Quy trình sử dụng nhanh</h2>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <Step no="1" title="Cấu hình dữ liệu" text="Vào tab Cấu hình: kiểm tra Danh mục hàng hóa, danh mục chọn và rule tính KH/Lượng." href="/settings" />
@@ -17,6 +34,50 @@ export default function GuidePage() {
             <Step no="4" title="Quản lý đơn" text="Tra cứu, sửa, xuất PDF hoặc xóa đơn." href="/orders" />
             <Step no="5" title="Theo dõi doanh thu" text="Lọc doanh thu theo thời gian, đại lý và khách hàng." href="/revenue" />
           </div>
+        </section>
+
+
+        <section id="tung-buoc" className="space-y-4">
+          <div className="erp-card p-5">
+            <h2 className="text-lg font-bold text-slate-950">Hướng dẫn từng bước (ảnh chụp thật, có chú thích)</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Mỗi ảnh chụp từ chính hệ thống này. <b>Số tròn màu cam</b> trên ảnh được giải thích ở danh sách bên cạnh.
+              Bấm ảnh để mở kích thước đầy đủ (hoặc tải bản PDF ở cuối trang).
+            </p>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {GUIDE_STEPS.map((step, index) => (
+                <a key={step.code} className="rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[12px] font-semibold text-slate-700 hover:bg-slate-50" href={`#buoc-${index + 1}`}>
+                  {index + 1}. {step.title.split(" — ")[0]}
+                </a>
+              ))}
+            </div>
+          </div>
+          {GUIDE_STEPS.map((step, index) => (
+            <section key={step.code} id={`buoc-${index + 1}`} className="erp-card overflow-hidden">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-5 py-3">
+                <h3 className="text-[15px] font-bold text-slate-950">{step.code} — {step.title}</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  <a className={secondaryButton} href={step.image} target="_blank" rel="noreferrer">Xem ảnh lớn</a>
+                  <Link className={primaryButton} href={step.href}>Mở màn hình</Link>
+                </div>
+              </div>
+              <div className="grid gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+                <a href={step.image} target="_blank" rel="noreferrer" title="Bấm để xem ảnh lớn">
+                  {/* ảnh chụp tĩnh đã tối ưu sẵn; dùng thẻ img để không cần cấu hình next/image */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={step.image} alt={`${step.code} — ${step.title}`} loading="lazy" className="w-full rounded-lg border border-slate-300" />
+                </a>
+                <ol className="space-y-2 text-[13px] leading-relaxed text-slate-700">
+                  {step.points.map((point, pointIndex) => (
+                    <li key={point} className="flex gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#ce4404] text-[11px] font-bold text-white">{pointIndex + 1}</span>
+                      <span>{point}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </section>
+          ))}
         </section>
 
         <GuideSection title="1. Tổng quan" href="/" linkLabel="Mở Tổng quan">
@@ -188,6 +249,100 @@ export default function GuidePage() {
           ]} />
         </GuideSection>
 
+
+        <section id="quy-tac" className="erp-card p-5">
+          <h2 className="text-lg font-bold text-slate-950">Quy tắc nghiệp vụ cần nhớ</h2>
+          <div className="mt-3">
+            <ActionTable rows={[
+              ["Doanh thu", "Chỉ tính đơn có Loại đơn = Sản xuất VÀ Trạng thái = Đã xác nhận. Đơn Mẫu / Làm lại / Nháp không vào doanh thu."],
+              ["Loại đơn", "Đơn hàng mẫu · Sản xuất · Đơn làm lại."],
+              ["Trạng thái", "Đơn nháp → Đã xác nhận."],
+              ["Bộ số", "Chỉ hiện khi đơn đã xác nhận; số bắt đầu cấu hình ở B1."],
+              ["Cách tính tiền", "Số KH/Lượng × Đơn giá. Dòng không có KH/Lượng vẫn hiện đầy đủ nhưng thành tiền = 0."],
+              ["Dòng hiện trong đơn & file xuất", "Dòng có dữ liệu thật (mã hàng, kích thước, số lượng, giá, ghi chú, ảnh…). Dòng mẫu rỗng (0 / - / —) tự ẩn; Bộ số tự sinh không tính là dữ liệu."],
+              ["Giá & ĐVT", "Lấy từ Danh mục hàng hóa (A1) khi chọn Model — nên khai giá trong danh mục trước khi lập đơn."],
+              ["Phân loại hàng hóa", "Là dữ liệu, quản lý ở Cấu hình A3. Quyết định hàng nào vào ô Nhóm cửa / Nhóm hàng / nhóm riêng."],
+              ["Ảnh sản phẩm", "Nhiều ảnh cho mỗi bộ cửa (tối đa 6); cỡ ảnh theo px (24–800), để trống = mặc định 56 px; Excel/PDF/in xuất đúng cỡ."],
+              ["Đơn vị tiền", "VNĐ, có phân cách nghìn."],
+            ]} />
+          </div>
+        </section>
+
+        <section id="gioi-han" className="erp-card p-5">
+          <h2 className="text-lg font-bold text-slate-950">Những gì chưa có (giới hạn hiện tại)</h2>
+          <ul className="mt-3 grid gap-2 text-sm text-slate-700 md:grid-cols-2">
+            <li className="rounded-lg border border-slate-200 bg-slate-50 p-3"><b>Giá vốn &amp; lợi nhuận:</b> chưa có cột giá vốn nên chưa có báo cáo lãi gộp.</li>
+            <li className="rounded-lg border border-slate-200 bg-slate-50 p-3"><b>Công nợ / phiếu thu:</b> đã có “còn phải thu” theo đơn, chưa có phiếu thu và đối chiếu công nợ.</li>
+            <li className="rounded-lg border border-slate-200 bg-slate-50 p-3"><b>Phân quyền &amp; nhật ký thao tác:</b> chưa có đăng nhập/phân quyền trong app.</li>
+            <li className="rounded-lg border border-slate-200 bg-slate-50 p-3"><b>Giao hàng / vận đơn, thông báo realtime, Báo giá – Thanh toán:</b> chưa xây.</li>
+            <li className="rounded-lg border border-slate-200 bg-slate-50 p-3"><b>Tải sản xuất:</b> mới ở mức báo cáo theo KH/Lượng, chưa có lệnh sản xuất/tiến độ công đoạn.</li>
+          </ul>
+        </section>
+
+        <section id="ban-giao" className="erp-card p-5">
+          <h2 className="text-lg font-bold text-slate-950">Bàn giao kỹ thuật</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Bản đầy đủ (kèm 15 ảnh chú thích) có thể tải về để in/gửi nội bộ:
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <a className={primaryButton} href="/huong-dan/huong-dan-su-dung-goldmax.pdf" download>Tải hướng dẫn (PDF)</a>
+            <a className={secondaryButton} href="/huong-dan/huong-dan-su-dung-goldmax.pdf" target="_blank" rel="noreferrer">Mở PDF trên tab mới</a>
+          </div>
+          <div className="mt-4 space-y-3">
+            <details className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <summary className="cursor-pointer font-bold text-slate-900">Công nghệ &amp; bảng dữ liệu</summary>
+              <div className="mt-3 text-sm text-slate-700">
+                <p>Giao diện + API: <b>Next.js 16</b> (App Router) + <b>React 19</b> + TypeScript. Dữ liệu: <b>PostgreSQL</b> (Supabase) qua <b>Prisma 7</b>. Excel: <i>exceljs</i>. PDF V2: hàm Python <i>api/order_pdf_v2.py</i> + ReportLab. Ảnh: Supabase Storage (fallback thư mục <i>uploads/orders</i> khi chạy nội bộ).</p>
+                <p className="mt-2">16 bảng: <i>sales_orders, sales_order_items, sales_order_item_details, sales_order_item_images, sales_order_requirements, order_imports, item_masters, item_categories, item_master_imports, item_attribute_imports, master_options, shipping_rates, shipping_model_mappings, shipping_calculations, system_settings, survey_answers</i>.</p>
+              </div>
+            </details>
+            <details className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <summary className="cursor-pointer font-bold text-slate-900">Quy trình deploy (migration TRƯỚC — code SAU)</summary>
+              <ol className="mt-3 space-y-2 text-sm text-slate-700">
+                <li className="rounded-lg border border-slate-200 bg-white p-2.5"><b>1.</b> Chạy migration: <code>npx prisma migrate deploy</code> — hoặc mở Supabase → SQL Editor → dán nội dung file trong <code>prisma/migrations/&lt;tên&gt;/migration.sql</code>.</li>
+                <li className="rounded-lg border border-slate-200 bg-white p-2.5"><b>2.</b> Deploy code bản mới lên Vercel.</li>
+                <li className="rounded-lg border border-slate-200 bg-white p-2.5"><b>3.</b> Chạy checklist kiểm tra sau deploy (xem mục dưới).</li>
+              </ol>
+              <div className="mt-3">
+                <ActionTable rows={[
+                  ["20260926120000_report_indexes", "Index phục vụ báo cáo/dashboard."],
+                  ["20260926180000_image_size", "Cột image_width / image_height (cỡ ảnh chỉnh tay)."],
+                  ["20260926200000_item_images", "Bảng sales_order_item_images (nhiều ảnh/bộ cửa) + chuyển ảnh cũ thành ảnh số 1."],
+                  ["20260926210000_item_category", "Cột item_masters.category + tự phân loại dữ liệu cũ."],
+                  ["20260926220000_item_categories", "Bảng item_categories (phân loại tự cấu hình) + nạp 3 phân loại đang dùng."],
+                ]} />
+              </div>
+            </details>
+            <details className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <summary className="cursor-pointer font-bold text-slate-900">Biến môi trường &amp; checklist sau deploy</summary>
+              <div className="mt-3 text-sm text-slate-700">
+                <p><b>Biến môi trường:</b> <code>DATABASE_URL</code>, <code>DIRECT_URL</code>, <code>SUPABASE_URL</code>, <code>SUPABASE_SECRET_KEY</code> / <code>SUPABASE_SERVICE_ROLE_KEY</code>, <code>SUPABASE_ORDER_IMAGE_BUCKET</code>, <code>NEXT_PUBLIC_SUPABASE_URL</code>.</p>
+                <ol className="mt-2 space-y-1">
+                  <li>1. Mở <b>Tổng quan</b> — số liệu hiện, không lỗi.</li>
+                  <li>2. Mở <b>Quản lý đơn hàng</b> — lọc và <b>Xuất Excel</b> ra file có dữ liệu.</li>
+                  <li>3. Mở <b>Cấu hình A1</b> — đủ khối phân loại, đổi ô Phân loại được.</li>
+                  <li>4. Mở <b>Cấu hình A3</b> — thêm/đổi tên phân loại thử rồi trả lại.</li>
+                  <li>5. Tạo 1 đơn thử (bộ cửa + phụ kiện + ảnh) → lưu → xuất Excel và PDF, kiểm tra ảnh.</li>
+                  <li>6. Mở <b>Doanh thu</b> — số liệu khớp đơn vừa xác nhận (nếu là đơn Sản xuất).</li>
+                </ol>
+              </div>
+            </details>
+            <details className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <summary className="cursor-pointer font-bold text-slate-900">Xử lý sự cố thường gặp</summary>
+              <div className="mt-3">
+                <ActionTable rows={[
+                  ["Vừa deploy code là lỗi cột/bảng không tồn tại", "Chưa chạy migration → chạy migration rồi tải lại."],
+                  ["Ô “Nhóm cửa” trống, không chọn được mã cửa", "Không còn phân loại nào ở nhóm “Dòng chính (bộ cửa)” → kiểm tra Cấu hình A3 và phân loại của hàng hóa ở A1."],
+                  ["Dòng phụ kiện hiện nhưng thành tiền = 0", "Dòng chưa có Số KH/Lượng → nhập KH/Lượng hoặc gán rule ở B1."],
+                  ["Dán ảnh mà ảnh không hiện", "Trình duyệt chặn clipboard → bấm vào ô ảnh rồi Ctrl+V, hoặc dùng nút Dán ảnh / Thêm ảnh."],
+                  ["Đơn không vào doanh thu", "Sai Loại đơn hoặc Trạng thái → đơn phải là Sản xuất + Đã xác nhận."],
+                  ["Xuất PDF báo lỗi", "Thử xuất PDF không kèm ảnh, hoặc giảm cỡ ảnh ở bước 6."],
+                ]} />
+              </div>
+            </details>
+          </div>
+        </section>
+
         <section className="erp-card p-5">
           <h2 className="text-lg font-bold text-slate-950">Lưu ý khi thao tác</h2>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
@@ -248,8 +403,9 @@ function ActionTable({ rows }: { rows: Array<[string, string]> }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200 bg-white">
-          {rows.map(([name, description]) => (
-            <tr key={name}>
+          {/* khoá theo chỉ số vì một số bảng có 2 dòng cùng nhãn (ví dụ “Bộ cửa chính”) */}
+          {rows.map(([name, description], index) => (
+            <tr key={`${name}-${index}`}>
               <td className="px-4 py-3 font-semibold text-slate-900">{name}</td>
               <td className="px-4 py-3 text-slate-600">{description}</td>
             </tr>
