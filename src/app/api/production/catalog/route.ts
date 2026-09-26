@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { normalizeProductionConfig, validateProductionConfig } from "@/lib/production/config";
 import {
+  loadPaintColors,
   loadReasons,
   loadStages,
   loadWorkCenters,
@@ -22,7 +23,7 @@ export const dynamic = "force-dynamic";
  * POST   /api/production/catalog            → { entity, ... } thêm/cập nhật 1 mục danh mục
  * DELETE /api/production/catalog?entity=&id=→ xoá 1 mục danh mục
  *
- * `entity`: workCenter | stage | reason | program | holiday
+ * `entity`: workCenter | stage | reason | program | paintColor | holiday
  */
 
 type Row = Record<string, unknown>;
@@ -56,16 +57,17 @@ function required(value: unknown, max: number, label: string): string {
 
 export async function GET() {
   try {
-    const [config, priority, workCenters, stages, reasons, programs, holidays] = await Promise.all([
+    const [config, priority, workCenters, stages, reasons, programs, paintColors, holidays] = await Promise.all([
       readProductionConfig(),
       readPriorityConfig(),
       loadWorkCenters(),
       loadStages(),
       loadReasons(),
       prisma.productionProgram.findMany({ orderBy: [{ model: "asc" }, { version: "desc" }] }),
+      loadPaintColors(),
       prisma.productionCalendar.findMany({ orderBy: { date: "asc" } }),
     ]);
-    return NextResponse.json({ ok: true, config, priority, workCenters, stages, reasons, programs, holidays });
+    return NextResponse.json({ ok: true, config, priority, workCenters, stages, reasons, programs, paintColors, holidays });
   } catch (error) {
     console.error("Load production catalog failed:", error);
     return NextResponse.json(
@@ -187,6 +189,29 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true, row });
       }
 
+      case "paintColor": {
+        const code = required(body.code, 40, "Mã màu").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        if (!code) throw new Error("Mã màu chỉ gồm chữ và số, vd GM01.");
+        const family = str(body.family, 40);
+        const data = {
+          code,
+          label: str(body.label, 80) ?? code,
+          colorName: str(body.colorName, 80),
+          family: family ? family.toUpperCase() : null,
+          specCode: str(body.specCode, 60),
+          tempC: int(body.tempC),
+          minutes: int(body.minutes),
+          needsVeneer: bool(body.needsVeneer, true),
+          sortOrder: int(body.sortOrder) ?? 0,
+          active: bool(body.active, true),
+          note: str(body.note, 2000),
+        };
+        const row = id
+          ? await prisma.productionPaintColor.update({ where: { id }, data })
+          : await prisma.productionPaintColor.create({ data });
+        return NextResponse.json({ ok: true, row });
+      }
+
       case "holiday": {
         const dateText = required(body.date, 10, "Ngày nghỉ");
         if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText)) throw new Error("Ngày nghỉ không hợp lệ (cần dạng YYYY-MM-DD).");
@@ -231,6 +256,9 @@ export async function DELETE(request: Request) {
         break;
       case "program":
         await prisma.productionProgram.delete({ where: { id } });
+        break;
+      case "paintColor":
+        await prisma.productionPaintColor.delete({ where: { id } });
         break;
       case "holiday":
         await prisma.productionCalendar.delete({ where: { id } });

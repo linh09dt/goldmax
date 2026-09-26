@@ -2,7 +2,14 @@ import Link from "next/link";
 import { ErpShell } from "@/components/erp-shell";
 import { ProductionConfigScreen } from "@/components/production/production-config";
 import { prisma } from "@/lib/prisma";
-import { loadReasons, loadStages, loadWorkCenters, readPriorityConfig, readProductionConfig } from "@/lib/production/service";
+import {
+  loadPaintColors,
+  loadReasons,
+  loadStages,
+  loadWorkCenters,
+  readPriorityConfig,
+  readProductionConfig,
+} from "@/lib/production/service";
 
 export const dynamic = "force-dynamic";
 
@@ -11,13 +18,14 @@ export const dynamic = "force-dynamic";
  * lý do, chương trình máy cắt, ngày nghỉ, và các con số điều khiển thuật toán xếp lịch.
  */
 export default async function ProductionConfigPage() {
-  const [config, priority, workCenters, stages, reasons, programs, holidays] = await Promise.all([
+  const [config, priority, workCenters, stages, reasons, programs, paintColors, holidays] = await Promise.all([
     readProductionConfig(),
     readPriorityConfig(),
     loadWorkCenters(),
     loadStages(),
     loadReasons(),
     prisma.productionProgram.findMany({ orderBy: [{ model: "asc" }, { version: "desc" }] }),
+    loadPaintColors(),
     prisma.productionCalendar.findMany({ orderBy: { date: "asc" } }),
   ]);
 
@@ -81,6 +89,20 @@ export default async function ProductionConfigPage() {
           durationMinutes: row.durationMinutes,
           reusable: row.reusable,
           note: row.note,
+        }))}
+        paintColors={paintColors.map((row) => ({
+          id: row.id ?? 0,
+          code: row.code,
+          label: row.label,
+          colorName: row.colorName,
+          family: row.family,
+          specCode: row.specCode,
+          tempC: row.tempC,
+          minutes: row.minutes,
+          needsVeneer: row.needsVeneer,
+          sortOrder: row.sortOrder ?? 0,
+          active: row.active,
+          note: row.note ?? null,
         }))}
         holidays={holidays.map((row) => ({
           id: row.id,

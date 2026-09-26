@@ -57,6 +57,20 @@ export type StageRow = {
 
 export type ReasonRow = { id: number; code: string; name: string; group: string; sortOrder: number; active: boolean };
 export type ProgramRow = { id: number; model: string; fileName: string | null; version: number; machine: string | null; madeBy: string | null; durationMinutes: number | null; reusable: boolean; note: string | null };
+export type PaintColorRowUi = {
+  id: number;
+  code: string;
+  label: string;
+  colorName: string | null;
+  family: string | null;
+  specCode: string | null;
+  tempC: number | null;
+  minutes: number | null;
+  needsVeneer: boolean;
+  sortOrder: number;
+  active: boolean;
+  note: string | null;
+};
 export type HolidayRow = { id: number; date: string; isWorkingDay: boolean; note: string | null };
 
 type FieldSpec = {
@@ -74,6 +88,7 @@ const TABS = [
   { key: "centers", label: "Tổ & năng lực" },
   { key: "stages", label: "Công đoạn" },
   { key: "priority", label: "Thứ tự ưu tiên" },
+  { key: "colors", label: "Màu sơn" },
   { key: "reasons", label: "Lý do" },
   { key: "programs", label: "Chương trình máy cắt" },
   { key: "holidays", label: "Ngày nghỉ" },
@@ -326,6 +341,28 @@ const STAGE_FIELDS: FieldSpec[] = [
   { key: "note", label: "Ghi chú", width: "340px" },
 ];
 
+/** V151 — nhóm chính để GOM LÔ SƠN. */
+const PAINT_FAMILY_OPTIONS = [
+  { value: "DO", label: "Đỏ" },
+  { value: "VANG", label: "Vàng" },
+  { value: "CAT_CHAY", label: "Cát chay" },
+  { value: "KHAC", label: "Khác" },
+];
+
+const PAINT_COLOR_FIELDS: FieldSpec[] = [
+  { key: "code", label: "Mã (chuẩn hoá)", width: "120px", placeholder: "GM01" },
+  { key: "label", label: "Mã xưởng gọi", width: "120px", placeholder: "GM-01" },
+  { key: "colorName", label: "Màu", width: "100px", placeholder: "Đỏ" },
+  { key: "family", label: "Nhóm chính (gom lô)", type: "select", options: PAINT_FAMILY_OPTIONS, width: "150px" },
+  { key: "specCode", label: "Mã màu / ký hiệu", width: "130px" },
+  { key: "tempC", label: "Nhiệt độ", type: "number", width: "90px" },
+  { key: "minutes", label: "Phút", type: "number", width: "70px" },
+  { key: "needsVeneer", label: "Có vân", type: "checkbox", width: "70px" },
+  { key: "sortOrder", label: "Thứ tự", type: "number", width: "70px" },
+  { key: "active", label: "Dùng", type: "checkbox", width: "60px" },
+  { key: "note", label: "Ghi chú", width: "300px" },
+];
+
 const REASON_FIELDS: FieldSpec[] = [
   { key: "code", label: "Mã", width: "150px" },
   { key: "name", label: "Tên lý do", width: "300px" },
@@ -576,6 +613,7 @@ export function ProductionConfigScreen({
   stages,
   reasons,
   programs,
+  paintColors,
   holidays,
 }: {
   config: ProductionConfig;
@@ -585,6 +623,8 @@ export function ProductionConfigScreen({
   stages: StageRow[];
   reasons: ReasonRow[];
   programs: ProgramRow[];
+  /** V151 — danh mục màu sơn + nhóm chính (gom lô). */
+  paintColors: PaintColorRowUi[];
   holidays: HolidayRow[];
 }) {
   const [tab, setTab] = useState<TabKey>("general");
@@ -641,6 +681,17 @@ export function ProductionConfigScreen({
           hint="Dùng ở ô “Lý do” khi tạm dừng và khi đánh dấu làm lại."
           rows={reasons as unknown as Array<Record<string, unknown>>}
           fields={REASON_FIELDS}
+        />
+      ) : null}
+
+      {tab === "colors" ? (
+        <CatalogTable
+          entity="paintColor"
+          title="Danh mục màu sơn & nhóm màu chính"
+          hint="Nhiều mã màu cùng NHÓM CHÍNH (Đỏ / Vàng / Cát chay) thì sơn chung một lô. Mã chưa rõ nhóm để trống — sẽ không gom chung với nhóm nào."
+          note="Hai màu KHÁC chế độ nung (nhiệt độ/thời gian) luôn tách lô riêng dù cùng nhóm. Bật chỉ tiêu gom nhóm “Nhóm màu chính” ở tab Thứ tự ưu tiên cho công đoạn Sơn để dùng."
+          rows={paintColors as unknown as Array<Record<string, unknown>>}
+          fields={PAINT_COLOR_FIELDS}
         />
       ) : null}
 

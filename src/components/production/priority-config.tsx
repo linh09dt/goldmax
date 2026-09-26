@@ -379,10 +379,10 @@ export function PriorityConfigEditor({ priority, stages }: { priority: PriorityC
         </div>
 
         <p className="erp-hint">
-          <strong>Chỉ tiêu GOM NHÓM</strong> (Mã đơn hàng · Màu sơn · Model) không cộng điểm. Nó giữ các bộ{" "}
+          <strong>Chỉ tiêu GOM NHÓM</strong> (Mã đơn hàng · Màu sơn · <strong>Nhóm màu chính</strong> · Model) không cộng điểm. Nó giữ các bộ{" "}
           <strong>cùng đơn / cùng màu / cùng model nằm gần nhau</strong>: sau khi sắp theo điểm, hệ thống luôn ưu tiên chọn tiếp một bộ cùng
           nhóm nếu điểm của nó không thấp hơn điểm cao nhất đang chờ quá <em>“mức gom”</em>. Để <strong>0</strong> = không gom; tăng lên
-          (vd 20–40) để siết nhóm. Ví dụ ở <strong>Sơn</strong>: bật <em>Màu sơn</em> để đỡ đổi màu lò; ở <strong>Chấn</strong>: bật{" "}
+          (vd 20–40) để siết nhóm. Ví dụ ở <strong>Sơn</strong>: bật <em>Nhóm màu chính</em> (Đỏ / Vàng / Cát chay — khai ở tab <strong>Màu sơn</strong>) để nhiều mã màu sơn chung lô, thay vì <em>Màu sơn</em> chính xác chỉ gom được 1 mã; ở <strong>Chấn</strong>: bật{" "}
           <em>Model</em> để đỡ đổi khuôn; bật <em>Mã đơn hàng</em> để đơn không bị xé lẻ.
         </p>
         <p className="erp-hint">

@@ -37,6 +37,8 @@ import {
   DEFAULT_PRIORITY_CONFIG,
   groupKeyOf,
   groupingOf,
+  makePaintGroupResolver,
+  type PaintColorRow,
   scoreSet,
   sortByPriorityScore,
   workshopDueOf,
@@ -208,6 +210,8 @@ export type StagePlanStats = {
   tasksKept: number;
   tasksSkipped: number;
   tasksOverflow: number;
+  /** V151 — số công đoạn được xếp theo chế độ GOM LÔ (batch). */
+  tasksBatched: number;
   firstDay: Date | null;
   lastDay: Date | null;
   workingDays: number;
@@ -250,6 +254,8 @@ export type BuildStagePlanOptions = {
   priority?: PriorityConfig;
   /** Cột thật của `sales_orders` theo `order_id` — cho các chỉ tiêu mức đơn. */
   orders?: Map<number, OrderFacts>;
+  /** V151 — danh mục màu sơn (`production_paint_colors`) để gom lô theo NHÓM MÀU CHÍNH. */
+  paintColors?: PaintColorRow[];
   /** Chỉ xếp các bộ này (mặc định: mọi bộ trong `sets`). */
   setIds?: number[];
 };
@@ -258,6 +264,18 @@ export type BuildStagePlanOptions = {
 export const PLANNABLE_SET_STATUSES = ["CHO_XEP_LICH", "DA_XEP_LICH", "DANG_SX"] as const;
 
 const MAX_GUARD = 5000;
+
+/**
+ * V151 — Công đoạn GOM LÔ (batch): chỉ áp dụng khi
+ *   • `batch_key` có khai (vd MAU_SON), VÀ
+ *   • `batch_min_qty` ≥ ngưỡng dưới đây (lô tối thiểu thật sự, vd 20 bộ), VÀ
+ *   • `changeover_max_per_day` ≥ 1 (trần số nhóm/ngày), VÀ
+ *   • có bật một chỉ tiêu GOM NHÓM đúng loại (nhóm màu / màu / model).
+ * Ngưỡng 10 để `CHAN_*` (batch_min_qty = 2, chỉ là giới hạn đổi khuôn) KHÔNG bị gom lô
+ * — gom lô ở Chấn sẽ làm trống năng lực vì có tới 36 model.
+ */
+const BATCH_MIN_LOT = 10;
+const BATCH_GROUP_CODES = new Set(["NHOM_MAU", "MAU_SON", "MODEL"]);
 
 /**
  * Xếp kế hoạch tiến (forward) cho TỪNG CÔNG ĐOẠN theo năng lực, thứ tự theo ƯU TIÊN của
@@ -306,10 +324,12 @@ export function buildStagePlan(options: BuildStagePlanOptions): StagePlanResult 
   const warnings: StagePlanWarning[] = [];
   const warnedCapacity = new Set<string>();
   const entries: StagePlanTaskEntry[] = [];
+  let tasksBatched = 0;
 
   const loadKey = (stageCode: string, day: Date) => `${stageCode}|${dateKeyUtc(day)}`;
   const usedIn = (stageCode: string, day: Date) => used.get(loadKey(stageCode, day)) ?? 0;
 
+  const paintGroupOf = makePaintGroupResolver(options.paintColors ?? []);
   const scoreContextBase = {
     today,
     calendar,
@@ -411,6 +431,63 @@ export function buildStagePlan(options: BuildStagePlanOptions): StagePlanResult 
     }
     if (!work.length) continue;
 
+    // V151 — công đoạn này có đủ điều kiện chạy chế độ GOM LÔ không?
+    const useBatch =
+      Boolean(stage.batchKey) &&
+      Number(stage.batchMinQty) >= BATCH_MIN_LOT &&
+      Number(stage.changeoverMaxPerDay) >= 1 &&
+      Boolean(grouping) &&
+      BATCH_GROUP_CODES.has(grouping!.code);
+
+    if (useBatch && grouping) {
+      tasksBatched += placeBatchStage({
+        stage,
+        grouping,
+        work,
+        capacity: capacityOfStage(
+          { capacityPerDay: stage.capacityPerDay, workCenterCode: stage.workCenterCode ?? null },
+          options.workCenters,
+        ),
+        calendar,
+        from,
+        to,
+        overlap,
+        tasksBySet,
+        placed,
+        register: (stageCode, day, amount, setId) => {
+          const cellKey = loadKey(stageCode, day);
+          used.set(cellKey, usedIn(stageCode, day) + amount);
+          const bucket = setsInCell.get(cellKey) ?? new Set<number>();
+          bucket.add(setId);
+          setsInCell.set(cellKey, bucket);
+        },
+        paintGroupOf,
+        onPlaced: (set, task, score, start, end) => {
+          placed.set(task.id, { start, end });
+          setFirstDay.set(set.id, minDefined(setFirstDay.get(set.id), start) ?? start);
+          setLastDay.set(set.id, maxDefined(setLastDay.get(set.id), end) ?? end);
+          tasksPlannedBySet.set(set.id, (tasksPlannedBySet.get(set.id) ?? 0) + 1);
+          if (!rankOf.has(set.id)) {
+            rankCounter += 1;
+            rankOf.set(set.id, rankCounter);
+          }
+          if (!firstStageOf.has(set.id)) {
+            firstStageOf.set(set.id, { code: stage.code, score, rank: rankOf.get(set.id) ?? 0 });
+          }
+        },
+        onOverflow: (set, task) => {
+          warnings.push({
+            kind: "TRAN_KHOANG_KE_HOACH",
+            stageCode: task.stageCode,
+            setId: set.id,
+            message: `Bộ ${set.setNo ?? set.id} — công đoạn ${stage.name} không xếp hết trước ${dateKeyUtc(to)}; hãy mở rộng khoảng kế hoạch hoặc bổ sung năng lực.`,
+          });
+        },
+        pushEntry: (entry) => entries.push(entry),
+      });
+      continue;
+    }
+
     const byScore = sortByPriorityScore(
       work,
       (item) => item.score,
@@ -419,7 +496,7 @@ export function buildStagePlan(options: BuildStagePlanOptions): StagePlanResult 
     // V149.1 — gom nhóm (mã đơn hàng / màu sơn / model) sau khi đã sắp theo điểm.
     const ordered = grouping
       ? applyGrouping(byScore, grouping, {
-          keyOf: (item) => groupKeyOf(grouping.code, item.set),
+          keyOf: (item) => groupKeyOf(grouping.code, item.set, { paintGroupOf }),
           scoreOf: (item) => item.score,
         })
       : byScore;
@@ -598,6 +675,7 @@ export function buildStagePlan(options: BuildStagePlanOptions): StagePlanResult 
     tasksKept: entries.filter((entry) => entry.state === "GIU_NGUYEN").length,
     tasksSkipped: entries.filter((entry) => entry.state === "BO_QUA").length,
     tasksOverflow: entries.filter((entry) => entry.state === "TRAN").length,
+    tasksBatched,
     firstDay,
     lastDay,
     workingDays: firstDay && lastDay ? countWorkingDays(firstDay, lastDay, calendar) : 0,
@@ -654,6 +732,174 @@ export function readyDayFor(args: ReadyArgs): Date {
   const candidate = args.overlap > 0 ? subtractWorkingDays(next, args.overlap, args.calendar) : next;
   const floor = maxDate(base, prevStart);
   return snapToWorkingDay(candidate.getTime() < floor.getTime() ? floor : candidate, args.calendar);
+}
+
+// ---------------------------------------------------------------------------
+// 5b) GOM LÔ (V151) — dùng cho công đoạn có `batch_key` (vd Sơn theo nhóm màu)
+//
+// Vì sao cần: ở Sơn, mỗi bộ vào ngày nó "sẵn sàng" (xong Test cơ khí) và năng lực
+// 44 bộ/ngày không bao giờ đầy (~22 bộ/ngày) ⇒ **đổi thứ tự không đổi được ngày**,
+// nên gom nhóm theo thứ tự KHÔNG giảm được số lượt đổi màu. Muốn giảm phải GIỮ BỘ LẠI
+// để gom thành lô: mỗi ngày chỉ chạy tối đa `changeover_max_per_day` nhóm.
+//
+// Thuật toán: mô phỏng theo TỪNG NGÀY
+//   • Mỗi ngày lấy các bộ đã tới ngày sẵn sàng, nhóm theo khoá nhóm (nhóm màu…).
+//   • Ưu tiên nhóm đã đủ lô (`batch_min_qty`), rồi tới nhóm có điểm ưu tiên cao nhất.
+//   • Chạy tối đa `changeover_max_per_day` nhóm/ngày, trong phạm vi năng lực ngày.
+//   • Bộ chưa tới lượt vẫn nằm nguyên trong nhóm ⇒ hôm sau chạy tiếp CÙNG nhóm (không tính là đổi mới).
+// ---------------------------------------------------------------------------
+
+type BatchWorkItem = {
+  set: ProductionSetRow;
+  task: ProductionTaskRow;
+  score: number;
+};
+
+function placeBatchStage(args: {
+  stage: ProductionStageRow;
+  grouping: { code: string };
+  work: BatchWorkItem[];
+  capacity: CapacityInfo;
+  calendar: WorkingCalendar;
+  from: Date;
+  to: Date;
+  overlap: number;
+  tasksBySet: Map<number, ProductionTaskRow[]>;
+  placed: Map<number, { start: Date | null; end: Date | null }>;
+  paintGroupOf: (paintColor: string | null) => string | null;
+  register: (stageCode: string, day: Date, amount: number, setId: number) => void;
+  onPlaced: (set: ProductionSetRow, task: ProductionTaskRow, score: number, start: Date, end: Date) => void;
+  onOverflow: (set: ProductionSetRow, task: ProductionTaskRow) => void;
+  pushEntry: (entry: StagePlanTaskEntry) => void;
+}): number {
+  const { stage, calendar, to } = args;
+  const maxGroupsPerDay = Math.max(1, Math.trunc(Number(stage.changeoverMaxPerDay) || 2));
+  const minLot = Math.max(0, Math.trunc(Number(stage.batchMinQty) || 0));
+  const cap = args.capacity.value;
+  const unit = loadUnitOfStage(stage);
+
+  const items = args.work.map((item) => ({
+    ...item,
+    ready: readyDayFor({
+      set: item.set,
+      task: item.task,
+      stage,
+      placed: args.placed,
+      calendar,
+      from: args.from,
+      overlap: args.overlap,
+      tasksBySet: args.tasksBySet,
+    }),
+    demand: demandOfTask(item.set, stage),
+    groupKey: groupKeyOf(args.grouping.code as never, item.set, { paintGroupOf: args.paintGroupOf }),
+  }));
+
+  const byId = new Map(items.map((item) => [item.task.id, item]));
+  const remaining = new Set(items.map((item) => item.task.id));
+  const byReady = items.reduce((min, item) => (item.ready.getTime() < min.getTime() ? item.ready : min), items[0].ready);
+  let day = snapToWorkingDay(maxDate(args.from, byReady), calendar);
+  let guard = 0;
+  let placedCount = 0;
+  let stageRank = 0;
+
+  while (remaining.size > 0 && day.getTime() <= to.getTime() && guard < MAX_GUARD) {
+    const available = Array.from(remaining)
+      .map((id) => byId.get(id)!)
+      .filter((item) => item.ready.getTime() <= day.getTime());
+
+    if (!available.length) {
+      day = addWorkingDays(day, 1, calendar);
+      guard += 1;
+      continue;
+    }
+
+    const groups = new Map<string, typeof available>();
+    for (const item of available) {
+      const list = groups.get(item.groupKey);
+      if (list) list.push(item);
+      else groups.set(item.groupKey, [item]);
+    }
+    const ranked = Array.from(groups.entries()).map(([key, list]) => ({
+      key,
+      list: [...list].sort((a, b) => b.score - a.score),
+      best: list.reduce((max, item) => Math.max(max, item.score), Number.NEGATIVE_INFINITY),
+      qty: list.reduce((sum, item) => sum + item.demand, 0),
+    }));
+    // Nhóm đã đủ lô lên trước; sau đó theo điểm ưu tiên; rồi theo khoá (ổn định).
+    ranked.sort(
+      (a, b) =>
+        Number(b.qty >= minLot) - Number(a.qty >= minLot) ||
+        b.best - a.best ||
+        a.key.localeCompare(b.key, "vi"),
+    );
+
+    let capLeft = cap === null ? Number.POSITIVE_INFINITY : cap;
+    let usedGroups = 0;
+    for (const group of ranked) {
+      if (usedGroups >= maxGroupsPerDay || capLeft <= 0) break;
+      let took = 0;
+      for (const item of group.list) {
+        const oversized = cap !== null && item.demand > cap;
+        if (item.demand > capLeft && !oversized) continue; // chờ ngày sau, vẫn cùng nhóm
+        args.register(stage.code, day, oversized ? capLeft : item.demand, item.set.id);
+        capLeft = oversized ? 0 : capLeft - item.demand;
+        remaining.delete(item.task.id);
+        placedCount += 1;
+        stageRank += 1;
+        const start = new Date(day);
+        const end = new Date(day);
+        args.onPlaced(item.set, item.task, item.score, start, end);
+        args.pushEntry({
+          taskId: item.task.id,
+          setId: item.set.id,
+          stageCode: item.task.stageCode,
+          seq: item.task.seq,
+          scope: item.task.scope as TaskScope,
+          workCenterCode: stage.workCenterCode ?? item.task.workCenterCode ?? null,
+          state: "XEP",
+          start,
+          end,
+          days: 1,
+          demand: item.demand,
+          unit,
+          capacity: cap,
+          capacitySource: args.capacity.source,
+          priorityScore: item.score,
+          priorityRank: stageRank,
+        });
+        took += 1;
+      }
+      if (took > 0) usedGroups += 1;
+    }
+
+    day = addWorkingDays(day, 1, calendar);
+    guard += 1;
+  }
+
+  for (const id of remaining) {
+    const item = byId.get(id)!;
+    args.onOverflow(item.set, item.task);
+    args.pushEntry({
+      taskId: item.task.id,
+      setId: item.set.id,
+      stageCode: item.task.stageCode,
+      seq: item.task.seq,
+      scope: item.task.scope as TaskScope,
+      workCenterCode: stage.workCenterCode ?? item.task.workCenterCode ?? null,
+      state: "TRAN",
+      start: null,
+      end: null,
+      days: 0,
+      demand: item.demand,
+      unit,
+      capacity: cap,
+      capacitySource: args.capacity.source,
+      priorityScore: item.score,
+      priorityRank: 0,
+    });
+  }
+
+  return placedCount;
 }
 
 // ---------------------------------------------------------------------------

@@ -51,6 +51,7 @@ import {
   normalizePriorityConfig,
   PRIORITY_CONFIG_SETTING_KEY,
   type OrderFacts,
+  type PaintColorRow,
   type PriorityConfig,
 } from "@/lib/production/priority";
 import { defaultPriorityForOrderType } from "@/lib/production/scheduling";
@@ -1201,10 +1202,11 @@ async function resolveStagePlanRange(
 export async function previewStagePlan(query: StagePlanQuery): Promise<StagePlanResult> {
   const config = await readProductionConfig();
   const calendar = await loadCalendar(config);
-  const [stages, workCenters, priority] = await Promise.all([
+  const [stages, workCenters, priority, paintColors] = await Promise.all([
     loadActiveStages(),
     loadActiveWorkCenters(),
     readPriorityConfig(),
+    loadPaintColors(),
   ]);
   const { from, to } = await resolveStagePlanRange(query, calendar);
 
@@ -1239,6 +1241,7 @@ export async function previewStagePlan(query: StagePlanQuery): Promise<StagePlan
     today: todayInVietnam(),
     priority,
     orders,
+    paintColors,
     setIds: query.setIds?.length ? query.setIds : undefined,
   });
 }
@@ -1397,4 +1400,34 @@ export async function loadOrderFacts(orderIds: number[]): Promise<Map<number, Or
     });
   }
   return map;
+}
+
+/**
+ * V151 — danh mục màu sơn (gom lô theo NHÓM MÀU CHÍNH: Đỏ / Vàng / Cát chay).
+ *
+ * Chịu được trường hợp **chưa chạy** `migrate-production-v151-mau-son.sql`: trả mảng rỗng
+ * thay vì làm sập màn Cấu hình / màn kế hoạch. (Bảng chưa có thì gom theo nhóm màu
+ * sẽ đứng riêng từng mã — không sai, chỉ chưa gom được.)
+ */
+export async function loadPaintColors(): Promise<PaintColorRow[]> {
+  try {
+    const rows = await prisma.productionPaintColor.findMany({ orderBy: [{ sortOrder: "asc" }, { code: "asc" }] });
+    return rows.map((row) => ({
+      id: row.id,
+      code: row.code,
+      label: row.label,
+      colorName: row.colorName,
+      family: row.family,
+      specCode: row.specCode,
+      tempC: row.tempC,
+      minutes: row.minutes,
+      needsVeneer: row.needsVeneer,
+      active: row.active,
+      sortOrder: row.sortOrder,
+      note: row.note,
+    }));
+  } catch (error) {
+    console.warn("Chưa đọc được bảng production_paint_colors (đã chạy migrate-production-v151-mau-son.sql chưa?):", error);
+    return [];
+  }
 }

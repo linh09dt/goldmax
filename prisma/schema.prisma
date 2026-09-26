@@ -729,3 +729,33 @@ model ProductionCalendar {
 
   @@map("production_calendar")
 }
+
+/// V151 — DANH MỤC MÀU SƠN: để GOM LÔ theo NHÓM MÀU CHÍNH.
+/// Nhiều mã màu khác nhau nhưng cùng một nhóm chính (Đỏ / Vàng / Cát chay) thì sơn chung một lô.
+/// `code` lưu mã ĐÃ CHUẨN HOÁ (bỏ dấu gạch/khoảng trắng, viết hoa): "GM-01" → "GM01".
+model ProductionPaintColor {
+  id          Int      @id @default(autoincrement())
+  /// Mã chuẩn hoá dùng để khớp với `production_sets.paint_color`.
+  code        String   @unique @db.VarChar(40)
+  /// Mã như xưởng gọi, vd "GM-01".
+  label       String   @db.VarChar(80)
+  /// Màu như xưởng gọi, vd "Đỏ".
+  colorName   String?  @map("color_name") @db.VarChar(80)
+  /// NHÓM CHÍNH để gom lô: DO | VANG | CAT_CHAY | KHAC (rỗng = chưa rõ → không gom).
+  family      String?  @db.VarChar(40)
+  /// Mã màu / ký hiệu nhà cung cấp, vd "8011", "MF04-125/P".
+  specCode    String?  @map("spec_code") @db.VarChar(60)
+  /// Nhiệt độ nung (°C) — hai màu khác chế độ nung KHÔNG gom chung lô.
+  tempC       Int?     @map("temp_c")
+  /// Thời gian nung (phút).
+  minutes     Int?
+  /// Có cần công đoạn Vân không (GM11/GM14 = false → Vân bỏ qua).
+  needsVeneer Boolean  @default(true) @map("needs_veneer")
+  sortOrder   Int      @default(0) @map("sort_order")
+  active      Boolean  @default(true)
+  note        String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("production_paint_colors")
+}

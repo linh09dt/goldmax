@@ -63,6 +63,7 @@ export type PriorityCriterionCode =
   // --- V149.1: chỉ tiêu GOM NHÓM (không cộng điểm, chỉ giữ các bộ cùng nhóm gần nhau) ---
   | "MA_DON_HANG"
   | "MAU_SON"
+  | "NHOM_MAU"
   | "MODEL";
 
 export type FifoAnchor = "TRONG_LUOT" | "VAO_KE_HOACH" | "DA_VAO_SAN_XUAT" | "NGAY_DAT_DON";
@@ -221,6 +222,18 @@ export const PRIORITY_CRITERIA: CriterionMeta[] = [
     kind: "NHOM",
     params: ["DIRECTION"],
     dataNote: "14 màu · GM-01 có 253 bộ, GM-09 177 bộ — gom màu rất đáng làm ở công đoạn Sơn.",
+  },
+  {
+    code: "NHOM_MAU",
+    label: "Nhóm màu chính (gom lô sơn)",
+    source: "production_paint_colors.family × production_sets.paint_color",
+    scope: "BO",
+    meaning:
+      "Nhiều MÃ MÀU khác nhau nhưng cùng NHÓM CHÍNH (Đỏ / Vàng / Cát chay) thì sơn chung một lô. Hai màu khác chế độ nung (nhiệt độ/thời gian) LUÔN tách lô riêng. Mã chưa rõ nhóm thì đứng riêng, không bị trộn vào nhóm nào.",
+    defaultWeight: 0,
+    kind: "NHOM",
+    params: ["DIRECTION"],
+    dataNote: "14 mã màu → 3 nhóm chính (Đỏ 6 · Vàng 3 · Cát chay 1) + GM02/GM07/GM13/GM11 chưa rõ nhóm. Khai ở Cấu hình sản xuất → Màu sơn.",
   },
   {
     code: "MODEL",
@@ -401,7 +414,7 @@ export function priorityRuleFor(config: PriorityConfig, stageCode: string): Stag
 //   tolerance lớn   → siết nhóm (gom hết các bộ cùng đơn / cùng màu lại với nhau)
 // ---------------------------------------------------------------------------
 
-export type GroupingCode = "MA_DON_HANG" | "MAU_SON" | "MODEL";
+export type GroupingCode = "MA_DON_HANG" | "MAU_SON" | "NHOM_MAU" | "MODEL";
 
 export type GroupingSpec = {
   code: GroupingCode;
@@ -430,22 +443,81 @@ export function groupingOf(rule: StagePriorityRule): GroupingSpec | null {
   return { code: best.code, label: best.label, tolerance: best.weight, direction: best.direction };
 }
 
+/** Một dòng danh mục màu sơn (`production_paint_colors`) — `code` đã chuẩn hoá. */
+export type PaintColorRow = {
+  /** Có khi đọc từ bảng `production_paint_colors` (UI cần để sửa/xoá). */
+  id?: number;
+  code: string;
+  label: string;
+  colorName: string | null;
+  /** Nhóm chính để gom lô: DO | VANG | CAT_CHAY | KHAC (null = chưa rõ → không gom). */
+  family: string | null;
+  specCode: string | null;
+  tempC: number | null;
+  minutes: number | null;
+  needsVeneer: boolean;
+  active: boolean;
+  sortOrder?: number;
+  note?: string | null;
+};
+
+/**
+ * Hàm tra khoá nhóm màu từ danh mục. Khoá = `NHÓM CHÍNH | nhiệt độ | thời gian`
+ * ⇒ hai mã màu cùng nhóm nhưng KHÁC chế độ nung vẫn tách lô (đúng kỹ thuật sơn).
+ * Mã màu chưa khai nhóm → `null` (engine sẽ để riêng, không trộn).
+ */
+export function makePaintGroupResolver(colors: PaintColorRow[]) {
+  const byCode = new Map<string, PaintColorRow>();
+  for (const row of colors) {
+    if (!row.active) continue;
+    byCode.set(normalizePaintCode(row.code), row);
+  }
+  return (paintColor: string | null): string | null => {
+    const key = normalizePaintCode(paintColor);
+    if (!key) return null;
+    const row = byCode.get(key);
+    if (!row?.family) return null;
+    return `${row.family}|${row.tempC ?? "-"}|${row.minutes ?? "-"}`;
+  };
+}
+
+/** Bối cảnh tra nhóm màu (do tầng dữ liệu cấp, `priority.ts` vẫn thuần). */
+export type GroupContext = {
+  /** Trả khoá nhóm màu (nhóm chính + chế độ nung) hoặc `null` nếu mã màu chưa rõ nhóm. */
+  paintGroupOf?: (paintColor: string | null) => string | null;
+};
+
+/**
+ * Chuẩn hoá mã màu để khớp danh mục: `"GM-01"` · `"GM 01"` · `"gm01"` → `"GM01"`.
+ * Dữ liệu thật đang dùng cả 2 kiểu viết nên phải chuẩn hoá trước khi so.
+ */
+export function normalizePaintCode(value: string | null | undefined): string {
+  return String(value ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
 /** Khoá nhóm của một bộ theo chỉ tiêu nhóm. Bộ thiếu dữ liệu vẫn có khoá riêng để không gộp bừa. */
 export function groupKeyOf(
   code: GroupingCode,
   set: Pick<ProductionSetRow, "orderCode" | "orderId" | "paintColor" | "model">,
+  ctx?: GroupContext,
 ): string {
   switch (code) {
     case "MA_DON_HANG": {
       const text = String(set.orderCode ?? "").trim().toUpperCase();
-      return text || `#ORDER-${set.orderId}`;
+      return text || `ZZZ-ORDER-${set.orderId}`;
     }
     case "MAU_SON":
-      return String(set.paintColor ?? "").trim().toUpperCase() || "#KHONG-MAU";
+      return String(set.paintColor ?? "").trim().toUpperCase() || "ZZZ-KHONG-MAU";
+    case "NHOM_MAU": {
+      const group = ctx?.paintGroupOf?.(set.paintColor ?? null);
+      if (group) return group;
+      // Chưa khai nhóm → tách riêng theo từng mã màu (không trộn vào nhóm thật nào).
+      return `ZZZ-CHUA-RO-${normalizePaintCode(set.paintColor) || "TRONG"}`;
+    }
     case "MODEL":
-      return String(set.model ?? "").trim().toUpperCase() || "#KHONG-MODEL";
+      return String(set.model ?? "").trim().toUpperCase() || "ZZZ-KHONG-MODEL";
     default:
-      return "#KHAC";
+      return "ZZZ-KHAC";
   }
 }
 
