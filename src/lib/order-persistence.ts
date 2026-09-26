@@ -1,4 +1,6 @@
 
+import { MAX_ORDER_IMAGES } from "@/lib/order-form";
+
 type UnknownRecord = Record<string, unknown>;
 
 export type NormalizedOrderLine = {
@@ -67,6 +69,8 @@ export type NormalizedOrder = {
   items: Array<{
     lineNo: number;
     data: NormalizedOrderLine;
+    /** V133: nhiều ảnh của bộ cửa (ảnh 1 = ảnh đại diện, đã gương vào data.imagePath). */
+    images: NormalizedOrderImage[];
     details: Array<{ rowOrder: number; detailType: string | null; data: NormalizedOrderLine }>;
   }>;
   requirements: Array<{
@@ -89,9 +93,16 @@ export function normalizeOrderPayload(input: unknown): NormalizedOrder {
   const items = rawItems.map((rawItem, itemIndex) => {
     if (!isRecord(rawItem)) throw new Error(`Bộ cửa ${itemIndex + 1} không hợp lệ.`);
     const rawDetails = Array.isArray(rawItem.details) ? rawItem.details : [];
+    const data = normalizeLine(rawItem);
+    const images = normalizeItemImages(rawItem);
+    // V133: ảnh số 1 là ảnh đại diện — gương vào các cột ảnh đơn để danh sách/chi tiết/in không phải đổi.
+    data.imagePath = images[0]?.imagePath ?? null;
+    data.imageWidth = images[0]?.imageWidth ?? null;
+    data.imageHeight = images[0]?.imageHeight ?? null;
     return {
       lineNo: itemIndex + 1,
-      data: normalizeLine(rawItem),
+      data,
+      images,
       details: rawDetails.filter(isRecord).map((row, rowIndex) => ({
         rowOrder: rowIndex + 1,
         detailType: optionalText(row.detailType),
@@ -255,6 +266,46 @@ function normalizeLine(row: UnknownRecord): NormalizedOrderLine {
 /** V131: kích thước ảnh chỉ nhận trong khoảng hợp lý (px) để file xuất không bị vỡ bố cục. */
 export const IMAGE_SIZE_MIN_PX = 24;
 export const IMAGE_SIZE_MAX_PX = 800;
+
+export type NormalizedOrderImage = {
+  sortOrder: number;
+  imagePath: string;
+  imageWidth: number | null;
+  imageHeight: number | null;
+};
+
+/**
+ * V133: đọc danh sách ảnh của bộ cửa. Nhận cả dạng mới (`images: [...]`) và dạng cũ
+ * (chỉ có `imagePath`) để đơn/luồng cũ vẫn lưu được.
+ */
+function normalizeItemImages(row: UnknownRecord): NormalizedOrderImage[] {
+  const rawList = Array.isArray(row.images) ? row.images : [];
+  const images: NormalizedOrderImage[] = [];
+  for (const entry of rawList) {
+    if (!isRecord(entry)) continue;
+    const path = optionalText(entry.imagePath) ?? optionalText(entry.path);
+    if (!path) continue;
+    images.push({
+      sortOrder: images.length + 1,
+      imagePath: path,
+      imageWidth: imageSizeOrNull(entry.imageWidth ?? entry.width),
+      imageHeight: imageSizeOrNull(entry.imageHeight ?? entry.height),
+    });
+    if (images.length >= MAX_ORDER_IMAGES) break;
+  }
+  if (images.length === 0) {
+    const legacyPath = optionalText(row.imagePath);
+    if (legacyPath) {
+      images.push({
+        sortOrder: 1,
+        imagePath: legacyPath,
+        imageWidth: imageSizeOrNull(row.imageWidth),
+        imageHeight: imageSizeOrNull(row.imageHeight),
+      });
+    }
+  }
+  return images;
+}
 
 function imageSizeOrNull(value: unknown) {
   const parsed = integerOrNull(value);

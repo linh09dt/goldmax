@@ -76,6 +76,8 @@ export function parseOrderInputTemplate(buffer: Buffer, fileName = ""): ParsedOr
       clientId: newClientId(),
       lineNo: index + 1,
       ...main,
+      // V133: mẫu Excel không mang ảnh — gallery bắt đầu rỗng.
+      images: [],
       details,
     };
   });

@@ -16,7 +16,13 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
   const order = await prisma.salesOrder.findUnique({
     where: { id: orderId },
     include: {
-      items: { orderBy: { lineNo: "asc" }, include: { details: { orderBy: { rowOrder: "asc" } } } },
+      items: {
+        orderBy: { lineNo: "asc" },
+        include: {
+          details: { orderBy: { rowOrder: "asc" } },
+          images: { orderBy: { sortOrder: "asc" } },
+        },
+      },
       requirements: { orderBy: { sortOrder: "asc" } },
     },
   });
@@ -55,6 +61,16 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
       clientId: newClientId(),
       lineNo: item.lineNo,
       ...lineToForm(item),
+      // V133: nhiều ảnh — đơn cũ chưa có bảng ảnh thì lấy ảnh đơn hiện có làm ảnh số 1.
+      images: (item.images.length
+        ? item.images.map((image) => ({
+            path: image.imagePath,
+            width: textNumber(image.imageWidth),
+            height: textNumber(image.imageHeight),
+          }))
+        : item.imagePath
+          ? [{ path: item.imagePath, width: textNumber(item.imageWidth), height: textNumber(item.imageHeight) }]
+          : []),
       details: resolveOrderItemDetails(item).map((row, index) => ({
         rowOrder: row.rowOrder || index + 1,
         detailType: row.detailType ?? "",

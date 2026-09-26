@@ -59,6 +59,14 @@ export async function POST(request: Request) {
       );
       if (details.length) await tx.salesOrderItemDetail.createMany({ data: details });
 
+      // V133: nhiều ảnh cho mỗi bộ cửa.
+      const images = normalized.items.flatMap((item) => {
+        const orderItemId = idByLineNo.get(item.lineNo);
+        if (!orderItemId) return [];
+        return item.images.map((image) => ({ orderItemId, ...image }));
+      });
+      if (images.length) await tx.salesOrderItemImage.createMany({ data: images });
+
       if (normalized.requirements.length) {
         await tx.salesOrderRequirement.createMany({
           data: normalized.requirements.map((row) => ({ orderId: created.id, ...row })),

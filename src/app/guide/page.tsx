@@ -183,7 +183,7 @@ export default function GuidePage() {
             <Note title="Trước khi xóa" text="Kiểm tra đúng đơn hàng hoặc đúng Master Data. Các nút Xóa đều yêu cầu xác nhận." />
             <Note title="Sau khi sửa" text="Luôn bấm Lưu thay đổi / Lưu cấu hình / Lưu để dữ liệu được ghi lại." />
             <Note title="Xuất Excel" text="Nếu màn hình có bộ lọc, file xuất sẽ đi theo bộ lọc đang áp dụng." />
-            <Note title="Ảnh sản phẩm" text="Bấm ô Hình ảnh SP rồi Ctrl+V, hoặc dùng nút Dán ảnh / Đổi ảnh / Xóa ảnh ở bên dưới ô ảnh (không còn bật link ảnh khi bấm vào ô). Kéo góc dưới-phải hoặc gõ Rộng/Cao để chỉnh kích thước; file Excel/PDF/in sẽ theo đúng kích thước đó. Ảnh lưu trên Supabase Storage." />
+            <Note title="Ảnh sản phẩm" text="Mỗi bộ cửa dán được nhiều ảnh (tối đa 6). Bấm ô Hình ảnh SP rồi Ctrl+V để dán nối tiếp, hoặc dùng nút Dán ảnh / Thêm ảnh; mỗi ảnh có nút Xóa ảnh riêng. Gõ Rộng/Cao (px) cho từng ảnh — file Excel/PDF/in sẽ xuất đúng cỡ đó, ảnh để trống dùng cỡ mặc định bằng bề rộng cột ảnh khi xuất PDF. Ảnh lưu trên Supabase Storage." />
           </div>
         </section>
       </div>

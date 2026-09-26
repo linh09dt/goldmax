@@ -16,7 +16,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const order = await prisma.salesOrder.findUnique({
       where: { id: orderId },
       include: {
-        items: { orderBy: { lineNo: "asc" }, include: { details: { orderBy: { rowOrder: "asc" } } } },
+        items: { orderBy: { lineNo: "asc" }, include: { details: { orderBy: { rowOrder: "asc" } }, images: { orderBy: { sortOrder: "asc" } } } },
         requirements: { orderBy: { sortOrder: "asc" } },
       },
     });

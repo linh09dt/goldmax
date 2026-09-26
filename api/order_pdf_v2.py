@@ -84,7 +84,18 @@ def load_order(order_id: int) -> dict:
 
         item_ids = [row["id"] for row in items]
         details_by_item: dict[int, list[dict]] = {item_id: [] for item_id in item_ids}
+        images_by_item: dict[int, list[dict]] = {item_id: [] for item_id in item_ids}
         if item_ids:
+            # V133: nhiều ảnh cho mỗi bộ cửa.
+            image_rows = conn.execute("""
+                SELECT order_item_id, sort_order, image_path, image_width, image_height
+                FROM sales_order_item_images
+                WHERE order_item_id = ANY(%s)
+                ORDER BY order_item_id ASC, sort_order ASC
+            """, (item_ids,)).fetchall()
+            for row in image_rows:
+                images_by_item[row["order_item_id"]].append(_camel(row))
+
             details = conn.execute("""
                 SELECT id, order_item_id, row_order, detail_type, set_no, product_name,
                        product_code, model, opening_direction, trim_direction, paint_color,
@@ -112,6 +123,7 @@ def load_order(order_id: int) -> dict:
         item_details = details_by_item.get(row["id"], [])
         detail_count += len(item_details)
         item["details"] = item_details
+        item["images"] = images_by_item.get(row["id"], [])
         result["items"].append(item)
     result["requirements"] = [_camel(row) for row in requirements]
     _log("db_loaded", orderId=order_id, items=len(items), details=detail_count,

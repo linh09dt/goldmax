@@ -2,10 +2,10 @@ import ExcelJS, { type Worksheet } from "exceljs";
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { resolveOrderItemDetails } from "@/lib/order-detail";
-import type { OutputGroup } from "@/lib/order-output";
-import { buildOutputGroups, calculateOutputTotals, cleanText, groupManualImageSize, outputLineAmount, toNumber } from "@/lib/order-output";
+import type { OutputGroup, OutputImage } from "@/lib/order-output";
+import { buildOutputGroups, calculateOutputTotals, cleanText, groupImages, outputImageManualSize, outputLineAmount, toNumber } from "@/lib/order-output";
 import { logoBox, readImageSize } from "@/lib/png-size";
-import { addProductImage, fitProductImageInCell, imageColumnWidthFor } from "@/lib/excel-image-cell";
+import { addProductImage, fitProductImageStackInCell, imageColumnWidthFor } from "@/lib/excel-image-cell";
 
 const NAVY = "FF1E3A8A";
 const AMBER = "FFD97706";
@@ -87,7 +87,7 @@ export async function buildOrderExcelV2(order: ExportableOrderV2, exportNote = "
   // V131: nếu người dùng đã chỉnh kích thước ảnh thì nới cột ẢNH SP cho đủ chứa ảnh lớn nhất
   // (ảnh lớn hơn ô sẽ đè lên các cột bên cạnh) rồi dùng đúng kích thước đó khi nhúng ảnh.
   const imageColumnWidth = imageColumnWidthFor(
-    groups.map((group) => groupManualImageSize(group)?.width ?? null),
+    groups.flatMap((group) => groupImages(group).map((image) => outputImageManualSize(image)?.width ?? null)),
     COLUMN_WIDTHS[IMAGE_COLUMN_INDEX],
   );
   if (imageColumnWidth !== COLUMN_WIDTHS[IMAGE_COLUMN_INDEX]) {
@@ -383,34 +383,55 @@ async function writeGroupImage(
   if (lastRow > firstRow) ws.mergeCells(`S${firstRow}:S${lastRow}`);
   const cell = ws.getCell(`S${firstRow}`);
   cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-  const own = cleanText(group.imagePath);
-  const imageUrl = own || group.rows.map((entry) => cleanText(entry.row.imagePath)).find(Boolean) || "";
-  if (!imageUrl) return;
+  const images = groupImages(group);
+  if (!images.length) return;
 
-  cell.value = { text: "Xem ảnh", hyperlink: imageUrl, tooltip: "Mở hình ảnh sản phẩm" };
+  cell.value = { text: "Xem ảnh", hyperlink: images[0].imagePath, tooltip: "Mở hình ảnh sản phẩm" };
   cell.font = { ...BASE_FONT, size: 9.5, color: { argb: "FF2563EB" }, underline: true };
   try {
-    const response = await fetch(imageUrl, { cache: "no-store" });
-    if (!response.ok) return;
-    const contentType = response.headers.get("content-type") || "";
-    const extension = contentType.includes("png") ? "png" : contentType.includes("jpeg") || contentType.includes("jpg") ? "jpeg" : null;
-    if (!extension) return;
-    const imageBuffer = Buffer.from(await response.arrayBuffer());
-    const size = readImageSize(imageBuffer);
-    // V131: ưu tiên kích thước người dùng đặt; chưa đặt thì tự co giãn vừa ô như trước.
-    const manual = groupManualImageSize(group);
-    const placement = fitProductImageInCell({
+    // V133: tải song song toàn bộ ảnh của bộ cửa.
+    const loaded = (
+      await Promise.all(
+        images.map(async (image): Promise<{ buffer: Buffer; extension: "png" | "jpeg"; image: OutputImage } | null> => {
+          try {
+            const response = await fetch(image.imagePath, { cache: "no-store" });
+            if (!response.ok) return null;
+            const contentType = response.headers.get("content-type") || "";
+            const extension = contentType.includes("png") ? "png" : contentType.includes("jpeg") || contentType.includes("jpg") ? "jpeg" : null;
+            if (!extension) return null;
+            const buffer = Buffer.from(await response.arrayBuffer());
+            return { buffer, extension: extension as "png" | "jpeg", image };
+          } catch {
+            return null;
+          }
+        }),
+      )
+    ).flatMap((entry) => (entry ? [entry] : []));
+    if (!loaded.length) return;
+
+    // V133: xếp các ảnh theo chiều dọc trong ô ẢNH SP; mỗi ảnh giữ cỡ người dùng đặt (nếu có).
+    const placements = fitProductImageStackInCell({
       ws,
       firstRow,
       lastRow,
       columnIndex: IMAGE_COLUMN_INDEX,
       columnWidth: imageColumnWidth,
-      aspect: size && size.height > 0 ? size.width / size.height : FALLBACK_IMAGE_ASPECT,
-      manualWidth: manual?.width ?? null,
-      manualHeight: manual?.height ?? null,
+      // V133: ảnh tự động trong gallery dùng bề rộng cột mặc định (cột có thể đã nới cho ảnh cỡ tay).
+      autoColumnWidth: COLUMN_WIDTHS[IMAGE_COLUMN_INDEX],
+      images: loaded.map((entry) => {
+        const size = readImageSize(entry.buffer);
+        const manual = outputImageManualSize(entry.image);
+        return {
+          aspect: size && size.height > 0 ? size.width / size.height : FALLBACK_IMAGE_ASPECT,
+          manualWidth: manual?.width ?? null,
+          manualHeight: manual?.height ?? null,
+        };
+      }),
     });
-    const imageId = workbook.addImage({ buffer: imageBuffer as any, extension });
-    addProductImage(ws, imageId, placement);
+    loaded.forEach((entry, index) => {
+      const imageId = workbook.addImage({ buffer: entry.buffer as any, extension: entry.extension });
+      addProductImage(ws, imageId, placements[index]);
+    });
     cell.value = null;
   } catch {
     // Giữ hyperlink nếu không thể tải ảnh.

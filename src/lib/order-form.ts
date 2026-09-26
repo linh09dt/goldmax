@@ -150,9 +150,24 @@ export type OrderLineForm = {
   pricingManual?: string;
 };
 
+/** V133: một ảnh trong gallery của bộ cửa (kích thước px để trống = tự động vừa ô). */
+export type OrderImageForm = {
+  path: string;
+  width?: string;
+  height?: string;
+};
+
+/** V133: tối đa số ảnh cho một bộ cửa — giới hạn để file xuất không bị vỡ bố cục. */
+export const MAX_ORDER_IMAGES = 6;
+
+/** Trường dạng chuỗi của một bộ cửa (không gồm clientId/lineNo/details/images). */
+export type OrderItemTextField = keyof Omit<OrderItemForm, "clientId" | "lineNo" | "details" | "images">;
+
 export type OrderItemForm = Omit<OrderLineForm, "rowOrder" | "detailType"> & {
   clientId: string;
   lineNo: number;
+  /** V133: nhiều ảnh của bộ cửa; ảnh số 1 được gương vào imagePath/imageWidth/imageHeight. */
+  images: OrderImageForm[];
   details: OrderLineForm[];
 };
 
@@ -242,6 +257,7 @@ export function createOrderItem(lineNo: number, _kind: "door" | "window" | "empt
     setNo: "",
     quantity: "1",
     unit: "",
+    images: [],
     details: [],
   };
 }

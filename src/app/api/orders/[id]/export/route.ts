@@ -40,6 +40,12 @@ export async function GET(
                 rowOrder: "asc",
               },
             },
+            // V133: nhiều ảnh cho bộ cửa.
+            images: {
+              orderBy: {
+                sortOrder: "asc",
+              },
+            },
           },
         },
         requirements: {

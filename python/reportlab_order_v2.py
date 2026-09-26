@@ -416,6 +416,8 @@ def build_groups(order: dict[str, Any]) -> list[dict[str, Any]]:
                 "lineNo": item.get("lineNo"),
                 "setNo": item.get("setNo"),
                 "imagePath": item.get("imagePath"),
+                # V133: gallery nhiều ảnh của bộ cửa.
+                "images": item.get("images") or [],
                 "rows": rows,
             })
     return groups
@@ -527,6 +529,9 @@ def _prefetch_product_images(groups: list[dict[str, Any]]) -> dict[str, bytes | 
     for group in groups:
         # Ảnh của dòng sản phẩm chính.
         add_url(group.get("imagePath"))
+        # V133: tải cả gallery nhiều ảnh của bộ cửa (nếu có).
+        for image in group.get("images") or []:
+            add_url(image.get("imagePath"))
         # V41.21: tải cả ảnh riêng của các dòng chi tiết / phụ kiện / phụ phí.
         for entry in group.get("rows") or []:
             row = entry.get("row") or {}
@@ -592,16 +597,66 @@ def _group_image_source_row(group: dict[str, Any]) -> dict[str, Any] | None:
     return with_image["row"] if with_image else None
 
 
-def _manual_image_box_pt(group: dict[str, Any]) -> tuple[float, float] | None:
-    """V131: kích thước ảnh người dùng đặt cho bộ cửa, đổi sang point. None = tự động vừa ô."""
+IMAGE_MAX_PER_GROUP = 6
+
+
+def _group_image_items(group: dict[str, Any]) -> list[tuple[str, tuple[float, float] | None]]:
+    """V133: danh sách (url, box_pt) của bộ cửa. box None = tự động vừa ô.
+
+    Ưu tiên gallery nhiều ảnh; đơn cũ (chưa có gallery) dùng ảnh đơn như trước.
+    """
+    out: list[tuple[str, tuple[float, float] | None]] = []
+    for image in group.get("images") or []:
+        url = clean(image.get("imagePath"))
+        if not url:
+            continue
+        width_px = _manual_px(image.get("imageWidth"))
+        height_px = _manual_px(image.get("imageHeight"))
+        box = (width_px * PX_TO_MM * mm, height_px * PX_TO_MM * mm) if width_px and height_px else None
+        out.append((url, box))
+        if len(out) >= IMAGE_MAX_PER_GROUP:
+            break
+    if out:
+        return out
     row = _group_image_source_row(group)
-    if not row:
-        return None
+    url = clean(row.get("imagePath")) if row else ""
+    if not url:
+        return []
     width_px = _manual_px(row.get("imageWidth"))
     height_px = _manual_px(row.get("imageHeight"))
-    if not width_px or not height_px:
-        return None
-    return (width_px * PX_TO_MM * mm, height_px * PX_TO_MM * mm)
+    box = (width_px * PX_TO_MM * mm, height_px * PX_TO_MM * mm) if width_px and height_px else None
+    return [(url, box)]
+
+
+def _group_image_column_pt(group: dict[str, Any]) -> float:
+    """V133: bề rộng lớn nhất trong các ảnh có cỡ tay của bộ cửa (0 = không có)."""
+    widths = [box[0] for _, box in _group_image_items(group) if box]
+    return max(widths) if widths else 0.0
+
+
+def _group_image_cell(
+    images: list[tuple[str, tuple[float, float] | None]],
+    cache: dict[str, bytes | None],
+    col_width_pt: float | None,
+) -> Any:
+    """V133: ô ẢNH SP — nhiều ảnh thì xếp dọc trong 1 bảng con, ảnh đơn giữ nguyên như cũ."""
+    if not images:
+        return para("", "center")
+    # V133: nhiều ảnh — ảnh tự động dùng bề rộng cột MẶC ĐỊNH để cụm ảnh không phình to.
+    auto_width_pt = col_width_pt if len(images) == 1 else _order_col_widths()[-1]
+    flowables = [_image_flowable(url, cache, box, col_width_pt, auto_width_pt) for url, box in images]
+    if len(flowables) == 1:
+        return flowables[0]
+    inner_width = max(8.0, (col_width_pt or 0) - 4)
+    table = Table([[flowable] for flowable in flowables], colWidths=[inner_width], hAlign="CENTER")
+    table.setStyle(TableStyle([
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 1),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ]))
+    return table
 
 
 def _image_flowable(
@@ -609,6 +664,7 @@ def _image_flowable(
     cache: dict[str, bytes | None],
     box_pt: tuple[float, float] | None = None,
     col_width_pt: float | None = None,
+    auto_width_pt: float | None = None,
 ) -> Any:
     if not url:
         return para("", "center")
@@ -622,6 +678,7 @@ def _image_flowable(
     try:
         # V110b: ảnh rộng hết ô HÌNH ẢNH SP (proportional giữ đúng tỉ lệ, không bóp méo).
         max_w = _product_image_max_width_mm(col_width_pt) * mm
+        auto_w = _product_image_max_width_mm(auto_width_pt if auto_width_pt else col_width_pt) * mm
         if box_pt:
             # V131: dùng đúng kích thước người dùng đặt; co lại theo tỉ lệ nếu vượt bề rộng cột.
             width, height = box_pt
@@ -630,7 +687,7 @@ def _image_flowable(
                 width, height = max_w, height * ratio
             img = Image(io.BytesIO(data), width=width, height=height, kind="proportional")
         else:
-            img = Image(io.BytesIO(data), width=max_w, height=max_w, kind="proportional")
+            img = Image(io.BytesIO(data), width=auto_w, height=auto_w, kind="proportional")
         img.hAlign = "CENTER"
         return img
     except Exception:
@@ -966,21 +1023,15 @@ def _order_table_body(
 
     for group in groups:
         group_start = len(body_rows)
-        # V131: kích thước ảnh người dùng đặt cho bộ cửa (None = tự động vừa ô).
-        group_image_box_pt = _manual_image_box_pt(group)
         pending_notes: list[tuple[str, bool]] = []
         # V109: 1 ô ẢNH SP cho cả bộ cửa — ảnh in ở dòng đầu của bộ rồi SPAN xuống hết
         # các dòng hàng của bộ (dòng sau để trống, không in ảnh riêng).
-        group_image_url = clean(group.get("imagePath")) or next(
-            (clean(entry["row"].get("imagePath")) for entry in group["rows"] if clean(entry["row"].get("imagePath"))),
-            "",
-        )
+        group_images = _group_image_items(group)
         for entry in group["rows"]:
             row = entry["row"]
             main = bool(entry["main"])
             first = bool(entry["first"])
             name = clean(row.get("productName"))
-            image_url = group_image_url if first else ""
             row_values: list[Any] = [
                 para(group.get("lineNo") if first else "", "center"),
                 para(group.get("setNo") if first else "", "center"),
@@ -1001,7 +1052,7 @@ def _order_table_body(
                 para(decimal4(row.get("pricingQuantity")), "num_bold" if main else "detail_right"),
                 para(money(row.get("unitPrice")), "num_bold" if main else "detail_right"),
                 para(money(line_amount(row)), "num_bold" if main else "detail_right"),
-                _image_flowable(image_url, image_cache, group_image_box_pt, image_col_width_pt) if image_url else para("", "center"),
+                _group_image_cell(group_images, image_cache, image_col_width_pt) if first else para("", "center"),
             ]
             body_rows.append(row_values)
             if main:
@@ -1165,7 +1216,7 @@ def _data_tables(
     bộ nào không đủ chỗ ở cuối trang sẽ được đẩy trọn sang trang sau.
     V131: nếu người dùng đặt ảnh lớn hơn cột ẢNH SP mặc định thì nới cột (trần 34% bề rộng).
     """
-    manual_widths = [(_manual_image_box_pt(group) or (0.0, 0.0))[0] for group in groups]
+    manual_widths = [_group_image_column_pt(group) for group in groups]
     max_manual_pt = max(manual_widths) if manual_widths else 0.0
     image_col_width = _order_col_widths()[-1]
     if max_manual_pt > 0:

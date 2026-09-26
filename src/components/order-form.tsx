@@ -9,13 +9,16 @@ import {
   isConfirmedStatus,
   orderTypeLabel,
   ORDER_TYPE_OPTIONS,
+  MAX_ORDER_IMAGES,
   newClientId,
   orderStatusLabel,
   reindexItems,
   showsSetNumber,
   statusAfterSave,
   type OrderFormData,
+  type OrderImageForm,
   type OrderItemForm,
+  type OrderItemTextField,
   type OrderLineForm,
   type OrderSaveAction,
 } from "@/lib/order-form";
@@ -246,7 +249,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
     setCollapsedItems(new Set());
   }
 
-  function updateMain(index: number, key: keyof Omit<OrderItemForm, "clientId" | "lineNo" | "details">, value: string) {
+  function updateMain(index: number, key: OrderItemTextField, value: string) {
     setForm((current) => {
       const items = [...current.items];
       // V59: KH/Lượng nhập tay được đánh dấu để không bị tính lại tự động.
@@ -338,14 +341,42 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
     });
   }
 
-  async function uploadImage(file: File, itemIndex: number, detailIndex?: number) {
+  async function uploadImageFile(file: File): Promise<string> {
     const data = new FormData();
     data.append("file", file);
     const response = await fetch("/api/orders/images", { method: "POST", body: data });
     const result = (await response.json()) as { ok: boolean; path?: string; error?: string };
     if (!result.ok || !result.path) throw new Error(result.error || "Không thể tải hình ảnh.");
-    if (typeof detailIndex === "number") updateDetail(itemIndex, detailIndex, "imagePath", result.path);
-    else updateMain(itemIndex, "imagePath", result.path);
+    return result.path;
+  }
+
+  async function uploadImage(file: File, itemIndex: number, detailIndex?: number) {
+    const path = await uploadImageFile(file);
+    if (typeof detailIndex === "number") updateDetail(itemIndex, detailIndex, "imagePath", path);
+    else updateMain(itemIndex, "imagePath", path);
+  }
+
+  /** V133: dán/tải thêm ảnh cho gallery của bộ cửa (tối đa MAX_ORDER_IMAGES ảnh). */
+  async function appendItemImage(itemIndex: number, file: File) {
+    const path = await uploadImageFile(file);
+    setForm((current) => {
+      const items = [...current.items];
+      const item = items[itemIndex];
+      const images = [...(item.images ?? [])];
+      if (images.length >= MAX_ORDER_IMAGES) return current;
+      images.push({ path, width: "", height: "" });
+      items[itemIndex] = syncItemImageFields({ ...item, images });
+      return { ...current, items };
+    });
+  }
+
+  /** V133: cập nhật danh sách ảnh của một bộ cửa (đổi cỡ / xóa / sắp xếp). */
+  function setItemImages(itemIndex: number, images: OrderImageForm[]) {
+    setForm((current) => {
+      const items = [...current.items];
+      items[itemIndex] = syncItemImageFields({ ...items[itemIndex], images });
+      return { ...current, items };
+    });
   }
 
   async function importOrderTemplate(file: File) {
@@ -552,6 +583,8 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
               onChange={updateMain}
               onDetailChange={updateDetail}
               onUpload={uploadImage}
+              onAddImage={appendItemImage}
+              onImagesChange={setItemImages}
               onDuplicate={duplicateItem}
               onRemoveItem={removeItem}
               onAddDetail={addDetail}
@@ -637,6 +670,8 @@ function DoorSetCard({
   onChange,
   onDetailChange,
   onUpload,
+  onAddImage,
+  onImagesChange,
   onDuplicate,
   onRemoveItem,
   onAddDetail,
@@ -657,9 +692,12 @@ function DoorSetCard({
 }: {
   item: OrderItemForm;
   itemIndex: number;
-  onChange: (index: number, key: keyof Omit<OrderItemForm, "clientId" | "lineNo" | "details">, value: string) => void;
+  onChange: (index: number, key: OrderItemTextField, value: string) => void;
   onDetailChange: (itemIndex: number, detailIndex: number, key: keyof OrderLineForm, value: string) => void;
   onUpload: (file: File, itemIndex: number, detailIndex?: number) => Promise<void>;
+  /** V133: thêm ảnh cho gallery của bộ cửa + cập nhật danh sách ảnh (đổi cỡ / xóa). */
+  onAddImage: (itemIndex: number, file: File) => Promise<void>;
+  onImagesChange: (itemIndex: number, images: OrderImageForm[]) => void;
   onDuplicate: (index: number) => void;
   onRemoveItem: (index: number) => void;
   onAddDetail: (index: number) => void;
@@ -680,7 +718,7 @@ function DoorSetCard({
 }) {
   const inferredGroup = catalogGroupForCode(doorCatalogItems, item.productCode) || catalogGroupFromText(doorGroups, item.productName);
   const [selectedGroup, setSelectedGroup] = useState(inferredGroup);
-  const change = (key: keyof Omit<OrderItemForm, "clientId" | "lineNo" | "details">) => (value: string) => onChange(itemIndex, key, value);
+  const change = (key: OrderItemTextField) => (value: string) => onChange(itemIndex, key, value);
 
   useEffect(() => {
     const group = catalogGroupForCode(doorCatalogItems, item.productCode) || catalogGroupFromText(doorGroups, item.productName);
@@ -821,20 +859,10 @@ function DoorSetCard({
               đầu tiên (nếu có) để hiển thị ở bảng chi tiết và bản in. */}
           <CardField label="Hình ảnh SP (cả bộ cửa)">
             <div className="rounded-md border border-slate-200 bg-white">
-              <ImageCell
-                path={item.imagePath}
-                width={item.imageWidth}
-                height={item.imageHeight}
-                onUpload={(file) => onUpload(file, itemIndex)}
-                onResize={(nextWidth, nextHeight) => {
-                  change("imageWidth")(nextWidth);
-                  change("imageHeight")(nextHeight);
-                }}
-                onClear={() => {
-                  change("imagePath")("");
-                  change("imageWidth")("");
-                  change("imageHeight")("");
-                }}
+              <ImageGallery
+                images={item.images ?? []}
+                onChange={(next) => onImagesChange(itemIndex, next)}
+                onUpload={(file) => onAddImage(itemIndex, file)}
               />
             </div>
             <p className="mt-1 text-[10px] leading-snug text-slate-500">Ảnh dùng cho cả bộ cửa này (gồm mọi phụ kiện / chi tiết bên dưới).</p>
@@ -1094,7 +1122,7 @@ function detailOrientation(row: OrderLineForm): "vertical" | "horizontal" | "fre
 function EditableMainRow({ item, itemIndex, onChange, onUpload, catalogItems, doorCatalogItems, doorGroups, onCatalogSelect, optionValues }: {
   item: OrderItemForm;
   itemIndex: number;
-  onChange: (index: number, key: keyof Omit<OrderItemForm, "clientId" | "lineNo" | "details">, value: string) => void;
+  onChange: (index: number, key: OrderItemTextField, value: string) => void;
   onUpload: (file: File, itemIndex: number, detailIndex?: number) => Promise<void>;
   catalogItems: CatalogItem[];
   doorCatalogItems: CatalogItem[];
@@ -1104,8 +1132,8 @@ function EditableMainRow({ item, itemIndex, onChange, onUpload, catalogItems, do
 }) {
   const inferredGroup = catalogGroupForCode(doorCatalogItems, item.productCode) || catalogGroupFromText(doorGroups, item.productName);
   const [selectedGroup, setSelectedGroup] = useState(inferredGroup);
-  const value = (key: keyof Omit<OrderItemForm, "clientId" | "lineNo" | "details">) => item[key] as string;
-  const change = (key: keyof Omit<OrderItemForm, "clientId" | "lineNo" | "details">) => (v: string) => onChange(itemIndex, key, v);
+  const value = (key: OrderItemTextField) => item[key] as string;
+  const change = (key: OrderItemTextField) => (v: string) => onChange(itemIndex, key, v);
 
   useEffect(() => {
     const group = catalogGroupForCode(doorCatalogItems, item.productCode) || catalogGroupFromText(doorGroups, item.productName);
@@ -1178,24 +1206,7 @@ function EditableMainRow({ item, itemIndex, onChange, onUpload, catalogItems, do
       <Cell><GridPriceInput value={value("unitPrice")} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, value("productCode"))} /></Cell>
       <CellStatic>{formatMoney(lineAmount(item))}</CellStatic>
       <Cell><GridInput value={value("note")} onChange={change("note")} /></Cell>
-      <Cell>
-        <ImageCell
-          compact
-          path={item.imagePath}
-          width={item.imageWidth}
-          height={item.imageHeight}
-          onUpload={(file) => onUpload(file, itemIndex)}
-          onResize={(nextWidth, nextHeight) => {
-            change("imageWidth")(nextWidth);
-            change("imageHeight")(nextHeight);
-          }}
-          onClear={() => {
-            change("imagePath")("");
-            change("imageWidth")("");
-            change("imageHeight")("");
-          }}
-        />
-      </Cell>
+      <Cell><ImageGalleryPreview images={item.images ?? []} /></Cell>
       <CellStatic>—</CellStatic>
     </tr>
   );
@@ -2092,6 +2103,289 @@ function ImageCell({
         <span className="text-[9.5px] text-slate-500">Cỡ mặc định {IMAGE_SIZE_DEFAULT_PX} px (bề rộng cột ảnh khi xuất PDF)</span>
       )}
       {error ? <span className="max-w-full break-words text-[10px] text-red-600">{error}</span> : null}
+    </div>
+  );
+}
+
+/** V133: ảnh số 1 là ảnh đại diện — gương sang imagePath/imageWidth/imageHeight để danh sách/chi tiết/in không phải đổi. */
+function syncItemImageFields(item: OrderItemForm): OrderItemForm {
+  const first = item.images[0];
+  return {
+    ...item,
+    imagePath: first?.path ?? "",
+    imageWidth: first?.width ?? "",
+    imageHeight: first?.height ?? "",
+  };
+}
+
+/** V133: một dòng ảnh trong gallery — xem trước, chỉnh cỡ, xóa. */
+function ImageGalleryRow({
+  image,
+  index,
+  onChange,
+  onRemove,
+}: {
+  image: OrderImageForm;
+  index: number;
+  onChange: (next: OrderImageForm) => void;
+  onRemove: () => void;
+}) {
+  const [aspect, setAspect] = useState(5 / 3);
+  const safeAspect = Number.isFinite(aspect) && aspect > 0.05 ? aspect : 5 / 3;
+  const manualWidth = clampImageSize(image.width);
+  const manualHeight = clampImageSize(image.height);
+  const manual = Boolean(manualWidth && manualHeight);
+  const previewWidth = Math.min(manualWidth ?? IMAGE_SIZE_DEFAULT_PX, 104);
+  const previewHeight = Math.max(24, Math.round(previewWidth / safeAspect));
+
+  function clampPx(value: number) {
+    return Math.max(IMAGE_SIZE_MIN_PX, Math.min(IMAGE_SIZE_MAX_PX, Math.round(value)));
+  }
+  function setByWidth(value: string) {
+    const parsed = clampImageSize(value);
+    if (!parsed) {
+      onChange({ ...image, width: value, height: "" });
+      return;
+    }
+    onChange({ ...image, width: String(parsed), height: String(clampPx(parsed / safeAspect)) });
+  }
+  function setByHeight(value: string) {
+    const parsed = clampImageSize(value);
+    if (!parsed) {
+      onChange({ ...image, width: "", height: value });
+      return;
+    }
+    onChange({ ...image, width: String(clampPx(parsed * safeAspect)), height: String(parsed) });
+  }
+
+  const numberInputClass = "h-5 rounded border border-slate-300 px-1 text-right text-[9.5px] tabular-nums";
+  const buttonClass = (active: boolean) =>
+    `rounded border px-1.5 py-0.5 text-[9.5px] ${active ? "border-cyan-400 bg-cyan-100 font-semibold text-cyan-800" : "border-slate-300 hover:bg-slate-100"}`;
+
+  return (
+    <div className="flex w-full items-start gap-2 rounded border border-slate-200 bg-white p-1.5 text-left">
+      <img
+        src={image.path}
+        alt={`Ảnh ${index + 1}`}
+        draggable={false}
+        onLoad={(event) => {
+          const element = event.currentTarget;
+          if (element.naturalWidth > 0 && element.naturalHeight > 0) setAspect(element.naturalWidth / element.naturalHeight);
+        }}
+        className="shrink-0 rounded border border-slate-200 bg-white object-contain"
+        style={{ width: previewWidth, height: previewHeight }}
+      />
+      <div className="flex min-w-0 flex-1 flex-col gap-1 text-[9.5px] text-slate-600">
+        <span className="font-semibold text-slate-700">Ảnh {index + 1}</span>
+        <div className="flex flex-wrap items-center gap-1">
+          <label className="inline-flex items-center gap-0.5">
+            Rộng
+            <input
+              className={numberInputClass}
+              style={{ width: 42 }}
+              type="number"
+              min={IMAGE_SIZE_MIN_PX}
+              max={IMAGE_SIZE_MAX_PX}
+              value={image.width ?? ""}
+              placeholder={String(IMAGE_SIZE_DEFAULT_PX)}
+              onChange={(event) => setByWidth(event.target.value)}
+            />
+            px
+          </label>
+          <label className="inline-flex items-center gap-0.5">
+            Cao
+            <input
+              className={numberInputClass}
+              style={{ width: 42 }}
+              type="number"
+              min={IMAGE_SIZE_MIN_PX}
+              max={IMAGE_SIZE_MAX_PX}
+              value={image.height ?? ""}
+              placeholder={String(previewHeight)}
+              onChange={(event) => setByHeight(event.target.value)}
+            />
+            px
+          </label>
+        </div>
+        <div className="flex flex-wrap items-center gap-1">
+          <button type="button" className={buttonClass(!manual)} onClick={() => onChange({ ...image, width: "", height: "" })}>
+            Mặc định
+          </button>
+          {IMAGE_PRESETS.map((preset) => (
+            <button key={preset.label} type="button" className={buttonClass(manual && manualWidth === preset.px)} onClick={() => setByWidth(String(preset.px))}>
+              {preset.label}
+            </button>
+          ))}
+          <button type="button" className="rounded border border-red-300 px-1.5 py-0.5 text-[9.5px] font-medium text-red-700 hover:bg-red-50" onClick={onRemove}>
+            Xóa ảnh
+          </button>
+        </div>
+        <span className="text-slate-500">
+          {manual ? `Xuất file theo ${manualWidth} x ${manualHeight} px` : `Cỡ mặc định ${IMAGE_SIZE_DEFAULT_PX} px (bề rộng cột ảnh khi xuất PDF)`}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** V133: gallery nhiều ảnh của một bộ cửa — bấm vào đây rồi Ctrl+V, hoặc nút Dán ảnh / Thêm ảnh. */
+function ImageGallery({
+  images,
+  onChange,
+  onUpload,
+}: {
+  images: OrderImageForm[];
+  onChange: (next: OrderImageForm[]) => void;
+  onUpload: (file: File) => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [focused, setFocused] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const uploadRef = useRef<(file: File) => Promise<void>>(async () => {});
+  const handleFileRef = useRef<(file: File) => Promise<void>>(async () => {});
+  const canAdd = images.length < MAX_ORDER_IMAGES;
+
+  async function handleFile(file: File) {
+    if (!file.type.startsWith("image/")) {
+      setError("Clipboard không chứa hình ảnh.");
+      return;
+    }
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      setError("Chỉ hỗ trợ JPG, PNG hoặc WEBP.");
+      return;
+    }
+    if (!canAdd) {
+      setError(`Tối đa ${MAX_ORDER_IMAGES} ảnh cho một bộ cửa. Hãy xóa bớt ảnh cũ.`);
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await uploadRef.current(file);
+      // Giữ ô ảnh đang chọn để dán tiếp ảnh khác ngay.
+      window.setTimeout(() => boxRef.current?.focus(), 0);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Không thể tải ảnh.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    uploadRef.current = onUpload;
+    handleFileRef.current = handleFile;
+  });
+
+  // Bắt Ctrl+V ở cấp window khi gallery đang được chọn (ô không editable nên phải nghe ở window).
+  useEffect(() => {
+    if (!focused) return;
+    function onWindowPaste(event: ClipboardEvent) {
+      const items = event.clipboardData?.items;
+      if (!items) return;
+      const imageItem = Array.from(items).find((item) => item.kind === "file" && item.type.startsWith("image/"));
+      const file = imageItem?.getAsFile();
+      if (!file) return;
+      event.preventDefault();
+      void handleFileRef.current(file);
+    }
+    window.addEventListener("paste", onWindowPaste);
+    return () => window.removeEventListener("paste", onWindowPaste);
+  }, [focused]);
+
+  async function pasteFromClipboard() {
+    if (busy) return;
+    if (!navigator.clipboard || typeof navigator.clipboard.read !== "function") {
+      setError("Trình duyệt không hỗ trợ đọc clipboard — hãy bấm vào ô ảnh rồi nhấn Ctrl+V.");
+      return;
+    }
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const type = item.types.find((value) => value.startsWith("image/"));
+        if (!type) continue;
+        const blob = await item.getType(type);
+        const extension = type.split("/")[1] || "png";
+        await handleFile(new File([blob], `clipboard.${extension}`, { type }));
+        return;
+      }
+      setError("Clipboard không có ảnh.");
+    } catch {
+      setError("Trình duyệt chặn đọc clipboard — hãy bấm vào ô ảnh rồi nhấn Ctrl+V.");
+    }
+  }
+
+  const smallButtonClass = "rounded border border-slate-300 px-1.5 py-0.5 text-[9.5px] hover:bg-slate-100";
+
+  return (
+    <div
+      ref={boxRef}
+      tabIndex={0}
+      className="flex w-full cursor-default flex-col gap-1.5 rounded-md px-1 py-1.5 outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-400"
+      title="Bấm vào đây rồi nhấn Ctrl+V để thêm ảnh"
+      aria-label="Hình ảnh sản phẩm (nhiều ảnh). Bấm vào ô rồi nhấn Ctrl+V để dán, hoặc dùng nút Dán ảnh / Thêm ảnh."
+      onClick={() => boxRef.current?.focus()}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+    >
+      {images.length === 0 ? (
+        <span
+          className={`flex w-full flex-col items-center justify-center gap-0.5 rounded border border-dashed px-1 py-3 text-center leading-tight ${
+            focused ? "border-cyan-500 bg-cyan-50 text-cyan-700" : "border-slate-300 text-slate-400"
+          }`}
+        >
+          <span className="text-[10px] font-semibold">{focused ? "Nhấn Ctrl+V để dán ảnh" : "Bấm vào đây để dán ảnh"}</span>
+          <span className="text-[9px]">Dán được nhiều ảnh — tối đa {MAX_ORDER_IMAGES} ảnh mỗi bộ cửa</span>
+        </span>
+      ) : (
+        <div className="flex w-full flex-col gap-1.5">
+          {images.map((image, index) => (
+            <ImageGalleryRow
+              key={`${image.path}-${index}`}
+              image={image}
+              index={index}
+              onChange={(next) => onChange(images.map((entry, position) => (position === index ? next : entry)))}
+              onRemove={() => onChange(images.filter((_, position) => position !== index))}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+        <button type="button" className={smallButtonClass} disabled={busy || !canAdd} onClick={() => void pasteFromClipboard()}>
+          Dán ảnh
+        </button>
+        <label className={`text-[9.5px] font-medium text-cyan-700 hover:underline ${busy || !canAdd ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}>
+          {images.length ? "Thêm ảnh" : "Tải ảnh"}
+          <input
+            className="hidden"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            disabled={busy || !canAdd}
+            onChange={async (event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              await handleFile(file);
+              event.target.value = "";
+            }}
+          />
+        </label>
+        <span className="text-[9px] text-slate-500">{images.length}/{MAX_ORDER_IMAGES} ảnh</span>
+      </div>
+
+      {busy ? <span className="text-center text-[10px] font-semibold text-cyan-800">Đang tải...</span> : null}
+      {error ? <span className="max-w-full break-words text-center text-[10px] text-red-600">{error}</span> : null}
+    </div>
+  );
+}
+
+/** V133: xem nhanh ảnh trong bảng rút gọn — sửa ảnh ở thẻ bộ cửa. */
+function ImageGalleryPreview({ images }: { images: OrderImageForm[] }) {
+  if (!images.length) return <span className="text-[10px] text-slate-400">—</span>;
+  return (
+    <div className="flex items-center justify-center gap-1" title="Sửa ảnh ở thẻ bộ cửa bên dưới">
+      <img src={images[0].path} alt="Ảnh 1" className="h-10 w-14 rounded border border-slate-200 bg-white object-contain" />
+      {images.length > 1 ? <span className="rounded bg-cyan-100 px-1 text-[9px] font-semibold text-cyan-800">+{images.length - 1}</span> : null}
     </div>
   );
 }

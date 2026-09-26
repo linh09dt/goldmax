@@ -6,10 +6,19 @@ export type OutputLine = Record<string, any> & {
   amount?: unknown;
 };
 
+/** V133: một ảnh của bộ cửa khi xuất file (kích thước px để trống = tự động vừa ô). */
+export type OutputImage = {
+  imagePath: string;
+  imageWidth?: unknown;
+  imageHeight?: unknown;
+};
+
 export type OutputGroup = {
   lineNo: number;
   setNo: string | null;
   imagePath: string | null;
+  /** V133: nhiều ảnh của bộ cửa (ảnh 1 là ảnh đại diện). */
+  images: OutputImage[];
   rows: Array<{ row: OutputLine; main: boolean; firstInGroup: boolean }>;
 };
 
@@ -22,7 +31,7 @@ export function hasPricingQuantity(value: unknown) {
 }
 
 export function buildOutputGroups(
-  items: Array<OutputLine & { lineNo: number; setNo?: string | null; imagePath?: string | null; details?: OutputLine[] }>,
+  items: Array<OutputLine & { lineNo: number; setNo?: string | null; imagePath?: string | null; images?: OutputImage[]; details?: OutputLine[] }>,
   detailResolver?: (item: any) => OutputLine[],
 ): OutputGroup[] {
   return items.flatMap((item) => {
@@ -36,13 +45,28 @@ export function buildOutputGroups(
     }
 
     if (!rows.length) return [];
+    const images: OutputImage[] = (Array.isArray(item.images) ? item.images : [])
+      .map((image) => ({ imagePath: cleanText(image?.imagePath) ?? "", imageWidth: image?.imageWidth, imageHeight: image?.imageHeight }))
+      .filter((image) => Boolean(image.imagePath));
     return [{
       lineNo: item.lineNo,
       setNo: cleanText(item.setNo),
       imagePath: cleanText(item.imagePath),
+      images,
       rows,
     }];
   });
+}
+
+/**
+ * V133: danh sách ảnh dùng để xuất file của một bộ cửa.
+ * Ưu tiên gallery nhiều ảnh; đơn cũ (chưa có gallery) dùng ảnh đơn như trước.
+ */
+export function groupImages(group: OutputGroup): OutputImage[] {
+  if (group.images.length) return group.images;
+  const row = groupImageSourceRow(group);
+  const path = cleanText(row?.imagePath);
+  return path ? [{ imagePath: path, imageWidth: row?.imageWidth, imageHeight: row?.imageHeight }] : [];
 }
 
 export function outputLineAmount(row: OutputLine) {
@@ -126,6 +150,13 @@ export function groupManualImageSize(group: OutputGroup): { width: number; heigh
   if (!row) return null;
   const width = manualImagePx(row.imageWidth);
   const height = manualImagePx(row.imageHeight);
+  return width && height ? { width, height } : null;
+}
+
+/** V133: cỡ tay của một ảnh bất kỳ trong danh sách (null = tự động). */
+export function outputImageManualSize(image: OutputImage): { width: number; height: number } | null {
+  const width = manualImagePx(image.imageWidth);
+  const height = manualImagePx(image.imageHeight);
   return width && height ? { width, height } : null;
 }
 

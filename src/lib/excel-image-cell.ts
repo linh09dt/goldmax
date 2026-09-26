@@ -220,3 +220,84 @@ export function addProductImage(
     editAs: "oneCell",
   });
 }
+
+/** V133: một ảnh trong ô (nhiều ảnh xếp dọc). */
+export type ProductImageSpec = {
+  aspect: number;
+  manualWidth?: number | null;
+  manualHeight?: number | null;
+};
+
+export type ProductImageBox = { width: number; height: number };
+
+/** Trần chiều cao cả cụm ảnh trong 1 ô để dòng không cao vống lên. */
+export const MAX_IMAGE_STACK_PX = 520;
+
+/** Kích thước từng ảnh: ảnh có cỡ tay dùng đúng cỡ, ảnh tự động rộng hết bề rộng cột. */
+function resolveImageBoxes(specs: ProductImageSpec[], columnPx: number, padding: number, autoColumnPx?: number): ProductImageBox[] {
+  const autoPx = autoColumnPx && autoColumnPx > 0 ? autoColumnPx : columnPx;
+  const boxes = specs.map((spec) => {
+    const aspect = Number.isFinite(spec.aspect) && spec.aspect > 0.05 ? spec.aspect : 5 / 3;
+    const manualWidth = manualPx(spec.manualWidth);
+    const manualHeight = manualPx(spec.manualHeight);
+    if (manualWidth && manualHeight) return { width: manualWidth, height: manualHeight };
+    const width = Math.max(24, autoPx - padding * 2);
+    return { width, height: Math.max(8, Math.round(width / aspect)) };
+  });
+  return boxes;
+}
+
+/**
+ * V133: tính chỗ đặt NHIỀU ảnh của một bộ cửa — xếp dọc, canh giữa cụm, cách nhau `gapPx`.
+ * Nếu tổng cao vượt trần (`maxStackHeightPx`) thì thu nhỏ đều để không phá bố cục file.
+ */
+export function fitProductImageStackInCell(options: {
+  ws: Worksheet;
+  firstRow: number;
+  lastRow: number;
+  columnIndex: number;
+  columnWidth: number;
+  images: ProductImageSpec[];
+  paddingPx?: number;
+  gapPx?: number;
+  maxStackHeightPx?: number;
+  /** V133: bề rộng cột MẶC ĐỊNH dùng cho ảnh tự động khi có nhiều ảnh (cột có thể đã bị nới). */
+  autoColumnWidth?: number;
+}): ProductImagePlacement[] {
+  const padding = options.paddingPx ?? 4;
+  const gap = options.gapPx ?? 4;
+  const columnPx = columnWidthToPx(options.columnWidth);
+  const autoColumnPx = options.autoColumnWidth ? columnWidthToPx(options.autoColumnWidth) : columnPx;
+  const maxStack = options.maxStackHeightPx ?? MAX_IMAGE_STACK_PX;
+  if (options.images.length === 0) return [];
+
+  let boxes = resolveImageBoxes(options.images, columnPx, padding, autoColumnPx);
+  const stackHeight = () => boxes.reduce((sum, box) => sum + box.height, 0) + gap * (boxes.length - 1);
+  const budget = Math.max(40, maxStack - padding * 2);
+  if (stackHeight() > budget) {
+    const factor = Math.max(0.2, (budget - gap * (boxes.length - 1)) / Math.max(1, boxes.reduce((sum, box) => sum + box.height, 0)));
+    boxes = boxes.map((box) => ({ width: Math.max(8, Math.round(box.width * factor)), height: Math.max(8, Math.round(box.height * factor)) }));
+  }
+
+  const contentHeight = stackHeight();
+  const blockPx = growFirstRowToFit(options.ws, options.firstRow, options.lastRow, contentHeight + padding * 2, Math.max(90, contentHeight + padding * 2));
+  let offsetY = Math.max(0, (blockPx - contentHeight) / 2);
+
+  const placements: ProductImagePlacement[] = [];
+  for (const box of boxes) {
+    const offsetX = Math.max(0, (columnPx - box.width) / 2);
+    const anchor = rowAnchorAt(options.ws, options.firstRow, options.lastRow, offsetY);
+    placements.push({
+      width: box.width,
+      height: box.height,
+      tl: {
+        nativeCol: options.columnIndex,
+        nativeColOff: Math.round(offsetX * EMU_PER_PX),
+        nativeRow: anchor.row - 1,
+        nativeRowOff: Math.round(anchor.offsetPx * EMU_PER_PX),
+      },
+    });
+    offsetY += box.height + gap;
+  }
+  return placements;
+}
