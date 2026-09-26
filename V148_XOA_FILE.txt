@@ -1,0 +1,22 @@
+V148 — XOÁ TAY 6 ĐƯỜNG DẪN NÀY TRƯỚC/SONG SONG KHI CHÉP CODE (zip không xoá được file):
+
+src/app/ke-hoach-san-xuat/ke-hoach/                    (xoá cả thư mục)
+src/app/api/production/plans/                          (xoá cả thư mục)
+src/app/api/production/schedule/                       (xoá cả thư mục)
+src/components/production/production-plan-board.tsx
+src/components/production/schedule-button.tsx
+src/lib/production/auto-schedule.ts
+
+(Nhớ xoá .next — Next giữ type cũ của các trang đã xoá.)
+
+Sau đó:
+  npx tsc --noEmit && npx eslint src && npm run build
+
+Windows (CMD):
+  rmdir /s /q src\app\ke-hoach-san-xuat\ke-hoach
+  rmdir /s /q src\app\api\production\plans
+  rmdir /s /q src\app\api\production\schedule
+  del src\components\production\production-plan-board.tsx
+  del src\components\production\schedule-button.tsx
+  del src\lib\production\auto-schedule.ts
+  rmdir /s /q .next

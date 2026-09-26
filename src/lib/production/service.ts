@@ -12,10 +12,12 @@ import { prisma } from "@/lib/prisma";
 import { ORDER_WRITE_TRANSACTION } from "@/lib/db-transaction";
 import { CONFIRMED_STATUS_CODES } from "@/lib/order-form";
 import {
+  addWorkingDays,
   buildCalendar,
   parseIsoDateStrict,
   startOfDayUtc,
   subtractWorkingDays,
+  todayInVietnam,
   workingDaysBetween,
   type WorkingCalendar,
 } from "@/lib/production/calendar";
@@ -40,6 +42,11 @@ import {
   type ProductionConfig,
 } from "@/lib/production/config";
 import { buildComponentOrderDrafts, buildTaskDrafts } from "@/lib/production/routing";
+import {
+  buildStagePlan,
+  PLANNABLE_SET_STATUSES,
+  type StagePlanResult,
+} from "@/lib/production/stage-plan";
 import { defaultPriorityForOrderType } from "@/lib/production/scheduling";
 import {
   assignWorkOrderCodes,
@@ -1139,4 +1146,168 @@ export async function loadProductionReportData(limit = 5000) {
     workCenters,
     reasons: reasons.map((reason) => ({ code: reason.code, name: reason.name, group: reason.group })),
   };
+}
+
+// ---------------------------------------------------------------------------
+// V148 — KẾ HOẠCH CHO TỪNG CÔNG ĐOẠN **THEO NĂNG LỰC**
+//
+// Khác V144 (mốc target suy từ lead time): đây là NGÀY KẾ HOẠCH thật (`planned_start/planned_end`),
+// tính XUÔI theo năng lực từng công đoạn/tổ. Lead time chỉ dùng để đối chiếu "có kịp mốc không".
+// Xem `src/lib/production/stage-plan.ts` + `KE_HOACH_THEO_CONG_DOAN_V147.md`.
+// ---------------------------------------------------------------------------
+
+/** Phạm vi bộ đưa vào kế hoạch: chỉ bộ chưa xếp, hay mọi bộ đang mở. */
+export type StagePlanScope = "CHO_XEP_LICH" | "DANG_MO";
+
+export type StagePlanQuery = {
+  /** `YYYY-MM-DD` (bỏ trống = hôm nay theo giờ VN). */
+  from?: string | null;
+  /** `YYYY-MM-DD` (bỏ trống = 120 ngày làm việc kể từ `from`). */
+  to?: string | null;
+  scope?: StagePlanScope;
+  setIds?: number[];
+};
+
+export type ApplyStagePlanResult = {
+  sets: number;
+  tasks: number;
+  /** Số bộ chuyển từ CHỜ XẾP LỊCH → ĐÃ XẾP LỊCH. */
+  statuses: number;
+  warnings: number;
+};
+
+const STAGE_PLAN_MAX_SETS = 2000;
+
+/** Chuẩn hoá khoảng ngày của một lượt lập kế hoạch (mặc định: hôm nay → +120 ngày làm việc). */
+async function resolveStagePlanRange(
+  query: StagePlanQuery,
+  calendar: WorkingCalendar,
+): Promise<{ from: Date; to: Date }> {
+  const from = parseIsoDateStrict(query.from ?? null) ?? todayInVietnam();
+  const parsedTo = parseIsoDateStrict(query.to ?? null);
+  const to = parsedTo ?? addWorkingDays(from, 120, calendar);
+  return to.getTime() < from.getTime() ? { from, to: from } : { from, to };
+}
+
+/**
+ * Tính TRƯỚC kế hoạch từng công đoạn (không ghi DB) để người dùng xem rồi mới quyết định.
+ */
+export async function previewStagePlan(query: StagePlanQuery): Promise<StagePlanResult> {
+  const config = await readProductionConfig();
+  const calendar = await loadCalendar(config);
+  const [stages, workCenters] = await Promise.all([loadActiveStages(), loadActiveWorkCenters()]);
+  const { from, to } = await resolveStagePlanRange(query, calendar);
+
+  const scope: StagePlanScope = query.scope ?? "CHO_XEP_LICH";
+  const statuses = scope === "CHO_XEP_LICH" ? ["CHO_XEP_LICH"] : [...PLANNABLE_SET_STATUSES];
+
+  const sets = await prisma.productionSet.findMany({
+    where: {
+      status: { in: statuses },
+      ...(query.setIds?.length ? { id: { in: query.setIds } } : {}),
+    },
+    orderBy: [{ priority: "asc" }, { dueDate: "asc" }, { id: "asc" }],
+    take: STAGE_PLAN_MAX_SETS,
+  });
+
+  const tasks = sets.length
+    ? await prisma.productionTask.findMany({ where: { setId: { in: sets.map((set) => set.id) } } })
+    : [];
+
+  return buildStagePlan({
+    sets: sets as unknown as ProductionSetRow[],
+    tasks: tasks as unknown as ProductionTaskRow[],
+    stages,
+    workCenters,
+    calendar,
+    config,
+    from,
+    to,
+    setIds: query.setIds?.length ? query.setIds : undefined,
+  });
+}
+
+/**
+ * GHI kế hoạch vào `production_tasks.planned_start/planned_end` + `production_sets.planned_*`.
+ *
+ * Ghi gộp theo bài học V111: 1 câu `UPDATE … FROM jsonb_to_recordset(…)` cho mỗi bảng,
+ * tất cả trong MỘT transaction. Thiếu dòng nào là **rollback** (không im lặng báo thành công).
+ * Bộ `CHO_XEP_LICH` → `DA_XEP_LICH`. Không đụng công đoạn đã XONG.
+ */
+export async function applyStagePlan(
+  query: StagePlanQuery & { byName?: string | null },
+): Promise<ApplyStagePlanResult> {
+  const preview = await previewStagePlan(query);
+  const rows = preview.tasks.filter(
+    (entry): entry is typeof entry & { start: Date; end: Date } =>
+      entry.state === "XEP" && entry.start !== null && entry.end !== null,
+  );
+  if (!rows.length) {
+    return { sets: 0, tasks: 0, statuses: 0, warnings: preview.warnings.length };
+  }
+
+  const taskRecords = rows.map((entry) => ({
+    id: entry.taskId,
+    planned_start: isoDateOnly(entry.start),
+    planned_end: isoDateOnly(entry.end),
+  }));
+
+  const perSet = new Map<number, { start: Date; end: Date }>();
+  for (const entry of rows) {
+    const current = perSet.get(entry.setId);
+    if (!current) {
+      perSet.set(entry.setId, { start: entry.start, end: entry.end });
+      continue;
+    }
+    if (entry.start.getTime() < current.start.getTime()) current.start = entry.start;
+    if (entry.end.getTime() > current.end.getTime()) current.end = entry.end;
+  }
+  const setRecords = Array.from(perSet.entries()).map(([id, value]) => ({
+    id,
+    planned_start: isoDateOnly(value.start),
+    planned_end: isoDateOnly(value.end),
+  }));
+
+  const byName = query.byName?.trim() || null;
+
+  return prisma.$transaction(async (tx) => {
+    const updatedTasks = await tx.$executeRaw`
+      UPDATE production_tasks AS t
+      SET planned_start = v.planned_start::date,
+          planned_end   = v.planned_end::date,
+          updated_at    = now()
+      FROM jsonb_to_recordset(${JSON.stringify(taskRecords)}::jsonb) AS v(id int, planned_start text, planned_end text)
+      WHERE t.id = v.id`;
+    if (Number(updatedTasks) !== taskRecords.length) {
+      throw new Error(`Chỉ ghi được ${Number(updatedTasks)}/${taskRecords.length} công đoạn — đã huỷ, kế hoạch không đổi.`);
+    }
+
+    const updatedSets = await tx.$executeRaw`
+      UPDATE production_sets AS s
+      SET planned_start = v.planned_start::date,
+          planned_end   = v.planned_end::date,
+          status        = CASE WHEN s.status = 'CHO_XEP_LICH' THEN 'DA_XEP_LICH' ELSE s.status END,
+          updated_at    = now()
+      FROM jsonb_to_recordset(${JSON.stringify(setRecords)}::jsonb) AS v(id int, planned_start text, planned_end text)
+      WHERE s.id = v.id`;
+
+    await tx.productionLog.createMany({
+      data: setRecords.map((record) => ({
+        entity: "SET",
+        entityId: record.id,
+        action: "LAP_KE_HOACH_CONG_DOAN",
+        field: "planned_start",
+        oldValue: null,
+        newValue: `${record.planned_start} → ${record.planned_end}`,
+        byName,
+      })),
+    });
+
+    return {
+      sets: setRecords.length,
+      tasks: Number(updatedTasks),
+      statuses: Number(updatedSets),
+      warnings: preview.warnings.length,
+    };
+  }, ORDER_WRITE_TRANSACTION);
 }
