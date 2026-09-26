@@ -8,11 +8,20 @@ import {
   SettingsSectionHeader,
   SettingsTable,
 } from "@/components/settings/settings-ui";
+import {
+  ITEM_CATEGORY_SECTIONS,
+  classifyItemByName,
+  itemCategoryLabel,
+  normalizeItemCategory,
+  resolveItemCategory,
+  type ItemCategory,
+} from "@/lib/item-category";
 
 type Item = {
   id: number;
   code: string;
   name: string;
+  category: string | null;
   productDescription: string | null;
   unit: string | null;
   dealerPrice: string | number | null;
@@ -48,7 +57,7 @@ type RebuildSummary = {
 type ItemSection = {
   key: string;
   label: string;
-  tone: "cyan" | "amber";
+  tone: "cyan" | "amber" | "red";
   hint: string;
   items: Item[];
 };
@@ -63,7 +72,7 @@ type ListRow =
       kind: "section";
       key: string;
       label: string;
-      tone: "cyan" | "amber";
+      tone: "cyan" | "amber" | "red";
       hint: string;
       total: number;
       activeCount: number;
@@ -92,12 +101,16 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
   const [newUnit, setNewUnit] = useState("");
   const [newDealerPrice, setNewDealerPrice] = useState("");
   const [newRetailPrice, setNewRetailPrice] = useState("");
+  // V134: "" = tự phân loại theo TENHANG, ngược lại là người dùng chọn tay.
+  const [newCategory, setNewCategory] = useState<ItemCategory | "">("");
   const [adding, setAdding] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   // V84: chỉ còn 2 khối Cửa / Phụ kiện, mặc định mở hết để thấy toàn bộ dòng chi tiết.
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
   const [editingId, setEditingId] = useState<number | null>(null);
+  // V134: đổi phân loại lưu ngay (không cần vào chế độ Sửa).
+  const [categorySavingId, setCategorySavingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
   const [editCode, setEditCode] = useState("");
   const [editProductDescription, setEditProductDescription] = useState("");
@@ -142,19 +155,29 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
   const activeCount = useMemo(() => items.filter((item) => item.active).length, [items]);
   const isSearching = search.trim().length > 0;
 
-  const doorItems = useMemo(() => items.filter((item) => isDoorTenhang(item.name)), [items]);
-  const accessoryItems = useMemo(() => items.filter((item) => !isDoorTenhang(item.name)), [items]);
+  // V134: phân loại lấy từ cột `category` của dữ liệu (không đoán theo tên nữa).
+  const itemsOfCategory = useCallback(
+    (category: ItemCategory) => items.filter((item) => resolveItemCategory(item.category, item.name) === category),
+    [items],
+  );
+  const categoryCounts = useMemo(
+    () => ITEM_CATEGORY_SECTIONS.map((section) => ({ ...section, count: itemsOfCategory(section.key).length })),
+    [itemsOfCategory],
+  );
 
   const sections = useMemo<ItemSection[]>(() => {
     // Trong mỗi khối: sắp theo TENHANG rồi theo MODEL, để các MODEL cùng loại nằm liền nhau.
     const byTenhangThenModel = (list: Item[]) => [...list].sort((a, b) =>
       normalizeGroupKey(a.name).localeCompare(normalizeGroupKey(b.name), "vi") || a.code.localeCompare(b.code, "vi"));
 
-    return [
-      { key: "CUA", label: "CỬA", tone: "cyan" as const, hint: "Dùng làm bộ cửa trong đơn", items: byTenhangThenModel(doorItems) },
-      { key: "PHU_KIEN", label: "PHỤ KIỆN", tone: "amber" as const, hint: "Dùng làm dòng phụ kiện / chi tiết trong đơn", items: byTenhangThenModel(accessoryItems) },
-    ].filter((section) => section.items.length > 0);
-  }, [doorItems, accessoryItems]);
+    return ITEM_CATEGORY_SECTIONS.map((section) => ({
+      key: section.key as string,
+      label: section.label,
+      tone: section.badgeTone,
+      hint: section.hint,
+      items: byTenhangThenModel(itemsOfCategory(section.key)),
+    })).filter((section) => section.items.length > 0);
+  }, [itemsOfCategory]);
 
   const listRows = useMemo<ListRow[]>(() => {
     const rows: ListRow[] = [];
@@ -233,6 +256,7 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
         body: JSON.stringify({
           name: newName,
           code: newCode,
+          category: newCategory || classifyItemByName(newName),
           productDescription: newProductDescription,
           unit: newUnit,
           dealerPrice: newDealerPrice,
@@ -247,12 +271,44 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
       setNewUnit("");
       setNewDealerPrice("");
       setNewRetailPrice("");
+      setNewCategory("");
       setMessage({ type: "ok", text: "Đã thêm hàng hóa." });
       await load();
     } catch (error) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Không thể thêm hàng hóa." });
     } finally {
       setAdding(false);
+    }
+  }
+
+  /** V134: đổi phân loại hàng hóa (Cấp cửa / Phụ kiện / Chi phí gia công) — lưu ngay. */
+  async function saveCategory(item: Item, category: ItemCategory) {
+    setCategorySavingId(item.id);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/items/${item.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: item.name,
+          code: item.code,
+          category,
+          productDescription: item.productDescription ?? "",
+          unit: item.unit ?? "",
+          dealerPrice: item.dealerPrice ?? "",
+          retailPrice: item.retailPrice ?? "",
+          active: item.active,
+        }),
+      });
+      const result = await response.json() as { ok: boolean; error?: string };
+      if (!response.ok || !result.ok) throw new Error(result.error || "Không thể đổi phân loại hàng hóa.");
+      setItems((current) => current.map((entry) => (entry.id === item.id ? { ...entry, category } : entry)));
+      setMessage({ type: "ok", text: `Đã xếp ${item.code} vào ${itemCategoryLabel(category)}.` });
+    } catch (error) {
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Không thể đổi phân loại hàng hóa." });
+      await load();
+    } finally {
+      setCategorySavingId(null);
     }
   }
 
@@ -342,6 +398,21 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
           {editing ? <PriceInput value={editRetailPrice} onChange={setEditRetailPrice} compact /> : formatPrice(item.retailPrice)}
         </td>
         <td>
+          {/* V134: phân loại hàng hóa — lưu ngay khi đổi. */}
+          <select
+            className={`${cellInputClass} disabled:opacity-60`}
+            value={resolveItemCategory(item.category, item.name)}
+            disabled={categorySavingId === item.id}
+            aria-label={`Phân loại của ${item.code}`}
+            title="Phân loại: Cấp cửa / Phụ kiện / Chi phí gia công"
+            onChange={(event) => void saveCategory(item, event.target.value as ItemCategory)}
+          >
+            {ITEM_CATEGORY_SECTIONS.map((section) => (
+              <option key={section.key} value={section.key}>{itemCategoryLabel(section.key)}</option>
+            ))}
+          </select>
+        </td>
+        <td>
           {editing ? (
             <select className={cellInputClass} value={editActive ? "1" : "0"} onChange={(e) => setEditActive(e.target.value === "1")}>
               <option value="1">Đang sử dụng</option>
@@ -425,7 +496,7 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
         description="Dùng khi phát sinh MODEL mới chưa có trong file Master Data."
         bodyClassName="p-3"
       >
-        <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-[1.1fr_1.6fr_1fr_0.55fr_0.8fr_0.8fr_auto]">
+        <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-[1.1fr_1.5fr_1fr_0.85fr_0.55fr_0.8fr_0.8fr_auto]">
           <label className="block">
             <span className="erp-field-label">TENHANG</span>
             <input className="erp-input" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Ví dụ: Cửa đi" />
@@ -437,6 +508,18 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
           <label className="block">
             <span className="erp-field-label">MODEL</span>
             <input className="erp-input" value={newCode} onChange={(e) => setNewCode(e.target.value)} placeholder="Mã MODEL" />
+          </label>
+          <label className="block">
+            <span className="erp-field-label">Phân loại</span>
+            <select
+              className="erp-input"
+              value={newCategory || classifyItemByName(newName)}
+              onChange={(e) => setNewCategory(e.target.value as ItemCategory)}
+            >
+              {ITEM_CATEGORY_SECTIONS.map((section) => (
+                <option key={section.key} value={section.key}>{itemCategoryLabel(section.key)}</option>
+              ))}
+            </select>
           </label>
           <label className="block">
             <span className="erp-field-label">ĐVT</span>
@@ -465,8 +548,9 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
               <h3 className="erp-subsection-title">Danh sách hàng hóa</h3>
               <SettingsBadge tone="cyan">{items.length} MODEL</SettingsBadge>
               <SettingsBadge>{activeCount} đang sử dụng</SettingsBadge>
-              <SettingsBadge tone="cyan">Cửa {doorItems.length}</SettingsBadge>
-              <SettingsBadge tone="amber">Phụ kiện {accessoryItems.length}</SettingsBadge>
+              {categoryCounts.map((section) => (
+                <SettingsBadge key={section.key} tone={section.badgeTone}>{section.label} {section.count}</SettingsBadge>
+              ))}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <input
@@ -485,8 +569,9 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
             </div>
           </div>
           <p className="erp-hint">
-            Liệt kê chi tiết từng MODEL, không gom theo TENHANG. Chỉ chia 2 khối: <b>CỬA</b> (TENHANG bắt đầu bằng “Cửa”)
-            và <b>PHỤ KIỆN</b> (mọi TENHANG còn lại).
+            Liệt kê chi tiết từng MODEL, không gom theo TENHANG. Danh mục chia <b>3 khối theo cột Phân loại</b>:
+            {" "}<b>CẤP CỬA</b> (dòng chính / bộ cửa trong đơn), <b>PHỤ KIỆN</b> và <b>CHI PHÍ GIA CÔNG</b> (nhập ở dòng chi tiết).
+            Đổi phân loại ngay ở cột Phân loại — không cần vào chế độ Sửa.
           </p>
         </div>
 
@@ -494,22 +579,23 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
           <thead>
             <tr>
               <th className="w-[4%]">STT</th>
-              <th className="w-[12%]">TENHANG</th>
-              <th className="w-[22%]">Tên sản phẩm diễn giải</th>
-              <th className="w-[12%]">MODEL</th>
+              <th className="w-[11%]">TENHANG</th>
+              <th className="w-[17%]">Tên sản phẩm diễn giải</th>
+              <th className="w-[11%]">MODEL</th>
               <th className="w-[5%] text-center">ĐVT</th>
               <th className="w-[10%] text-right">Giá đại lý (đ)</th>
               <th className="w-[10%] text-right">Giá bán lẻ (đ)</th>
-              <th className="w-[9%]">Trạng thái</th>
-              <th className="w-[9%]">Nguồn</th>
+              <th className="w-[10%]">Phân loại</th>
+              <th className="w-[8%]">Trạng thái</th>
+              <th className="w-[7%]">Nguồn</th>
               <th className="w-[7%]">Thao tác</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={10} className="px-3 py-8 text-center text-slate-500">Đang tải...</td></tr>
+              <tr><td colSpan={11} className="px-3 py-8 text-center text-slate-500">Đang tải...</td></tr>
             ) : listRows.length === 0 ? (
-              <tr><td colSpan={10} className="px-3 py-8 text-center text-slate-500">Chưa có Master Data hàng hóa.</td></tr>
+              <tr><td colSpan={11} className="px-3 py-8 text-center text-slate-500">Chưa có Master Data hàng hóa.</td></tr>
             ) : (
               listRows.map((row) => {
                 if (row.kind === "item") return renderItemRow(row.item, row.stt);
@@ -533,7 +619,7 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
                         {row.activeCount !== row.total ? <span className="text-[11.5px] text-slate-500">{row.activeCount} đang sử dụng</span> : null}
                       </div>
                     </td>
-                    <td colSpan={7} className="col-span-cell text-right text-[11px] uppercase tracking-wide text-slate-400">{row.hint}</td>
+                    <td colSpan={8} className="col-span-cell text-right text-[11px] uppercase tracking-wide text-slate-400">{row.hint}</td>
                   </tr>
                 );
               })
@@ -623,13 +709,4 @@ function normalizeText(value: string) {
     .replace(/Đ/g, "D")
     .trim()
     .toLocaleLowerCase("vi");
-}
-
-/**
- * V84: quy ước phân loại Cửa / Phụ kiện — dùng đúng logic của view Tạo đơn hàng
- * (`isDoorCatalogItem` bên order-form.tsx): TENHANG bắt đầu bằng “Cửa” là bộ cửa, còn lại là phụ kiện.
- */
-function isDoorTenhang(value: string) {
-  const name = normalizeText(value);
-  return name.startsWith("cua ") || name === "cua";
 }

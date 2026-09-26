@@ -108,7 +108,8 @@ export default function GuidePage() {
 
           <GuideSubTitle code="A1" title="Danh mục hàng hóa" text="Master Data dùng khi lập đơn: TENHANG, MODEL, ĐVT, giá đại lý và giá bán lẻ." />
           <ActionTable rows={[
-            ["Tạo lại Master Data từ Excel", "Tạo lại danh mục từ file Excel nguồn. Đơn hàng đã có không bị xóa."],
+            ["Phân loại", "Mỗi hàng hóa thuộc 1 trong 3 nhóm: Cấp cửa / Phụ kiện / Chi phí gia công. Danh mục chia 3 khối theo cột này; đổi ô Phân loại ở từng dòng là lưu ngay. Phân loại quyết định ô “Nhóm cửa” và “Nhóm hàng” khi lập đơn."],
+            ["Tạo lại Master Data từ Excel", "Tạo lại danh mục từ file Excel nguồn. Đơn hàng đã có không bị xóa; phân loại đã đặt được giữ lại theo MODEL."],
             ["Xuất Master Data", "Xuất Danh mục hàng hóa hiện tại ra Excel."],
             ["+ Thêm hàng hóa", "Thêm thủ công một TENHANG / MODEL mới."],
             ["Tìm kiếm", "Tìm theo TENHANG, tên diễn giải, MODEL hoặc ĐVT."],

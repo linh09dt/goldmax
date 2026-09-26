@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { classifyItemByName } from "@/lib/item-category";
 import { parseItemMasterWorkbook } from "@/lib/item-excel";
 
 export const runtime = "nodejs";
@@ -38,6 +39,8 @@ export async function POST(request: Request) {
           data: newRows.map((item) => ({
             code: item.code,
             name: item.name,
+            // V134: hàng mới phân loại theo TENHANG (sửa lại được ở tab Cấu hình).
+            category: classifyItemByName(item.name),
             active: true,
             source: "EXCEL",
             lastSourceFile: file.name,
@@ -51,6 +54,8 @@ export async function POST(request: Request) {
           where: { code: item.code },
           data: {
             name: item.name,
+            // Đổi TENHANG thì phân loại theo tên mới; phân loại đã sửa tay vẫn giữ nếu tên không đổi.
+            category: classifyItemByName(item.name),
             source: "EXCEL",
             lastSourceFile: file.name,
             lastImportedAt: new Date(),

@@ -221,6 +221,8 @@ model ItemMaster {
   id                 Int      @id @default(autoincrement())
   code               String   @unique @db.VarChar(160)
   name               String   @db.Text
+  // V134: phân loại hàng hóa ở tab Cấu hình — DOOR (cấp cửa) | ACCESSORY (phụ kiện) | PROCESSING (chi phí gia công).
+  category           String   @default("ACCESSORY") @db.VarChar(20)
   productDescription String?  @map("product_description") @db.Text
   salesName          String?  @map("sales_name") @db.VarChar(120)
   salesModel         String?  @map("sales_model") @db.VarChar(180)
@@ -237,6 +239,7 @@ model ItemMaster {
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
   @@index([active])
+  @@index([category])
   @@index([salesName])
   @@index([salesModel])
   @@index([updatedAt])

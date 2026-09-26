@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { normalizeItemCategory } from "@/lib/item-category";
 
 export const runtime = "nodejs";
 
@@ -19,9 +20,12 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       dealerPrice?: unknown;
       retailPrice?: unknown;
       active?: unknown;
+      category?: unknown;
     };
     const code = requiredText(body.code, "MODEL");
     const name = requiredText(body.name, "TENHANG");
+    // V134: chỉ đổi phân loại khi client gửi lên — sửa giá/tên không được tự đổi phân loại.
+    const nextCategory = normalizeItemCategory(body.category);
 
     const duplicate = await prisma.itemMaster.findFirst({
       where: { code, NOT: { id: itemId } },
@@ -36,6 +40,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       data: {
         code,
         name,
+        ...(nextCategory ? { category: nextCategory } : {}),
         salesName: name,
         salesModel: code,
         productDescription: optionalText(body.productDescription),

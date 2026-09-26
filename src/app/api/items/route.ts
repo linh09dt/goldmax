@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { classifyItemByName, normalizeItemCategory } from "@/lib/item-category";
 
 export const runtime = "nodejs";
 
@@ -7,11 +8,14 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const q = (url.searchParams.get("q") ?? "").trim();
   const activeParam = url.searchParams.get("active");
+  // V134: lọc theo phân loại hàng hóa (DOOR / ACCESSORY / PROCESSING).
+  const categoryParam = normalizeItemCategory(url.searchParams.get("category"));
   const limit = Math.min(3000, Math.max(1, Number(url.searchParams.get("limit") ?? 1000) || 1000));
 
   const items = await prisma.itemMaster.findMany({
     where: {
       ...(activeParam === "true" ? { active: true } : activeParam === "false" ? { active: false } : {}),
+      ...(categoryParam ? { category: categoryParam } : {}),
       ...(q ? {
         OR: [
           { code: { contains: q, mode: "insensitive" as const } },
@@ -47,6 +51,7 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       code?: unknown;
       name?: unknown;
+      category?: unknown;
       productDescription?: unknown;
       unit?: unknown;
       dealerPrice?: unknown;
@@ -63,6 +68,8 @@ export async function POST(request: Request) {
       data: {
         code,
         name,
+        // V134: người dùng chọn phân loại; không chọn thì đoán theo TENHANG.
+        category: normalizeItemCategory(body.category) ?? classifyItemByName(name),
         salesName: name,
         salesModel: code,
         productDescription: optionalText(body.productDescription),

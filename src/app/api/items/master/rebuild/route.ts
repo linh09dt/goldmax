@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { classifyItemByName, normalizeItemCategory } from "@/lib/item-category";
 import { parseMasterItemWorkbookV14 } from "@/lib/item-master-v14-excel";
 
 export const runtime = "nodejs";
@@ -40,6 +41,11 @@ export async function POST(request: Request) {
 
     await prisma.$transaction(
       async (tx) => {
+        // V134: giữ lại phân loại (Cấp cửa / Phụ kiện / Chi phí gia công) mà người dùng đã đặt,
+        // theo MODEL — vì "Tạo lại Master Data" xoá rồi nạp lại toàn bộ danh mục.
+        const previousRows = await tx.itemMaster.findMany({ select: { code: true, category: true } });
+        const previousCategoryByCode = new Map(previousRows.map((row) => [row.code, row.category]));
+
         // Reset đúng phạm vi Master Data hàng hóa.
         // Không đụng tới dữ liệu đơn hàng.
         await tx.itemMaster.deleteMany();
@@ -51,6 +57,8 @@ export async function POST(request: Request) {
           data: parsed.items.map((item) => ({
             code: item.model,
             name: item.name,
+            // V134: ưu tiên phân loại đã đặt trước đó; mã mới thì phân loại theo TENHANG.
+            category: normalizeItemCategory(previousCategoryByCode.get(item.model)) ?? classifyItemByName(item.name),
             salesName: item.name,
             salesModel: item.model,
             unit: null,
