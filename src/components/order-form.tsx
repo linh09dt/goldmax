@@ -1837,6 +1837,9 @@ function ImageCell({
   const cellRef = useRef<HTMLDivElement>(null);
   // V132.1: giữ bản mới nhất của handleImage để listener dán ở window không bị "closure cũ".
   const handleImageRef = useRef<(file: File, source: "file" | "paste") => Promise<void>>(async () => {});
+  // V133.1: chống dán trùng (Ctrl+V giữ lâu / dán 2 lần khi ảnh trước đang tải lên).
+  const uploadingRef = useRef(false);
+  const lastFileRef = useRef<{ key: string; at: number }>({ key: "", at: 0 });
 
   const safeAspect = Number.isFinite(aspect) && aspect > 0.05 ? aspect : 5 / 3;
   const manualWidth = clampImageSize(width);
@@ -1906,15 +1909,24 @@ function ImageCell({
     }
     if (source === "paste" && path && !window.confirm("Dòng này đã có ảnh. Dán ảnh mới để thay thế?")) return;
 
+    // V133.1: đang tải ảnh trước → bỏ qua lần dán lặp.
+    if (uploadingRef.current) return;
+    uploadingRef.current = true;
+
     setBusy(true);
     setError("");
     try {
+      // Cùng một ảnh vừa được dán trong 1,5 giây → bỏ qua (tránh nhân đôi dòng ảnh).
+      const fileKey = await imageFileKey(file);
+      if (lastFileRef.current.key === fileKey && Date.now() - lastFileRef.current.at < 1500) return;
       await onUpload(file);
+      lastFileRef.current = { key: fileKey, at: Date.now() };
       // V131.1: giữ ô ảnh đang được chọn để dán tiếp ảnh khác ngay (không phải click lại).
       window.setTimeout(() => cellRef.current?.focus(), 0);
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Không thể tải ảnh.");
     } finally {
+      uploadingRef.current = false;
       setBusy(false);
     }
   }
@@ -1943,7 +1955,7 @@ function ImageCell({
 
   /** V131.1: nút "Dán ảnh" — đọc ảnh ngay từ clipboard, không cần click vào ô rồi Ctrl+V. */
   async function pasteFromClipboard() {
-    if (busy) return;
+    if (busy || uploadingRef.current) return;
     if (!navigator.clipboard || typeof navigator.clipboard.read !== "function") {
       setError("Trình duyệt không hỗ trợ đọc clipboard — hãy bấm vào ô ảnh rồi nhấn Ctrl+V.");
       return;
@@ -2108,6 +2120,23 @@ function ImageCell({
 }
 
 /** V133: ảnh số 1 là ảnh đại diện — gương sang imagePath/imageWidth/imageHeight để danh sách/chi tiết/in không phải đổi. */
+/** V133.1: khóa nhận dạng ảnh để bỏ qua lần dán lặp (băm nhanh nội dung + kích thước).
+ *  Dùng nội dung thay vì tên file vì ảnh từ clipboard luôn tên giống nhau (clipboard.png)
+ *  và mỗi lần tạo File lại có lastModified mới → không so được bằng tên/giờ. */
+async function imageFileKey(file: File): Promise<string> {
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let hash = 2166136261;
+    const step = bytes.length > 65536 ? Math.ceil(bytes.length / 65536) : 1;
+    for (let i = 0; i < bytes.length; i += step) {
+      hash = ((hash ^ bytes[i]) * 16777619) >>> 0;
+    }
+    return `${file.size}|${hash}`;
+  } catch {
+    return `${file.name}|${file.size}|${file.lastModified}`;
+  }
+}
+
 function syncItemImageFields(item: OrderItemForm): OrderItemForm {
   const first = item.images[0];
   return {
@@ -2244,6 +2273,12 @@ function ImageGallery({
   const boxRef = useRef<HTMLDivElement>(null);
   const uploadRef = useRef<(file: File) => Promise<void>>(async () => {});
   const handleFileRef = useRef<(file: File) => Promise<void>>(async () => {});
+  // V133.1: chống dán trùng — Ctrl+V bị giữ lâu (key repeat) hoặc dán 2 lần liên tiếp khi ảnh
+  // trước còn đang tải lên sẽ tạo 2 dòng ảnh giống nhau. Cờ ref được bật NGAY (đồng bộ) nên
+  // lần dán thứ hai bị bỏ qua, không phụ thuộc state `busy` (state chỉ đổi sau khi re-render).
+  const uploadingRef = useRef(false);
+  const lastFileRef = useRef<{ key: string; at: number }>({ key: "", at: 0 });
+  const imagesRef = useRef<OrderImageForm[]>(images);
   const canAdd = images.length < MAX_ORDER_IMAGES;
 
   async function handleFile(file: File) {
@@ -2255,19 +2290,26 @@ function ImageGallery({
       setError("Chỉ hỗ trợ JPG, PNG hoặc WEBP.");
       return;
     }
-    if (!canAdd) {
-      setError(`Tối đa ${MAX_ORDER_IMAGES} ảnh cho một bộ cửa. Hãy xóa bớt ảnh cũ.`);
-      return;
-    }
+    if (uploadingRef.current) return;
+    uploadingRef.current = true;
     setBusy(true);
     setError("");
     try {
+      // Cùng một ảnh vừa được thêm trong 1,5 giây (trình duyệt phát paste 2 lần / bấm nút 2 lần) → bỏ qua.
+      const key = await imageFileKey(file);
+      if (lastFileRef.current.key === key && Date.now() - lastFileRef.current.at < 1500) return;
+      if (imagesRef.current.length >= MAX_ORDER_IMAGES) {
+        setError(`Tối đa ${MAX_ORDER_IMAGES} ảnh cho một bộ cửa. Hãy xóa bớt ảnh cũ.`);
+        return;
+      }
       await uploadRef.current(file);
+      lastFileRef.current = { key, at: Date.now() };
       // Giữ ô ảnh đang chọn để dán tiếp ảnh khác ngay.
       window.setTimeout(() => boxRef.current?.focus(), 0);
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Không thể tải ảnh.");
     } finally {
+      uploadingRef.current = false;
       setBusy(false);
     }
   }
@@ -2275,6 +2317,7 @@ function ImageGallery({
   useEffect(() => {
     uploadRef.current = onUpload;
     handleFileRef.current = handleFile;
+    imagesRef.current = images;
   });
 
   // Bắt Ctrl+V ở cấp window khi gallery đang được chọn (ô không editable nên phải nghe ở window).
@@ -2294,7 +2337,7 @@ function ImageGallery({
   }, [focused]);
 
   async function pasteFromClipboard() {
-    if (busy) return;
+    if (busy || uploadingRef.current) return;
     if (!navigator.clipboard || typeof navigator.clipboard.read !== "function") {
       setError("Trình duyệt không hỗ trợ đọc clipboard — hãy bấm vào ô ảnh rồi nhấn Ctrl+V.");
       return;
