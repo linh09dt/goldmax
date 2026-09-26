@@ -1,0 +1,95 @@
+import { NextResponse } from "next/server";
+import { markSetDelivered, rebuildTasksForSet, updateSetProgress, type TaskPatch } from "@/lib/production/service";
+import { TASK_STATUS_OPTIONS, type TaskStatus } from "@/lib/production/catalog";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const VALID_STATUS = new Set<string>(TASK_STATUS_OPTIONS);
+
+function text(value: unknown, max = 2000): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed.slice(0, max) : null;
+}
+
+function normalizeTaskPatches(value: unknown): TaskPatch[] {
+  if (!Array.isArray(value)) return [];
+  const patches: TaskPatch[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") continue;
+    const row = raw as Record<string, unknown>;
+    const id = Number(row.id);
+    if (!Number.isInteger(id) || id <= 0) continue;
+    const status = typeof row.status === "string" && VALID_STATUS.has(row.status) ? (row.status as TaskStatus) : undefined;
+    patches.push({
+      id,
+      status,
+      actualStart: text(row.actualStart, 40),
+      actualEnd: text(row.actualEnd, 40),
+      note: text(row.note),
+      reasonCode: text(row.reasonCode, 40),
+      assignee: text(row.assignee, 120),
+      isRework: row.isRework === true ? true : undefined,
+    });
+  }
+  return patches;
+}
+
+/**
+ * V136 — Cập nhật tiến độ một bộ cửa.
+ *
+ * Body:
+ *   { action: "update", tasks: [{ id, status, note, reasonCode, assignee, isRework }],
+ *     plannedStart, plannedEnd, note, planId, materialReady, programReady, byName }
+ *   { action: "delivered", deliveredDate, byName }
+ *   { action: "rebuild" }   ← sinh lại công đoạn theo danh mục mới nhất
+ *
+ * Ghi gộp: toàn bộ công đoạn trong MỘT lượt ghi (bài học V111).
+ */
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await context.params;
+    const setId = Number(id);
+    if (!Number.isInteger(setId) || setId <= 0) {
+      return NextResponse.json({ ok: false, error: "ID bộ cửa không hợp lệ." }, { status: 400 });
+    }
+
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+    const action = String(body.action ?? "update");
+
+    if (action === "rebuild") {
+      const result = await rebuildTasksForSet(setId);
+      return NextResponse.json({ ok: true, ...result });
+    }
+
+    if (action === "delivered") {
+      const byName = text(body.byName, 120);
+      await markSetDelivered(setId, text(body.deliveredDate, 40), byName);
+      return NextResponse.json({ ok: true });
+    }
+
+    if (action !== "update") {
+      return NextResponse.json({ ok: false, error: "Hành động không hợp lệ." }, { status: 400 });
+    }
+
+    const result = await updateSetProgress(setId, {
+      tasks: normalizeTaskPatches(body.tasks),
+      plannedStart: body.plannedStart === undefined ? undefined : text(body.plannedStart, 40),
+      plannedEnd: body.plannedEnd === undefined ? undefined : text(body.plannedEnd, 40),
+      note: body.note === undefined ? undefined : text(body.note),
+      planId: body.planId === undefined ? undefined : Number.isInteger(Number(body.planId)) ? Number(body.planId) : null,
+      materialReady: typeof body.materialReady === "boolean" ? body.materialReady : undefined,
+      programReady: typeof body.programReady === "boolean" ? body.programReady : undefined,
+      byName: text(body.byName, 120),
+    });
+
+    return NextResponse.json({ ok: true, ...result });
+  } catch (error) {
+    console.error("Update production set failed:", error);
+    return NextResponse.json(
+      { ok: false, error: error instanceof Error ? error.message : "Không thể cập nhật tiến độ." },
+      { status: 400 },
+    );
+  }
+}

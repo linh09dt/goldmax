@@ -386,3 +386,269 @@ model SurveyAnswer {
 
   @@map("survey_answers")
 }
+
+// ============================================================================
+// V136 — MODULE LÊN KẾ HOẠCH SẢN XUẤT
+//
+// Nguyên tắc: các bảng dưới đây CHỈ ĐỌC đơn hàng hiện có (SalesOrder /
+// SalesOrderItem). Không sửa, không thêm cột vào bảng đơn hàng.
+// Nguồn nghiệp vụ: kết quả khảo sát nhà máy 2026-09-26 (222/230 câu) + V136.
+// Đơn vị lên kế hoạch = 1 BỘ CỬA (production_sets); theo dõi tới mức CÔNG ĐOẠN
+// của từng bộ (production_tasks) theo yêu cầu KH22/L2/J5.
+// ============================================================================
+
+/// Tổ sản xuất / nguồn lực. Năng lực lấy từ khảo sát (V136 mục 1.3).
+model ProductionWorkCenter {
+  id             Int      @id @default(autoincrement())
+  code           String   @unique @db.VarChar(40)
+  name           String   @db.VarChar(120)
+  /// TO = tổ trong xưởng · NGUON_LUC_NGOAI = thuê ngoài · VAN_PHONG = kỹ thuật (Thiết kế, Bồi Lares).
+  kind           String   @default("TO") @db.VarChar(20)
+  peopleCount    Int?     @map("people_count")
+  shiftsPerDay   Int?     @map("shifts_per_day")
+  hoursPerShift  Float?   @map("hours_per_shift")
+  /// Năng lực thật theo ngày, đơn vị ở capacityUnit. Để trống = không cảnh báo quá tải.
+  capacityPerDay Float?   @map("capacity_per_day")
+  /// CANH = lá cửa (đơn vị xưởng nói) · BO = bộ cửa · M2 = mét vuông.
+  capacityUnit   String   @default("CANH") @map("capacity_unit") @db.VarChar(10)
+  active         Boolean  @default(true)
+  sortOrder      Int      @default(0) @map("sort_order")
+  note           String?  @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([active, sortOrder])
+  @@map("production_work_centers")
+}
+
+/// Danh mục CÔNG ĐOẠN (routing) — là DỮ LIỆU, không hard-code trong code.
+model ProductionStage {
+  id                  Int      @id @default(autoincrement())
+  code                String   @unique @db.VarChar(40)
+  name                String   @db.VarChar(160)
+  /// CHUAN_BI = chuẩn bị (không nhân theo số bộ) · GIA_CONG · CHO = chờ · QC.
+  kind                String   @default("GIA_CONG") @db.VarChar(20)
+  /// BO = làm cho cả bộ · PARTS = tách khung/cánh/phào · MODEL = theo model (tái dùng).
+  scopeMode           String   @default("BO") @map("scope_mode") @db.VarChar(20)
+  /// Khi scopeMode = PARTS: danh sách bộ phận, vd "KHUNG,CANH,PHAO" hoặc "CANH" (Ép cánh).
+  scopeParts          String?  @map("scope_parts") @db.VarChar(60)
+  workCenterCode      String?  @map("work_center_code") @db.VarChar(40)
+  seq                 Int      @default(0)
+  /// Thời lượng chuẩn (giờ). 24 giờ = 1 ngày làm việc.
+  leadTimeHours       Float?   @map("lead_time_hours")
+  /// Setup/đổi (phút): chấn đổi khuôn 5', sơn đổi màu 120'.
+  setupMinutes        Int?     @map("setup_minutes")
+  capacityPerDay      Float?   @map("capacity_per_day")
+  capacityUnit        String   @default("CANH") @map("capacity_unit") @db.VarChar(10)
+  /// Gộp lô theo khóa: MAU_SON · MA_VAN · MODEL · (trống) = không gom.
+  batchKey            String?  @map("batch_key") @db.VarChar(30)
+  batchMinQty         Int?     @map("batch_min_qty")
+  /// Số lượt đổi tối đa mỗi ngày (chấn: 2 lần/ngày).
+  changeoverMaxPerDay Int?     @map("changeover_max_per_day")
+  isQcPoint           Boolean  @default(false) @map("is_qc_point")
+  /// Lỗi phát hiện ở đây thì quay lại công đoạn nào (test cơ khí → hàn).
+  reworkToStage       String?  @map("rework_to_stage") @db.VarChar(40)
+  /// Điều kiện bỏ qua dạng "PAINT_COLOR:11,14" (màu 11 & 14 không cần vân).
+  skipCondition       String?  @map("skip_condition") @db.VarChar(160)
+  /// Bắt buộc công đoạn này đã xong (Bồi Lares chặn Cắt).
+  requiresStage       String?  @map("requires_stage") @db.VarChar(40)
+  active              Boolean  @default(true)
+  note                String?  @db.Text
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@index([active, seq])
+  @@index([workCenterCode])
+  @@map("production_stages")
+}
+
+/// Kế hoạch sản xuất theo tuần (KD + SX thống nhất, giám đốc nhà máy chốt).
+model ProductionPlan {
+  id         Int       @id @default(autoincrement())
+  code       String    @unique @db.VarChar(60)
+  fromDate   DateTime  @map("from_date") @db.Date
+  toDate     DateTime  @map("to_date") @db.Date
+  /// NHAP | DA_CHOT
+  status     String    @default("NHAP") @db.VarChar(20)
+  createdBy  String?   @map("created_by") @db.VarChar(120)
+  approvedBy String?   @map("approved_by") @db.VarChar(120)
+  approvedAt DateTime? @map("approved_at")
+  note       String?   @db.Text
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  sets ProductionSet[]
+
+  @@index([fromDate])
+  @@map("production_plans")
+}
+
+/// 1 dòng = 1 BỘ CỬA — đơn vị lên kế hoạch.
+model ProductionSet {
+  id                Int       @id @default(autoincrement())
+  orderId           Int       @map("order_id")
+  /// Bộ cửa nguồn trong đơn (sales_order_items.id). Nullable để nhập bộ đang dở không khớp được.
+  orderItemId       Int?      @unique @map("order_item_id")
+  orderCode         String?   @map("order_code") @db.VarChar(120)
+  setNo             String?   @map("set_no") @db.VarChar(80)
+  orderType         String    @default("SAN_XUAT") @map("order_type") @db.VarChar(30)
+  customerName      String?   @map("customer_name") @db.VarChar(200)
+  productName       String?   @map("product_name") @db.Text
+  model             String?   @db.VarChar(100)
+  openingDirection  String?   @map("opening_direction") @db.VarChar(60)
+  paintColor        String?   @map("paint_color") @db.VarChar(100)
+  veneerCode        String?   @map("veneer_code") @db.VarChar(100)
+  heightMm          Int?      @map("height_mm")
+  widthMm           Int?      @map("width_mm")
+  leavesPerSet      Int?      @map("leaves_per_set")
+  trimBarsPerSet    Int?      @map("trim_bars_per_set")
+  quantity          Int?      @db.Integer
+  pricingQuantity   Float?    @map("pricing_quantity")
+  /// Số cánh quy đổi để tính tải (xưởng nói bằng cánh). Chốt khi đưa vào kế hoạch.
+  canhEquivalent    Int       @default(1) @map("canh_equivalent")
+  dueDate           DateTime? @map("due_date") @db.Date
+  planId            Int?      @map("plan_id")
+  /// 0 = gấp nhất. Đơn làm lại chen trước (KH17).
+  priority          Int       @default(5)
+  /// CHO_XEP_LICH | DA_XEP_LICH | DANG_SX | HOAN_THANH | DA_GIAO | TAM_DUNG | HUY
+  status            String    @default("CHO_XEP_LICH") @db.VarChar(30)
+  percentDone       Int       @default(0) @map("percent_done")
+  plannedStart      DateTime? @map("planned_start") @db.Date
+  plannedEnd        DateTime? @map("planned_end") @db.Date
+  actualCompletedAt DateTime? @map("actual_completed_at")
+  actualDeliveredAt DateTime? @map("actual_delivered_at")
+  programReady      Boolean   @default(false) @map("program_ready")
+  materialReady     Boolean   @default(false) @map("material_ready")
+  packCount         Int?      @map("pack_count")
+  note              String?   @db.Text
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  tasks ProductionTask[]
+  plan  ProductionPlan?  @relation(fields: [planId], references: [id], onDelete: SetNull)
+
+  @@index([status, dueDate])
+  @@index([planId])
+  @@index([setNo])
+  @@index([orderId])
+  @@map("production_sets")
+}
+
+/// 1 dòng = 1 BỘ × 1 CÔNG ĐOẠN (KH22: cập nhật ở mức công đoạn của từng bộ).
+model ProductionTask {
+  id              Int       @id @default(autoincrement())
+  setId           Int       @map("set_id")
+  orderItemId     Int?      @map("order_item_id")
+  stageCode       String    @map("stage_code") @db.VarChar(40)
+  stageKind       String    @default("GIA_CONG") @map("stage_kind") @db.VarChar(20)
+  /// KHUNG | CANH | PHAO | BO
+  scope           String    @default("BO") @db.VarChar(10)
+  seq             Int       @default(0)
+  workCenterCode  String?   @map("work_center_code") @db.VarChar(40)
+  /// CHUA_LAM | DANG_LAM | XONG | BO_QUA | TAM_DUNG
+  status          String    @default("CHUA_LAM") @db.VarChar(20)
+  qtyExpected     Float?    @map("qty_expected")
+  qtyDone         Float?    @map("qty_done")
+  plannedStart    DateTime? @map("planned_start") @db.Date
+  plannedEnd      DateTime? @map("planned_end") @db.Date
+  actualStart     DateTime? @map("actual_start")
+  actualEnd       DateTime? @map("actual_end")
+  assignee        String?   @db.VarChar(120)
+  isRework        Boolean   @default(false) @map("is_rework")
+  reworkFromStage String?   @map("rework_from_stage") @db.VarChar(40)
+  reasonCode      String?   @map("reason_code") @db.VarChar(40)
+  note            String?   @db.Text
+  updatedBy       String?   @map("updated_by") @db.VarChar(120)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  set ProductionSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+
+  @@unique([setId, stageCode, scope])
+  @@index([workCenterCode, plannedStart])
+  @@index([status])
+  @@index([plannedStart])
+  @@map("production_tasks")
+}
+
+/// Danh mục LÝ DO tạm dừng / trễ / máy dừng / lỗi.
+model ProductionReason {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique @db.VarChar(40)
+  name      String   @db.VarChar(160)
+  /// TAM_DUNG | TRE_HAN | MAY_DUNG | LOI
+  group     String   @default("TAM_DUNG") @db.VarChar(20)
+  sortOrder Int      @default(0) @map("sort_order")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([active, group, sortOrder])
+  @@map("production_reasons")
+}
+
+/// Lịch sử sửa kế hoạch (J1: cần lưu ai đổi gì, lúc nào).
+model ProductionLog {
+  id        Int      @id @default(autoincrement())
+  /// PLAN | SET | TASK
+  entity    String   @db.VarChar(20)
+  entityId  Int      @map("entity_id")
+  action    String   @db.VarChar(40)
+  field     String?  @db.VarChar(60)
+  oldValue  String?  @map("old_value") @db.Text
+  newValue  String?  @map("new_value") @db.Text
+  byName    String?  @map("by_name") @db.VarChar(120)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([entity, entityId, createdAt])
+  @@map("production_logs")
+}
+
+/// Thư viện CHƯƠNG TRÌNH MÁY CẮT theo model (L5) — Bồi Lares tái dùng được.
+model ProductionProgram {
+  id              Int       @id @default(autoincrement())
+  model           String    @db.VarChar(100)
+  fileName        String?   @map("file_name") @db.VarChar(255)
+  version         Int       @default(1)
+  machine         String?   @db.VarChar(120)
+  madeBy          String?   @map("made_by") @db.VarChar(120)
+  madeAt          DateTime? @map("made_at")
+  durationMinutes Int?      @map("duration_minutes")
+  reusable        Boolean   @default(true)
+  note            String?   @db.Text
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([model, version])
+  @@index([model])
+  @@map("production_programs")
+}
+
+/// Máy dừng + lý do (KH28).
+model ProductionDowntime {
+  id             Int       @id @default(autoincrement())
+  workCenterCode String    @map("work_center_code") @db.VarChar(40)
+  machine        String?   @db.VarChar(120)
+  fromAt         DateTime  @map("from_at")
+  toAt           DateTime? @map("to_at")
+  reasonCode     String?   @map("reason_code") @db.VarChar(40)
+  note           String?   @db.Text
+  createdBy      String?   @map("created_by") @db.VarChar(120)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@index([workCenterCode, fromAt])
+  @@map("production_machine_downtimes")
+}
+
+/// Ngày nghỉ / lễ (A2: không tính Chủ nhật và ngày lễ).
+model ProductionCalendar {
+  id           Int      @id @default(autoincrement())
+  date         DateTime @unique @db.Date
+  isWorkingDay Boolean  @default(true) @map("is_working_day")
+  note         String?  @db.VarChar(160)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("production_calendar")
+}

@@ -40,6 +40,24 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
     ],
   },
   {
+    label: "Sản xuất",
+    items: [
+      {
+        href: "/ke-hoach-san-xuat",
+        label: "Kế hoạch sản xuất",
+        icon: <IconFactory />,
+        isActive: (pathname) =>
+          pathname.startsWith("/ke-hoach-san-xuat") && !pathname.startsWith("/ke-hoach-san-xuat/cau-hinh"),
+      },
+      {
+        href: "/ke-hoach-san-xuat/cau-hinh",
+        label: "Cấu hình sản xuất",
+        icon: <IconSettings />,
+        isActive: (pathname) => pathname.startsWith("/ke-hoach-san-xuat/cau-hinh"),
+      },
+    ],
+  },
+  {
     label: "Báo cáo",
     items: [
       {
@@ -162,6 +180,16 @@ export function ErpNav() {
         </div>
       ))}
     </nav>
+  );
+}
+
+function IconFactory() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 21V10l5 3V10l5 3V7l5 3v11z" />
+      <path d="M3 21h18" />
+      <path d="M7 17h2M12 17h2M17 17h2" />
+    </svg>
   );
 }
 

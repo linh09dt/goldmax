@@ -1,0 +1,283 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { TASK_STATUS_LABELS, TASK_STATUS_OPTIONS, type TaskStatus } from "@/lib/production/catalog";
+
+/**
+ * V136 — Cập nhật tiến độ TỪNG CÔNG ĐOẠN của một bộ cửa (KH22/L2).
+ *
+ * KH21/KH23: nhập bằng máy tính ở xưởng, do văn phòng cập nhật.
+ * Ghi gộp: mọi thay đổi gửi trong MỘT lượt POST → 1 lượt ghi DB (bài học V111).
+ */
+
+export type ProgressTask = {
+  id: number;
+  stageCode: string;
+  stageName: string;
+  stageKind: string;
+  scope: string;
+  scopeLabel: string;
+  workCenterName: string | null;
+  status: string;
+  qtyExpected: number | null;
+  qtyDone: number | null;
+  actualStart: string | null;
+  actualEnd: string | null;
+  assignee: string | null;
+  isRework: boolean;
+  reasonCode: string | null;
+  note: string | null;
+};
+
+type ReasonOption = { code: string; name: string; group: string };
+
+type Patch = {
+  status?: TaskStatus;
+  note?: string | null;
+  reasonCode?: string | null;
+  assignee?: string | null;
+  isRework?: boolean;
+};
+
+const STATUS_STYLE: Record<string, string> = {
+  CHUA_LAM: "text-slate-500",
+  DANG_LAM: "text-blue-700 font-semibold",
+  XONG: "text-emerald-700 font-semibold",
+  BO_QUA: "text-slate-400 italic",
+  TAM_DUNG: "text-amber-700 font-semibold",
+};
+
+function formatDateTime(value: string | null): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  const pad = (number: number) => String(number).padStart(2, "0");
+  return `${pad(date.getUTCDate())}/${pad(date.getUTCMonth() + 1)} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
+}
+
+export function SetProgressForm({
+  setId,
+  tasks,
+  reasons,
+  plannedStart,
+  plannedEnd,
+  byName: initialByName,
+}: {
+  setId: number;
+  tasks: ProgressTask[];
+  reasons: ReasonOption[];
+  plannedStart: string | null;
+  plannedEnd: string | null;
+  byName: string | null;
+}) {
+  const router = useRouter();
+  const [patches, setPatches] = useState<Record<number, Patch>>({});
+  const [start, setStart] = useState(plannedStart ?? "");
+  const [end, setEnd] = useState(plannedEnd ?? "");
+  const [byName, setByName] = useState(initialByName ?? "");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
+
+  const dirtyCount = Object.keys(patches).length;
+  const pauseReasons = useMemo(() => reasons.filter((reason) => reason.group === "TAM_DUNG"), [reasons]);
+  const reworkReasons = useMemo(() => reasons.filter((reason) => reason.group === "LOI"), [reasons]);
+
+  const valueOf = (task: ProgressTask, key: keyof Patch) => {
+    const patch = patches[task.id];
+    if (patch && key in patch) return patch[key];
+    return task[key as keyof ProgressTask];
+  };
+
+  const setPatch = (taskId: number, patch: Patch) => {
+    setPatches((current) => ({ ...current, [taskId]: { ...current[taskId], ...patch } }));
+    setMessage(null);
+  };
+
+  const toggleRework = (task: ProgressTask) => {
+    const next = !Boolean(valueOf(task, "isRework"));
+    setPatch(task.id, { isRework: next, reasonCode: next ? (valueOf(task, "reasonCode") as string | null) : null });
+  };
+
+  const save = async () => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/production/sets/${setId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          action: "update",
+          byName: byName || null,
+          plannedStart: start || null,
+          plannedEnd: end || null,
+          tasks: Object.entries(patches).map(([id, patch]) => ({
+            id: Number(id),
+            status: patch.status,
+            note: patch.note ?? undefined,
+            reasonCode: patch.reasonCode ?? undefined,
+            assignee: patch.assignee ?? undefined,
+            isRework: patch.isRework,
+          })),
+        }),
+      });
+      const result = (await response.json()) as { ok?: boolean; error?: string; percentDone?: number; status?: string };
+      if (!response.ok || !result.ok) throw new Error(result.error || "Không lưu được tiến độ.");
+      setPatches({});
+      setMessage({ tone: "ok", text: `Đã lưu. Tiến độ ${result.percentDone ?? 0}%.` });
+      router.refresh();
+    } catch (error) {
+      setMessage({ tone: "err", text: error instanceof Error ? error.message : "Không lưu được tiến độ." });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const markDelivered = async () => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/production/sets/${setId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ action: "delivered", byName: byName || null, deliveredDate: new Date().toISOString().slice(0, 10) }),
+      });
+      const result = (await response.json()) as { ok?: boolean; error?: string };
+      if (!response.ok || !result.ok) throw new Error(result.error || "Không đánh dấu được đã giao.");
+      setMessage({ tone: "ok", text: "Đã đánh dấu ĐÃ GIAO hôm nay." });
+      router.refresh();
+    } catch (error) {
+      setMessage({ tone: "err", text: error instanceof Error ? error.message : "Không đánh dấu được đã giao." });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+        <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+          Xếp lịch từ
+          <input className="erp-input mt-1 w-[150px]" type="date" value={start} onChange={(event) => setStart(event.target.value)} />
+        </label>
+        <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+          đến
+          <input className="erp-input mt-1 w-[150px]" type="date" value={end} onChange={(event) => setEnd(event.target.value)} />
+        </label>
+        <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+          Người cập nhật
+          <input
+            className="erp-input mt-1 w-[190px]"
+            placeholder="Tên người nhập"
+            value={byName}
+            onChange={(event) => setByName(event.target.value)}
+          />
+        </label>
+        <div className="ml-auto flex items-center gap-2">
+          {dirtyCount > 0 ? <span className="text-[12px] text-amber-700">{dirtyCount} công đoạn chưa lưu</span> : null}
+          <button className="erp-button" type="button" disabled={busy || dirtyCount === 0} onClick={save}>
+            {busy ? "Đang lưu…" : "Lưu tiến độ"}
+          </button>
+          <button className="erp-button-secondary" type="button" disabled={busy} onClick={markDelivered}>
+            Đánh dấu đã giao
+          </button>
+        </div>
+      </div>
+
+      {message ? (
+        <p className={`rounded-lg px-3 py-2 text-[12.5px] ${message.tone === "ok" ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-700"}`}>
+          {message.text}
+        </p>
+      ) : null}
+
+      <div className="erp-scrollbar overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <table className="erp-table">
+          <thead>
+            <tr>
+              <th className="min-w-[200px]">Công đoạn</th>
+              <th>Bộ phận</th>
+              <th>Tổ phụ trách</th>
+              <th className="text-right">SL</th>
+              <th className="min-w-[130px]">Trạng thái</th>
+              <th>Bắt đầu thực tế</th>
+              <th>Xong thực tế</th>
+              <th className="min-w-[170px]">Lý do</th>
+              <th className="min-w-[150px]">Người làm</th>
+              <th className="min-w-[180px]">Ghi chú</th>
+              <th>Làm lại</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tasks.map((task) => {
+              const status = String(valueOf(task, "status") ?? task.status);
+              const isWait = task.stageKind === "CHO";
+              const reasonChoices = status === "TAM_DUNG" ? pauseReasons : reworkReasons;
+              return (
+                <tr key={task.id} className={isWait ? "bg-slate-50/60" : undefined}>
+                  <td className="erp-td-strong">{task.stageName}</td>
+                  <td>{task.scopeLabel}</td>
+                  <td className="text-[12px] text-slate-600">{task.workCenterName || "—"}</td>
+                  <td className="erp-td-num">{task.qtyExpected ?? "—"}</td>
+                  <td>
+                    <select
+                      className={`erp-input ${STATUS_STYLE[status] ?? ""}`}
+                      value={status}
+                      onChange={(event) => setPatch(task.id, { status: event.target.value as TaskStatus })}
+                    >
+                      {TASK_STATUS_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {TASK_STATUS_LABELS[option]}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="text-[11.5px] tabular-nums text-slate-500">{formatDateTime(task.actualStart)}</td>
+                  <td className="text-[11.5px] tabular-nums text-slate-500">{formatDateTime(task.actualEnd)}</td>
+                  <td>
+                    <select
+                      className="erp-input"
+                      value={String(valueOf(task, "reasonCode") ?? "")}
+                      onChange={(event) => setPatch(task.id, { reasonCode: event.target.value || null })}
+                      disabled={status !== "TAM_DUNG" && !Boolean(valueOf(task, "isRework"))}
+                    >
+                      <option value="">—</option>
+                      {reasonChoices.map((reason) => (
+                        <option key={reason.code} value={reason.code}>
+                          {reason.name}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
+                    <input
+                      className="erp-input"
+                      value={String(valueOf(task, "assignee") ?? "")}
+                      placeholder="để trống"
+                      onChange={(event) => setPatch(task.id, { assignee: event.target.value })}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      className="erp-input"
+                      value={String(valueOf(task, "note") ?? "")}
+                      placeholder="để trống"
+                      onChange={(event) => setPatch(task.id, { note: event.target.value })}
+                    />
+                  </td>
+                  <td className="text-center">
+                    <input type="checkbox" checked={Boolean(valueOf(task, "isRework"))} onChange={() => toggleRework(task)} />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="erp-hint">
+        Chọn “Xong” sẽ tự ghi mốc kết thúc. Khi tất cả công đoạn cần làm đều Xong, bộ chuyển sang <strong>Hoàn thành</strong> và ghi mốc
+        hoàn thành sản xuất (mốc tính giao đúng hạn). Công đoạn “Chờ” là thời gian khô/nguội, không chiếm năng lực tổ.
+      </p>
+    </div>
+  );
+}
