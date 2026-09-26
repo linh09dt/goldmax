@@ -59,7 +59,11 @@ export type PriorityCriterionCode =
   | "KHACH_UU_TIEN"
   | "NV_UU_TIEN"
   | "MIEN_NUI"
-  | "KM_XA";
+  | "KM_XA"
+  // --- V149.1: chỉ tiêu GOM NHÓM (không cộng điểm, chỉ giữ các bộ cùng nhóm gần nhau) ---
+  | "MA_DON_HANG"
+  | "MAU_SON"
+  | "MODEL";
 
 export type FifoAnchor = "TRONG_LUOT" | "VAO_KE_HOACH" | "DA_VAO_SAN_XUAT" | "NGAY_DAT_DON";
 
@@ -73,6 +77,12 @@ export type CriterionMeta = {
   /** Giải thích ngắn: giá trị nào được điểm cao. */
   meaning: string;
   defaultWeight: number;
+  /**
+   * `DIEM` (mặc định) = cộng điểm ưu tiên.
+   * `NHOM` = **gom nhóm**: không cộng điểm, chỉ giữ các bộ cùng nhóm (cùng đơn / cùng màu / cùng model)
+   *   nằm gần nhau. Trọng số khi đó là **mức ưu tiên gom** (điểm dung sai): càng cao càng siết nhóm.
+   */
+  kind?: "DIEM" | "NHOM";
   /** Có cần tham số riêng không (xem `criterionParams`). */
   params?: Array<"ANCHOR" | "DIRECTION">;
   /** Cảnh báo dữ liệu thật (độ đầy thấp…). */
@@ -190,6 +200,40 @@ export const PRIORITY_CRITERIA: CriterionMeta[] = [
     defaultWeight: 0,
   },
   {
+    code: "MA_DON_HANG",
+    label: "Mã đơn hàng (gom các bộ cùng đơn)",
+    source: "production_sets.order_code",
+    scope: "BO",
+    meaning:
+      "Một đơn có nhiều bộ khác nhau → gom các bộ CÙNG MÃ ĐƠN lại gần nhau để đơn không bị xé lẻ. Trọng số = MỨC ƯU TIÊN GOM (điểm dung sai): càng cao càng siết (0 = không gom). DIRECTION: TANG = mã đơn nhỏ trước.",
+    defaultWeight: 0,
+    kind: "NHOM",
+    params: ["DIRECTION"],
+    dataNote: "515 đơn có bộ · trung bình 2,1 bộ/đơn · nhiều nhất 7 bộ · 210 đơn chỉ có 1 bộ (gom không tác dụng).",
+  },
+  {
+    code: "MAU_SON",
+    label: "Màu sơn (gom theo màu)",
+    source: "production_sets.paint_color",
+    scope: "BO",
+    meaning: "Gom các bộ cùng màu → đỡ đổi màu lò sơn (mỗi lượt đổi tốn 120 phút). Trọng số = mức ưu tiên gom.",
+    defaultWeight: 0,
+    kind: "NHOM",
+    params: ["DIRECTION"],
+    dataNote: "14 màu · GM-01 có 253 bộ, GM-09 177 bộ — gom màu rất đáng làm ở công đoạn Sơn.",
+  },
+  {
+    code: "MODEL",
+    label: "Model (gom theo model)",
+    source: "production_sets.model",
+    scope: "BO",
+    meaning: "Gom các bộ cùng model → đỡ đổi khuôn/chương trình ở Chấn và Bồi Lares. Trọng số = mức ưu tiên gom.",
+    defaultWeight: 0,
+    kind: "NHOM",
+    params: ["DIRECTION"],
+    dataNote: "36 model trong dữ liệu thật.",
+  },
+  {
     code: "MIEN_NUI",
     label: "Giao miền núi (đi xa)",
     source: "sales_orders.shipping_mountain_district",
@@ -223,8 +267,8 @@ export type CriterionConfig = {
   weight: number;
   /** FIFO: mốc so sánh. */
   anchor?: FifoAnchor;
-  /** SO_CANH: chiều ưu tiên. */
-  direction?: "NHO_TRUOC" | "LON_TRUOC";
+  /** SO_CANH: chiều ưu tiên (nhỏ/lớn trước). Chỉ tiêu nhóm: TANG/GIAM (mã tăng/giảm dần). */
+  direction?: "NHO_TRUOC" | "LON_TRUOC" | "TANG" | "GIAM";
 };
 
 export type StagePriorityRule = {
@@ -272,13 +316,15 @@ export const DEFAULT_PRIORITY_CONFIG: PriorityConfig = {
       { code: "HEN_GIAO", weight: 25 },
       { code: "FIFO", weight: 20, anchor: "TRONG_LUOT" },
       { code: "LOAI_DON", weight: 10 },
+      // V149.1 — gom các bộ cùng đơn (để 0 = chưa bật; tăng lên để siết nhóm)
+      { code: "MA_DON_HANG", weight: 0, direction: "TANG" },
     ],
   },
   stageRules: {},
 };
 
 const VALID_ANCHORS = new Set<string>(["TRONG_LUOT", "VAO_KE_HOACH", "DA_VAO_SAN_XUAT", "NGAY_DAT_DON"]);
-const VALID_DIRECTIONS = new Set<string>(["NHO_TRUOC", "LON_TRUOC"]);
+const VALID_DIRECTIONS = new Set<string>(["NHO_TRUOC", "LON_TRUOC", "TANG", "GIAM"]);
 
 function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
   const parsed = Number(value);
@@ -343,6 +389,127 @@ export function normalizePriorityConfig(value: unknown): PriorityConfig {
 /** Quy tắc đang áp dụng cho một công đoạn: riêng của công đoạn → mặc định. */
 export function priorityRuleFor(config: PriorityConfig, stageCode: string): StagePriorityRule {
   return config.stageRules[stageCode] ?? config.defaultRule;
+}
+
+// ---------------------------------------------------------------------------
+// 2b) GOM NHÓM (V149.1) — "mã đơn hàng", "màu sơn", "model"
+//
+// Chỉ tiêu nhóm KHÔNG cộng điểm. Nó chỉ đổi THỨ TỰ sau khi đã sắp theo điểm:
+// luôn ưu tiên chọn tiếp một bộ CÙNG NHÓM với bộ vừa xếp, miễn là điểm của nó
+// không thấp hơn điểm cao nhất đang chờ quá `tolerance` (chính là trọng số).
+//   tolerance = 0   → không gom (giữ nguyên thứ tự theo điểm)
+//   tolerance lớn   → siết nhóm (gom hết các bộ cùng đơn / cùng màu lại với nhau)
+// ---------------------------------------------------------------------------
+
+export type GroupingCode = "MA_DON_HANG" | "MAU_SON" | "MODEL";
+
+export type GroupingSpec = {
+  code: GroupingCode;
+  label: string;
+  tolerance: number;
+  direction: "TANG" | "GIAM";
+};
+
+/** Chỉ tiêu nhóm đang bật của một quy tắc (lấy cái trọng số cao nhất). */
+export function groupingOf(rule: StagePriorityRule): GroupingSpec | null {
+  let best: { code: GroupingCode; weight: number; direction: "TANG" | "GIAM"; label: string } | null = null;
+  for (const item of rule.criteria) {
+    const meta = CRITERION_BY_CODE.get(item.code);
+    if (meta?.kind !== "NHOM" || item.weight <= 0) continue;
+    const code = item.code as GroupingCode;
+    if (!best || item.weight > best.weight) {
+      best = {
+        code,
+        weight: item.weight,
+        direction: item.direction === "GIAM" ? "GIAM" : "TANG",
+        label: meta.label,
+      };
+    }
+  }
+  if (!best) return null;
+  return { code: best.code, label: best.label, tolerance: best.weight, direction: best.direction };
+}
+
+/** Khoá nhóm của một bộ theo chỉ tiêu nhóm. Bộ thiếu dữ liệu vẫn có khoá riêng để không gộp bừa. */
+export function groupKeyOf(
+  code: GroupingCode,
+  set: Pick<ProductionSetRow, "orderCode" | "orderId" | "paintColor" | "model">,
+): string {
+  switch (code) {
+    case "MA_DON_HANG": {
+      const text = String(set.orderCode ?? "").trim().toUpperCase();
+      return text || `#ORDER-${set.orderId}`;
+    }
+    case "MAU_SON":
+      return String(set.paintColor ?? "").trim().toUpperCase() || "#KHONG-MAU";
+    case "MODEL":
+      return String(set.model ?? "").trim().toUpperCase() || "#KHONG-MODEL";
+    default:
+      return "#KHAC";
+  }
+}
+
+/**
+ * Sắp lại danh sách đã theo điểm để GOM NHÓM: luôn ưu tiên bộ cùng nhóm với bộ vừa xếp
+ * nếu điểm không thấp hơn điểm cao nhất đang chờ quá `tolerance`.
+ */
+export function applyGrouping<T>(
+  ordered: T[],
+  spec: GroupingSpec | null,
+  args: { keyOf: (item: T) => string; scoreOf: (item: T) => number },
+): T[] {
+  if (!spec || spec.tolerance <= 0 || ordered.length < 2) return ordered;
+
+  const buckets = new Map<string, T[]>();
+  for (const item of ordered) {
+    const key = args.keyOf(item);
+    const list = buckets.get(key);
+    if (list) list.push(item);
+    else buckets.set(key, [item]);
+  }
+  if (buckets.size < 2) return ordered;
+
+  const keys = Array.from(buckets.keys());
+  const pointers = new Map<string, number>(keys.map((key) => [key, 0]));
+  const headOf = (key: string): T | undefined => {
+    const list = buckets.get(key)!;
+    const index = pointers.get(key)!;
+    return index < list.length ? list[index] : undefined;
+  };
+
+  const out: T[] = [];
+  let lastKey: string | null = null;
+  for (let step = 0; step < ordered.length; step += 1) {
+    let bestKey: string | null = null;
+    let bestScore = Number.NEGATIVE_INFINITY;
+    for (const key of keys) {
+      const head = headOf(key);
+      if (!head) continue;
+      const score = args.scoreOf(head);
+      if (bestKey === null || score > bestScore || (score === bestScore && compareGroupKey(key, bestKey, spec.direction) < 0)) {
+        bestKey = key;
+        bestScore = score;
+      }
+    }
+    if (bestKey === null) break;
+
+    let pickKey = bestKey;
+    if (lastKey) {
+      const sameHead = headOf(lastKey);
+      if (sameHead && args.scoreOf(sameHead) >= bestScore - spec.tolerance) pickKey = lastKey;
+    }
+
+    const picked = headOf(pickKey)!;
+    pointers.set(pickKey, pointers.get(pickKey)! + 1);
+    out.push(picked);
+    lastKey = pickKey;
+  }
+  return out;
+}
+
+function compareGroupKey(a: string, b: string, direction: "TANG" | "GIAM"): number {
+  const result = a.localeCompare(b, "vi");
+  return direction === "GIAM" ? -result : result;
 }
 
 // ---------------------------------------------------------------------------

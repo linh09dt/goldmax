@@ -33,7 +33,10 @@ import {
 import { snapToWorkingDay } from "@/lib/production/targets";
 import type { ProductionConfig } from "@/lib/production/config";
 import {
+  applyGrouping,
   DEFAULT_PRIORITY_CONFIG,
+  groupKeyOf,
+  groupingOf,
   scoreSet,
   sortByPriorityScore,
   workshopDueOf,
@@ -217,7 +220,13 @@ export type StagePlanResult = {
   sets: StagePlanSetSummary[];
   stats: StagePlanStats;
   /** V149 — quy tắc ưu tiên đã dùng cho từng công đoạn (để UI giải thích). */
-  priorityUsed: Array<{ stageCode: string; stageName: string; criteria: Array<{ code: PriorityCriterionCode; weight: number }> }>;
+  priorityUsed: Array<{
+    stageCode: string;
+    stageName: string;
+    criteria: Array<{ code: PriorityCriterionCode; weight: number }>;
+    /** V149.1 — chỉ tiêu GOM NHÓM đang áp dụng (mã đơn hàng / màu sơn / model). */
+    grouping: { code: string; label: string; tolerance: number; direction: string } | null;
+  }>;
 };
 
 // ---------------------------------------------------------------------------
@@ -379,10 +388,14 @@ export function buildStagePlan(options: BuildStagePlanOptions): StagePlanResult 
 
   for (const stage of stageOrder) {
     const rule = priority.stageRules[stage.code] ?? priority.defaultRule;
+    const grouping = groupingOf(rule);
     priorityUsed.push({
       stageCode: stage.code,
       stageName: stage.name,
-      criteria: rule.criteria.filter((item) => item.weight > 0).map((item) => ({ code: item.code, weight: item.weight })),
+      criteria: rule.criteria
+        .filter((item) => item.weight > 0)
+        .map((item) => ({ code: item.code, weight: item.weight })),
+      grouping: grouping ? { code: grouping.code, label: grouping.label, tolerance: grouping.tolerance, direction: grouping.direction } : null,
     });
 
     // Các task của công đoạn này cần xếp (bỏ XONG / BO_QUA).
@@ -398,11 +411,18 @@ export function buildStagePlan(options: BuildStagePlanOptions): StagePlanResult 
     }
     if (!work.length) continue;
 
-    const ordered = sortByPriorityScore(
+    const byScore = sortByPriorityScore(
       work,
       (item) => item.score,
       (item) => startOfDayUtc(item.set.createdAt).getTime() || item.set.id,
     );
+    // V149.1 — gom nhóm (mã đơn hàng / màu sơn / model) sau khi đã sắp theo điểm.
+    const ordered = grouping
+      ? applyGrouping(byScore, grouping, {
+          keyOf: (item) => groupKeyOf(grouping.code, item.set),
+          scoreOf: (item) => item.score,
+        })
+      : byScore;
 
     let stageRank = 0;
     for (const item of ordered) {

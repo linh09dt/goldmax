@@ -76,6 +76,9 @@ function RuleEditor({
                         </option>
                       ))}
                     </select>
+                    {meta?.kind === "NHOM" ? (
+                      <span className="ml-1 rounded bg-violet-100 px-1.5 py-0.5 text-[11px] font-semibold text-violet-800">GOM NHÓM</span>
+                    ) : null}
                     {meta ? <p className="erp-hint mt-1">{meta.meaning}</p> : null}
                   </td>
                   <td className="px-2 py-1 text-slate-600">{meta?.source ?? "—"}</td>
@@ -87,6 +90,7 @@ function RuleEditor({
                       value={item.weight}
                       onChange={(event) => update(index, { weight: Number(event.target.value) || 0 })}
                     />
+                    {meta?.kind === "NHOM" ? <p className="erp-hint mt-1">dung sai điểm</p> : null}
                   </td>
                   <td className="px-2 py-1">
                     {item.code === "FIFO" ? (
@@ -111,7 +115,19 @@ function RuleEditor({
                         <option value="LON_TRUOC">Bộ lớn trước</option>
                       </select>
                     ) : null}
-                    {item.code !== "FIFO" && item.code !== "SO_CANH" ? <span className="text-slate-400">—</span> : null}
+                    {meta?.kind === "NHOM" ? (
+                      <select
+                        className="erp-input"
+                        value={item.direction ?? "TANG"}
+                        onChange={(event) => update(index, { direction: event.target.value as CriterionConfig["direction"] })}
+                      >
+                        <option value="TANG">Nhóm nhỏ trước (tăng dần)</option>
+                        <option value="GIAM">Nhóm lớn trước (giảm dần)</option>
+                      </select>
+                    ) : null}
+                    {item.code !== "FIFO" && item.code !== "SO_CANH" && meta?.kind !== "NHOM" ? (
+                      <span className="text-slate-400">—</span>
+                    ) : null}
                   </td>
                   <td className="px-2 py-1 text-center">
                     <button
@@ -362,6 +378,13 @@ export function PriorityConfigEditor({ priority, stages }: { priority: PriorityC
           </label>
         </div>
 
+        <p className="erp-hint">
+          <strong>Chỉ tiêu GOM NHÓM</strong> (Mã đơn hàng · Màu sơn · Model) không cộng điểm. Nó giữ các bộ{" "}
+          <strong>cùng đơn / cùng màu / cùng model nằm gần nhau</strong>: sau khi sắp theo điểm, hệ thống luôn ưu tiên chọn tiếp một bộ cùng
+          nhóm nếu điểm của nó không thấp hơn điểm cao nhất đang chờ quá <em>“mức gom”</em>. Để <strong>0</strong> = không gom; tăng lên
+          (vd 20–40) để siết nhóm. Ví dụ ở <strong>Sơn</strong>: bật <em>Màu sơn</em> để đỡ đổi màu lò; ở <strong>Chấn</strong>: bật{" "}
+          <em>Model</em> để đỡ đổi khuôn; bật <em>Mã đơn hàng</em> để đơn không bị xé lẻ.
+        </p>
         <p className="erp-hint">
           <strong>FIFO</strong> mặc định <em>“Trong lượt xếp”</em>: bộ nào đã được xếp ở công đoạn trước thì công đoạn sau được ưu tiên
           trước — đúng nghĩa “plan trước thì công đoạn sau ưu tiên trước”. Sau khi lưu, mở <strong>Kế hoạch theo công đoạn</strong> và
