@@ -1,0 +1,26 @@
+V141 — CÁC FILE CẦN **XOÁ** SAU KHI GIẢI NÉN ĐÈ
+================================================
+Bản vá chỉ ghi đè/thêm file, KHÔNG tự xoá được file cũ. Vì đã gỡ chế độ
+"Xếp lịch tự động", bạn phải xoá tay 3 file sau (nếu không, build sẽ lỗi
+hoặc còn mã chết):
+
+  1. src/lib/production/auto-schedule.ts
+  2. src/app/api/production/schedule/route.ts        (xoá cả thư mục schedule/ nếu trống)
+  3. src/components/production/schedule-button.tsx
+
+Lệnh nhanh (Linux/macOS, chạy ở thư mục dự án):
+  rm -f src/lib/production/auto-schedule.ts \
+        src/app/api/production/schedule/route.ts \
+        src/components/production/schedule-button.tsx
+  rmdir src/app/api/production/schedule 2>/dev/null
+
+Windows (PowerShell):
+  Remove-Item src/lib/production/auto-schedule.ts, `
+              src/app/api/production/schedule/route.ts, `
+              src/components/production/schedule-button.tsx -Force
+
+Sau đó:
+  npx tsc --noEmit        # phải 0 lỗi
+  npm run build
+
+GHI CHÚ: nếu bản vá này được áp lên bản cũ CHƯA từng có các file trên thì bỏ qua bước này.

@@ -30,7 +30,6 @@ import {
   PRODUCTION_CONFIG_SETTING_KEY,
   type ProductionConfig,
 } from "@/lib/production/config";
-import { autoSchedule } from "@/lib/production/auto-schedule";
 import { buildComponentOrderDrafts, buildTaskDrafts } from "@/lib/production/routing";
 import { defaultPriorityForOrderType } from "@/lib/production/scheduling";
 
@@ -403,6 +402,8 @@ export type TaskPatch = {
   status?: TaskStatus;
   actualStart?: string | null;
   actualEnd?: string | null;
+  /** V141 — XẾP LỊCH BẰNG TAY: ngày kế hoạch của công đoạn ("YYYY-MM-DD"). undefined = không đổi, null = xoá. */
+  plannedStart?: string | null;
   note?: string | null;
   reasonCode?: string | null;
   assignee?: string | null;
@@ -444,7 +445,7 @@ function parseTimestamp(value: string | null | undefined): string | null {
 export async function updateSetProgress(setId: number, payload: UpdateSetPayload) {
   const set = await prisma.productionSet.findUnique({
     where: { id: setId },
-    select: { id: true, status: true, orderItemId: true, model: true, setNo: true, orderCode: true },
+    select: { id: true, status: true, orderItemId: true, model: true, setNo: true, orderCode: true, plannedStart: true },
   });
   if (!set) throw new Error("Không tìm thấy bộ cửa.");
 
@@ -565,12 +566,17 @@ export async function updateSetProgress(setId: number, payload: UpdateSetPayload
         assignee: patch.assignee ?? null,
         is_rework: patch.isRework ?? null,
         updated_by: payload.byName ?? null,
+        // V141 — gán ngày kế hoạch bằng tay cho từng công đoạn (dùng cờ has_plan để phân biệt "không đổi" với "xoá").
+        planned_start: parseDateOnly(patch.plannedStart),
+        has_plan: patch.plannedStart !== undefined,
       }));
       await tx.$executeRaw`
         UPDATE production_tasks AS t SET
           status      = COALESCE(v.status, t.status),
           actual_start= COALESCE(v.actual_start, t.actual_start),
           actual_end  = COALESCE(v.actual_end, t.actual_end),
+          planned_start = CASE WHEN v.has_plan THEN v.planned_start::date ELSE t.planned_start END,
+          planned_end   = CASE WHEN v.has_plan THEN v.planned_start::date ELSE t.planned_end END,
           note        = COALESCE(v.note, t.note),
           reason_code = COALESCE(v.reason_code, t.reason_code),
           assignee    = COALESCE(v.assignee, t.assignee),
@@ -582,7 +588,8 @@ export async function updateSetProgress(setId: number, payload: UpdateSetPayload
           updated_at  = now()
         FROM jsonb_to_recordset(${JSON.stringify(records)}::jsonb) AS v(
           id int, status text, actual_start timestamptz, actual_end timestamptz,
-          note text, reason_code text, assignee text, is_rework boolean, updated_by text
+          note text, reason_code text, assignee text, is_rework boolean, updated_by text,
+          planned_start text, has_plan boolean
         )
         WHERE t.id = v.id AND t.set_id = ${setId}`;
     }
@@ -591,12 +598,26 @@ export async function updateSetProgress(setId: number, payload: UpdateSetPayload
       where: { setId },
       select: { id: true, stageKind: true, status: true, stageCode: true },
     });
-    const percentDone = percentDoneOf(freshTasks as unknown as ProductionTaskRow[]);
-    const nextStatus = deriveSetStatus(freshTasks as unknown as ProductionTaskRow[], set.status);
-    const completedNow = nextStatus === "HOAN_THANH" && set.status !== "HOAN_THANH";
 
-    const plannedStart = payload.plannedStart === undefined ? undefined : parseDateOnly(payload.plannedStart);
-    const plannedEnd = payload.plannedEnd === undefined ? undefined : parseDateOnly(payload.plannedEnd);
+    // V141 — XẾP LỊCH BẰNG TAY: nếu lượt lưu này có gán ngày cho công đoạn mà KHÔNG nhập ngày cấp bộ,
+    // thì ngày của BỘ = min/max ngày các công đoạn (để bảng tải và cột "Xếp lịch" luôn khớp).
+    const touchedPlan = patches.some((patch) => patch.plannedStart !== undefined);
+    let plannedStart = payload.plannedStart === undefined ? undefined : parseDateOnly(payload.plannedStart);
+    let plannedEnd = payload.plannedEnd === undefined ? undefined : parseDateOnly(payload.plannedEnd);
+    if (touchedPlan && plannedStart === undefined && plannedEnd === undefined) {
+      const span = await tx.productionTask.aggregate({
+        where: { setId, plannedStart: { not: null } },
+        _min: { plannedStart: true },
+        _max: { plannedEnd: true },
+      });
+      plannedStart = span._min.plannedStart ?? null;
+      plannedEnd = span._max.plannedEnd ?? span._min.plannedStart ?? null;
+    }
+    const hasPlan = plannedStart === undefined ? set.plannedStart !== null : plannedStart !== null;
+
+    const percentDone = percentDoneOf(freshTasks as unknown as ProductionTaskRow[]);
+    const nextStatus = deriveSetStatus(freshTasks as unknown as ProductionTaskRow[], set.status, hasPlan);
+    const completedNow = nextStatus === "HOAN_THANH" && set.status !== "HOAN_THANH";
 
     await tx.productionSet.update({
       where: { id: setId },
@@ -714,100 +735,6 @@ export async function countUnplannedOrderItems(): Promise<number> {
                AND UPPER(TRIM(s.set_no)) = UPPER(TRIM(i.set_no)))
       )`;
   return Number(rows[0]?.total ?? 0);
-}
-
-// ---------------------------------------------------------------------------
-// Xếp lịch tự động (đợt B gọn) — xếp tiến theo EDD + năng lực tổ
-// ---------------------------------------------------------------------------
-
-export type AutoScheduleSummary = {
-  scheduledSets: number;
-  scheduledTasks: number;
-  skippedSets: number;
-  overloadCells: number;
-  lastDay: string | null;
-};
-
-/**
- * Xếp lịch tự động cho các bộ CHƯA có lịch (mặc định) hoặc toàn bộ bộ đang mở.
- *
- * Ghi 2 lượt cho cả đợt (bài học V111): 1 câu cho `production_tasks`, 1 câu cho `production_sets`.
- */
-export async function applyAutoSchedule(options: { from?: Date; rescheduleAll?: boolean } = {}): Promise<AutoScheduleSummary> {
-  const config = await readProductionConfig();
-  const [workCenters, calendar, stages] = await Promise.all([
-    loadActiveWorkCenters(),
-    loadCalendar(config),
-    loadActiveStages(),
-  ]);
-
-  const sets = await prisma.productionSet.findMany({
-    where: {
-      status: options.rescheduleAll ? { notIn: ["HOAN_THANH", "DA_GIAO", "HUY"] } : "CHO_XEP_LICH",
-    },
-    include: { tasks: true },
-    orderBy: [{ dueDate: "asc" }, { id: "asc" }],
-  });
-  if (!sets.length) {
-    return { scheduledSets: 0, scheduledTasks: 0, skippedSets: 0, overloadCells: 0, lastDay: null };
-  }
-
-  const result = autoSchedule({
-    sets: sets as unknown as Array<ProductionSetRow & { tasks: ProductionTaskRow[] }>,
-    workCenters,
-    stages,
-    config,
-    calendar,
-    startDate: options.from ? startOfDayUtc(options.from) : startOfDayUtc(new Date()),
-  });
-
-  if (!result.sets.length) {
-    return { scheduledSets: 0, scheduledTasks: 0, skippedSets: result.skippedSets, overloadCells: 0, lastDay: null };
-  }
-
-  const taskRecords = result.tasks.map((task) => ({ id: task.id, day: task.plannedStart.toISOString().slice(0, 10) }));
-  const setRecords = result.sets.map((set) => ({
-    id: set.id,
-    start: set.plannedStart.toISOString().slice(0, 10),
-    end: set.plannedEnd.toISOString().slice(0, 10),
-  }));
-
-  await prisma.$transaction(async (tx) => {
-    if (taskRecords.length) {
-      await tx.$executeRaw`
-        UPDATE production_tasks AS t
-        SET planned_start = v.day::date, planned_end = v.day::date, updated_at = now()
-        FROM jsonb_to_recordset(${JSON.stringify(taskRecords)}::jsonb) AS v(id int, day text)
-        WHERE t.id = v.id`;
-    }
-    await tx.$executeRaw`
-      UPDATE production_sets AS s
-      SET planned_start = v.start::date,
-          planned_end = v.end::date,
-          status = CASE WHEN s.status = 'CHO_XEP_LICH' THEN 'DA_XEP_LICH' ELSE s.status END,
-          updated_at = now()
-      FROM jsonb_to_recordset(${JSON.stringify(setRecords)}::jsonb) AS v(id int, start text, "end" text)
-      WHERE s.id = v.id`;
-    await tx.productionLog.createMany({
-      data: result.sets.slice(0, 500).map((set) => ({
-        entity: "SET",
-        entityId: set.id,
-        action: "XEP_LICH_TU_DONG",
-        field: "planned_start",
-        oldValue: null,
-        newValue: set.plannedStart.toISOString().slice(0, 10),
-        byName: null,
-      })),
-    });
-  }, ORDER_WRITE_TRANSACTION);
-
-  return {
-    scheduledSets: result.sets.length,
-    scheduledTasks: result.tasks.length,
-    skippedSets: result.skippedSets,
-    overloadCells: result.overloadCells,
-    lastDay: result.lastDay ? result.lastDay.toISOString().slice(0, 10) : null,
-  };
 }
 
 // ---------------------------------------------------------------------------

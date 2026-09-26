@@ -28,7 +28,8 @@ CÁC BƯỚC
        - Có cột "Năng lực/ngày" + "ĐV" để khai riêng từng công đoạn.
    • Kế hoạch sản xuất: bảng "Tải theo tổ và ngày" có thêm dòng con "↳ <công đoạn>"
      dưới mỗi tổ, hiện năng lực riêng và tô đỏ khi vượt năng lực công đoạn.
-   • Bấm "Xếp lịch tự động": lịch tôn trọng cả năng lực tổ và năng lực công đoạn.
+   • Xếp lịch bằng tay: mở một bộ → gán "Ngày KH" cho từng công đoạn → Lưu tiến độ.
+     (V141 đã bỏ chế độ xếp lịch tự động; bảng tải vẫn cảnh báo đỏ/vàng theo năng lực tổ & công đoạn.)
 
 TÙY CHỈNH SAU KHI CHẠY
 ----------------------

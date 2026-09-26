@@ -141,7 +141,7 @@ export function ProductionPlanBoard({
 
       {plans.length === 0 ? (
         <p className="rounded-xl border border-slate-200 bg-white px-3 py-8 text-center text-[12.5px] text-slate-500">
-          Chưa có kế hoạch nào. Tạo kế hoạch tuần ở khung trên (sau khi đã “Xếp lịch tự động”).
+          Chưa có kế hoạch nào. Tạo kế hoạch tuần ở khung trên (sau khi các bộ đã được gán ngày kế hoạch).
         </p>
       ) : null}
 
@@ -254,7 +254,7 @@ export function ProductionPlanBoard({
               </div>
             ) : (
               <p className="px-3 py-4 text-center text-[12px] text-slate-500">
-                Kế hoạch này chưa có bộ nào — các bộ phải được “Xếp lịch tự động” trước, rồi bấm “Tạo / gom bộ vào kế hoạch”.
+                Kế hoạch này chưa có bộ nào — các bộ phải được gán ngày kế hoạch trước, rồi bấm “Tạo / gom bộ vào kế hoạch”.
               </p>
             )}
           </section>

@@ -42,6 +42,8 @@ function normalizeTaskPatches(value: unknown): TaskPatch[] {
       status,
       actualStart: text(row.actualStart, 40),
       actualEnd: text(row.actualEnd, 40),
+      // V141 — xếp lịch bằng tay: gán ngày kế hoạch cho công đoạn (undefined = không đổi, null = xoá).
+      plannedStart: row.plannedStart === undefined ? undefined : text(row.plannedStart, 40),
       note: text(row.note),
       reasonCode: text(row.reasonCode, 40),
       assignee: text(row.assignee, 120),

@@ -9,6 +9,9 @@ import { TASK_STATUS_LABELS, TASK_STATUS_OPTIONS, type TaskStatus } from "@/lib/
  *
  * KH21/KH23: nhập bằng máy tính ở xưởng, do văn phòng cập nhật.
  * Ghi gộp: mọi thay đổi gửi trong MỘT lượt POST → 1 lượt ghi DB (bài học V111).
+ *
+ * V141 — XẾP LỊCH BẰNG TAY: mỗi công đoạn có ô "Ngày KH". Ngày của BỘ tự suy = min/max
+ * ngày các công đoạn (trừ khi bạn nhập thẳng ô "Xếp lịch từ / đến" bên trên).
  */
 
 export type ProgressTask = {
@@ -22,6 +25,8 @@ export type ProgressTask = {
   status: string;
   qtyExpected: number | null;
   qtyDone: number | null;
+  /** V141 — ngày kế hoạch của công đoạn ("YYYY-MM-DD") để gán bằng tay. */
+  plannedStart: string | null;
   actualStart: string | null;
   actualEnd: string | null;
   assignee: string | null;
@@ -50,6 +55,8 @@ type Patch = {
   reasonCode?: string | null;
   assignee?: string | null;
   isRework?: boolean;
+  /** V141 — ngày kế hoạch gán tay; undefined = không đổi, null = xoá. */
+  plannedStart?: string | null;
 };
 
 const STATUS_STYLE: Record<string, string> = {
@@ -97,6 +104,8 @@ export function SetProgressForm({
   const [message, setMessage] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
 
   const dirtyCount = Object.keys(patches).length;
+  // V141 — chỉ gửi ngày cấp bộ khi người dùng TỰ sửa 2 ô trên; nếu không, ngày bộ suy từ ngày công đoạn.
+  const planDirty = start !== (plannedStart ?? "") || end !== (plannedEnd ?? "");
   const componentChanged = components.filter(
     (row) => (componentQty[row.id] ?? "") !== (row.qtyExpected === null ? "" : String(row.qtyExpected)),
   );
@@ -129,8 +138,7 @@ export function SetProgressForm({
         body: JSON.stringify({
           action: "update",
           byName: byName || null,
-          plannedStart: start || null,
-          plannedEnd: end || null,
+          ...(planDirty ? { plannedStart: start || null, plannedEnd: end || null } : {}),
           components: componentChanged.map((row) => ({
             id: row.id,
             qtyExpected: (componentQty[row.id] ?? "").trim() === "" ? null : Number(componentQty[row.id]),
@@ -138,6 +146,7 @@ export function SetProgressForm({
           tasks: Object.entries(patches).map(([id, patch]) => ({
             id: Number(id),
             status: patch.status,
+            plannedStart: patch.plannedStart,
             note: patch.note ?? undefined,
             reasonCode: patch.reasonCode ?? undefined,
             assignee: patch.assignee ?? undefined,
@@ -262,6 +271,7 @@ export function SetProgressForm({
               <th>Bộ phận</th>
               <th>Tổ phụ trách</th>
               <th className="text-right">SL</th>
+              <th className="min-w-[140px]">Ngày KH</th>
               <th className="min-w-[130px]">Trạng thái</th>
               <th>Bắt đầu thực tế</th>
               <th>Xong thực tế</th>
@@ -290,6 +300,14 @@ export function SetProgressForm({
                   <td>{task.scopeLabel}</td>
                   <td className="text-[12px] text-slate-600">{task.workCenterName || "—"}</td>
                   <td className="erp-td-num">{task.qtyExpected ?? "—"}</td>
+                  <td>
+                    <input
+                      className="erp-input w-[140px]"
+                      type="date"
+                      value={String(valueOf(task, "plannedStart") ?? "")}
+                      onChange={(event) => setPatch(task.id, { plannedStart: event.target.value || null })}
+                    />
+                  </td>
                   <td>
                     <select
                       className={`erp-input ${STATUS_STYLE[status] ?? ""}`}
@@ -350,6 +368,11 @@ export function SetProgressForm({
         </table>
       </div>
 
+      <p className="erp-hint">
+        <strong>Xếp lịch bằng tay:</strong> gán <strong>Ngày KH</strong> cho từng công đoạn rồi bấm <strong>Lưu tiến độ</strong> —
+        ngày của bộ tự tính bằng ngày sớm nhất → muộn nhất của các công đoạn, nên bảng tải và cột “Xếp lịch” luôn khớp.
+        Hai ô “Xếp lịch từ / đến” ở trên là để <em>ghi đè</em> ngày cấp bộ khi cần. Công đoạn cùng một bước (Cắt cánh / Cắt khung / Cắt phào) nên gán cùng ngày.
+      </p>
       <p className="erp-hint">
         Dòng có dấu 🔒 là chưa được chạy: phải báo hoàn thành công đoạn trước (ví dụ Test cơ khí chỉ mở khi{" "}
         <strong>cả 3 phần cánh + khung + phào</strong> đã hàn xong). Chọn “Xong” sẽ tự ghi mốc kết thúc. Khi tất cả công đoạn cần làm đều Xong, bộ chuyển sang <strong>Hoàn thành</strong> và ghi mốc

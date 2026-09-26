@@ -24,7 +24,6 @@ import {
 } from "@/lib/production/scheduling";
 import { countUnplannedOrderItems, loadProductionBoard } from "@/lib/production/service";
 import { ProductionWarnings } from "@/components/production/production-warnings";
-import { ScheduleButton } from "@/components/production/schedule-button";
 
 export const dynamic = "force-dynamic";
 
@@ -141,7 +140,6 @@ export default async function ProductionPlanPage({ searchParams }: { searchParam
       subtitle="Mỗi dòng là 1 bộ cửa. Tính tải theo CÁNH (đơn vị xưởng đang dùng), tiến độ theo từng công đoạn."
       actions={
         <div className="flex flex-wrap items-center gap-2">
-          <ScheduleButton pendingCount={summary.waiting} />
           <Link className="erp-button-secondary" href="/ke-hoach-san-xuat/nhap-do-dang">
             Nhập bộ đang sản xuất dở{unplannedCount > 0 ? ` (${formatNumber(unplannedCount)})` : ""}
           </Link>
@@ -173,7 +171,7 @@ export default async function ProductionPlanPage({ searchParams }: { searchParam
 
         <ReportCard
           title="Bộ chờ xếp lịch"
-          hint="Xếp theo hạn giao gần nhất trước (EDD). Cột “Phải bắt đầu” = hạn giao − đệm giao hàng − đường găng."
+          hint="Xếp theo hạn giao gần nhất trước (EDD). Cột “Phải bắt đầu” = hạn giao − đệm giao hàng − đường găng. **Xếp lịch bằng tay**: mở một bộ → gán ngày kế hoạch cho từng công đoạn."
           right={`${formatNumber(waiting.length)} bộ`}
         >
           {waiting.length === 0 ? (

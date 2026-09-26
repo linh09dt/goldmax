@@ -73,7 +73,7 @@ export default async function ProductionWeekPlanPage() {
 
         <p className="erp-hint">
           Ngày làm việc đang cấu hình: {config.workingDays.join(", ")} (0 = Chủ nhật). Bộ cửa chỉ vào được kế hoạch sau khi đã có ngày kế hoạch —
-          hãy bấm <strong>Xếp lịch tự động</strong> ở Bảng kế hoạch trước. Chốt kế hoạch <strong>không khoá</strong> việc cập nhật tiến độ, nhưng
+          hãy <strong>gán ngày kế hoạch bằng tay</strong> cho từng công đoạn ở trang bộ cửa trước. Chốt kế hoạch <strong>không khoá</strong> việc cập nhật tiến độ, nhưng
           mọi thay đổi sau đó đều được ghi vào lịch sử (J1).
         </p>
       </div>

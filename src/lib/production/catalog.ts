@@ -150,7 +150,8 @@ export const STAGE = {
 /**
  * V139 — Các thao tác GIA CÔNG tách riêng từng phần.
  * Mã công đoạn = `<THAO TÁC>_<PHẦN>`, vd `CAT_CANH`, `HAN_KHUNG`, `VAN_PHAO`.
- * Các công đoạn CÙNG BƯỚC (`seq`) chạy SONG SONG trong cùng ngày (xem `auto-schedule.ts`).
+ * Các công đoạn CÙNG BƯỚC (`seq`) làm SONG SONG trong cùng ngày (Cắt cánh / Cắt khung / Cắt phào).
+ * Lịch được GÁN BẰNG TAY theo từng công đoạn ở trang bộ cửa (V141 — đã bỏ xếp lịch tự động).
  */
 export const PART_OPERATIONS = {
   CAT: { seq: 30, label: "Cắt" },
@@ -303,15 +304,24 @@ export function percentDoneOf(tasks: Array<Pick<ProductionTaskRow, "stageKind" |
  * - Tất cả công đoạn cần làm đã XONG → HOAN_THANH.
  * - Có ít nhất 1 công đoạn XONG hoặc DANG_LAM → DANG_SX.
  * - Có công đoạn TAM_DUNG → TAM_DUNG (ưu tiên báo động).
+ *
+ * V141: `hasPlan` = bộ **đã có ngày kế hoạch chưa** (xếp lịch bằng tay).
+ * Chưa gán ngày mà cũng chưa làm gì ⇒ giữ **CHO_XEP_LICH (BACKLOG)** — trước đây hàm này luôn biến
+ * thành DA_XEP_LICH nên cột BACKLOG bị mất dần sau mỗi lần bấm Lưu (lỗi đã ghi ở `SIM_1000_DON.md` mục 5.1).
  */
-export function deriveSetStatus(tasks: Array<Pick<ProductionTaskRow, "stageKind" | "status">>, current: string): SetStatus {
+export function deriveSetStatus(
+  tasks: Array<Pick<ProductionTaskRow, "stageKind" | "status">>,
+  current: string,
+  hasPlan = true,
+): SetStatus {
   if (current === "HUY" || current === "DA_GIAO") return current as SetStatus;
   const counted = tasks.filter((task) => task.status !== "BO_QUA" && task.stageKind !== "CHO");
   if (!counted.length) return "CHO_XEP_LICH";
   if (counted.some((task) => task.status === "TAM_DUNG")) return "TAM_DUNG";
   if (counted.every((task) => task.status === "XONG")) return "HOAN_THANH";
   if (counted.some((task) => task.status === "XONG" || task.status === "DANG_LAM")) return "DANG_SX";
-  return current === "DA_XEP_LICH" || current === "CHO_XEP_LICH" ? "DA_XEP_LICH" : (current as SetStatus);
+  if (current === "CHO_XEP_LICH" || current === "DA_XEP_LICH") return hasPlan ? "DA_XEP_LICH" : "CHO_XEP_LICH";
+  return current as SetStatus;
 }
 
 /**

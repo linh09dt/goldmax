@@ -90,6 +90,8 @@ export default async function ProductionSetPage({ params }: { params: Promise<{ 
       status: task.status,
       qtyExpected: task.qtyExpected,
       qtyDone: task.qtyDone,
+      // V141 — ngày kế hoạch của công đoạn để gán bằng tay trong form.
+      plannedStart: task.plannedStart ? new Date(task.plannedStart).toISOString().slice(0, 10) : null,
       actualStart: task.actualStart ? new Date(task.actualStart).toISOString() : null,
       actualEnd: task.actualEnd ? new Date(task.actualEnd).toISOString() : null,
       assignee: task.assignee,
