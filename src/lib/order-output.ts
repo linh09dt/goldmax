@@ -22,12 +22,26 @@ export type OutputGroup = {
   rows: Array<{ row: OutputLine; main: boolean; firstInGroup: boolean }>;
 };
 
+import { isMeaningfulOrderDetail } from "./order-detail";
+
 export function hasPricingQuantity(value: unknown) {
   if (value === null || value === undefined) return false;
   const raw = String(value).trim();
   if (!raw || raw === "-" || raw === "—") return false;
   const number = Number(raw.replace(/,/g, ""));
   return Number.isFinite(number) ? number > 0 : true;
+}
+
+/**
+ * V133.2: dòng được hiển thị / xuất file khi có DỮ LIỆU THẬT.
+ *
+ * Trước đây chỗ này đòi `hasPricingQuantity` (phải có "Số KH/Lượng") nên:
+ * - dòng phụ kiện nhập tay không điền Số KH/Lượng bị ẩn khỏi chi tiết đơn + mọi file xuất;
+ * - đơn chỉ nhập phụ kiện (không nhập dòng bộ cửa) ra "Chi tiết từng bộ cửa (0)".
+ * Quy tắc đúng theo ORDER_DETAIL_V4: chỉ ẩn dòng mẫu rỗng (0 / - / — / #N/A).
+ */
+export function hasRowContent(row: Record<string, unknown>): boolean {
+  return isMeaningfulOrderDetail(row, { ignoreSetNo: true });
 }
 
 export function buildOutputGroups(
@@ -38,9 +52,9 @@ export function buildOutputGroups(
     const details = detailResolver ? detailResolver(item) : (item.details ?? []);
     const rows: Array<{ row: OutputLine; main: boolean; firstInGroup: boolean }> = [];
 
-    if (hasPricingQuantity(item.pricingQuantity)) rows.push({ row: item, main: true, firstInGroup: true });
+    if (hasRowContent(item as unknown as Record<string, unknown>)) rows.push({ row: item, main: true, firstInGroup: true });
     for (const detail of details) {
-      if (!hasPricingQuantity(detail.pricingQuantity)) continue;
+      if (!hasRowContent(detail as unknown as Record<string, unknown>)) continue;
       rows.push({ row: detail, main: false, firstInGroup: rows.length === 0 });
     }
 

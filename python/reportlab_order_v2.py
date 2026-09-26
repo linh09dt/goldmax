@@ -392,6 +392,66 @@ def has_pricing(value: Any) -> bool:
     return n is not None and n > 0
 
 
+# V133.2: các trường được coi là "có dữ liệu" của một dòng (giống isMeaningfulOrderDetail bên TS).
+# Không có "setNo": Bộ số do hệ thống tự sinh (ORDER_SET_NUMBER_AUTO_V75) nên không tính là
+# "có dữ liệu" — nếu tính, mọi thẻ bộ cửa trống đều lọt vào file xuất.
+ROW_CONTENT_FIELDS = (
+    "productCode", "model", "openingDirection", "trimDirection", "paintColor",
+    "heightMm", "widthMm", "frameMm", "clearHeightMm", "clearWidthMm",
+    "panelInfo", "trimBarsPerSet", "trimType", "lockModel", "windowBars",
+    "leavesPerSet", "quantity", "unit", "pricingQuantity", "unitPrice", "amount",
+    "note", "imagePath", "modelCheck", "priceCheck",
+)
+
+TEMPLATE_DETAIL_NAMES = {
+    "phào rời",
+    "phào lux (thanh đứng )",
+    "phào lux (thanh đứng)",
+    "phào lux (thanh đỉnh )",
+    "phào lux (thanh đỉnh)",
+    "phào lux ( thanh ngang )",
+    "phào lux (thanh ngang)",
+    "thông tin về khóa",
+    "chi phí khoét khóa tc",
+    "chi phí khoét pano",
+    "chi phí khoét kính",
+    "phụ phí huỳnh trống đồng",
+    "phụ phí cách âm khuôn",
+    "song cửa sổ",
+    "khác",
+}
+
+PLACEHOLDER_VALUES = {"", "-", "—", "0", "0.0", "0.00", "0,00"}
+
+
+def has_value(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return math.isfinite(float(value)) and float(value) != 0
+    text = str(value).strip()
+    if not text or text.startswith("#"):
+        return False
+    return text not in PLACEHOLDER_VALUES
+
+
+def has_row_content(row: dict[str, Any]) -> bool:
+    """V133.2: dòng có dữ liệu thật thì hiển thị/xuất — không đòi phải có Số KH/Lượng.
+
+    Bản cũ chỉ nhận dòng có `pricingQuantity > 0`, nên dòng phụ kiện nhập tay không điền
+    Số KH/Lượng bị ẩn, và đơn chỉ có phụ kiện thì mất sạch dòng khi xuất PDF.
+    """
+    for field in ROW_CONTENT_FIELDS:
+        if has_value(row.get(field)):
+            return True
+    name = clean(row.get("productName")).lower()
+    if not name:
+        return False
+    return name not in TEMPLATE_DETAIL_NAMES
+
+
 def line_amount(row: dict[str, Any]) -> float:
     explicit = number(row.get("amount"))
     if explicit is not None and explicit > 0:
@@ -403,13 +463,13 @@ def build_groups(order: dict[str, Any]) -> list[dict[str, Any]]:
     groups: list[dict[str, Any]] = []
     for item in order.get("items") or []:
         rows: list[dict[str, Any]] = []
-        if has_pricing(item.get("pricingQuantity")):
+        if has_row_content(item):
             rows.append({"row": item, "main": True, "first": True})
         details = item.get("details") or []
         if not details and isinstance(item.get("rawBlock"), list):
             details = raw_block_details(item.get("rawBlock") or [])
         for detail in details:
-            if has_pricing(detail.get("pricingQuantity")):
+            if has_row_content(detail):
                 rows.append({"row": detail, "main": False, "first": len(rows) == 0})
         if rows:
             groups.append({

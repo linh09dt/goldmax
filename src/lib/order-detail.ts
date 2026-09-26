@@ -69,41 +69,50 @@ export function resolveOrderItemDetails(item: OrderItemWithDetailFallback): Orde
     : [];
 
   const sourceRows = databaseRows.length > 0 ? databaseRows : detailRowsFromRawBlock(item.rawBlock);
-  return sourceRows.filter(isMeaningfulOrderDetail);
+  return sourceRows.filter((row) => isMeaningfulOrderDetail(row));
 }
 
-/** Dùng chung cho parser Excel để chỉ lưu những dòng chi tiết có dữ liệu. */
-export function isMeaningfulOrderDetail(row: Record<string, unknown>): boolean {
-  const payloadFields = [
-    "setNo",
-    "productCode",
-    "model",
-    "openingDirection",
-    "trimDirection",
-    "paintColor",
-    "heightMm",
-    "widthMm",
-    "frameMm",
-    "clearHeightMm",
-    "clearWidthMm",
-    "panelInfo",
-    "trimBarsPerSet",
-    "trimType",
-    "lockModel",
-    "windowBars",
-    "leavesPerSet",
-    "quantity",
-    "unit",
-    "pricingQuantity",
-    "unitPrice",
-    "amount",
-    "note",
-    "imagePath",
-    "modelCheck",
-    "priceCheck",
-  ] as const;
+/** Các trường dữ liệu của một dòng chi tiết (dùng để quyết định dòng có "dữ liệu thật" hay không). */
+const PAYLOAD_FIELDS = [
+  "setNo",
+  "productCode",
+  "model",
+  "openingDirection",
+  "trimDirection",
+  "paintColor",
+  "heightMm",
+  "widthMm",
+  "frameMm",
+  "clearHeightMm",
+  "clearWidthMm",
+  "panelInfo",
+  "trimBarsPerSet",
+  "trimType",
+  "lockModel",
+  "windowBars",
+  "leavesPerSet",
+  "quantity",
+  "unit",
+  "pricingQuantity",
+  "unitPrice",
+  "amount",
+  "note",
+  "imagePath",
+  "modelCheck",
+  "priceCheck",
+] as const;
 
-  if (payloadFields.some((field) => hasActualValue(row[field]))) return true;
+/** Dùng chung cho parser Excel để chỉ lưu những dòng chi tiết có dữ liệu. */
+export function isMeaningfulOrderDetail(
+  row: Record<string, unknown>,
+  options?: { ignoreSetNo?: boolean },
+): boolean {
+  // V133.2: Bộ số được hệ thống tự sinh (ORDER_SET_NUMBER_AUTO_V75) nên KHÔNG tính là
+  // "có dữ liệu" khi quyết định ẩn/hiện dòng — nếu tính, mọi thẻ bộ cửa trống đều lọt ra.
+  const fields = options?.ignoreSetNo
+    ? PAYLOAD_FIELDS.filter((field) => field !== "setNo")
+    : PAYLOAD_FIELDS;
+  if (fields.some((field) => hasActualValue(row[field]))) return true;
 
   const name = normalizeText(row.productName);
   if (!name) return false;

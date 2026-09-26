@@ -6,7 +6,7 @@ import { OrderExportButtons } from "@/components/order-export-buttons";
 import { prisma } from "@/lib/prisma";
 import { resolveOrderItemDetails } from "@/lib/order-detail";
 import { showsSetNumber, orderStatusLabel, orderTypeLabel } from "@/lib/order-form";
-import { buildOutputGroups, calculateOutputTotals, hasPricingQuantity } from "@/lib/order-output";
+import { buildOutputGroups, calculateOutputTotals, hasRowContent } from "@/lib/order-output";
 
 export const dynamic = "force-dynamic";
 
@@ -29,9 +29,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const outputTotals = calculateOutputTotals(outputGroups, order);
   // V112: Bộ số chỉ hiển thị khi đơn ĐÃ XÁC NHẬN (bấm "Lưu đơn hàng").
   const showSetNumber = showsSetNumber(order.status);
+  // V133.2: hiện dòng khi có DỮ LIỆU THẬT (không đòi phải có Số KH/Lượng) — nhờ vậy đơn chỉ nhập
+  // phụ kiện/chi tiết, hoặc dòng phụ kiện không điền bộ số, vẫn hiện đầy đủ.
   const visibleItems = order.items.flatMap((item) => {
-    const detailRows = resolveOrderItemDetails(item).filter((row) => hasPricingQuantity(row.pricingQuantity));
-    const showMainRow = hasPricingQuantity(item.pricingQuantity);
+    const detailRows = resolveOrderItemDetails(item).filter((row) => hasRowContent(row as unknown as Record<string, unknown>));
+    const showMainRow = hasRowContent(item as unknown as Record<string, unknown>);
     if (!showMainRow && detailRows.length === 0) return [];
     return [{ item, detailRows, showMainRow }];
   });
@@ -85,7 +87,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                   <div className="font-semibold">
                     Bộ cửa #{item.lineNo} {showSetNumber && item.setNo ? `· Bộ số ${item.setNo}` : ""} {item.productName ? `· ${item.productName}` : ""}
                   </div>
-                  <div className="text-xs text-slate-300">{detailRows.length} dòng chi tiết có KH/Lượng</div>
+                  <div className="text-xs text-slate-300">{detailRows.length} dòng chi tiết</div>
                 </div>
                 <div className="w-full overflow-hidden">
                   <table className="w-full table-fixed border-collapse text-[9px] leading-tight xl:text-[10px]">
