@@ -141,6 +141,18 @@ def _count_pages(path: Path) -> int:
         return 0
 
 
+def _request_base_url(headers) -> str | None:
+    """V135.2: URL gốc của chính app — dùng để tải ảnh lưu dạng đường dẫn tương đối."""
+    try:
+        host = (headers.get("host") or "").strip()
+        if not host:
+            return None
+        proto = (headers.get("x-forwarded-proto") or "https").split(",")[0].strip() or "https"
+        return f"{proto}://{host}"
+    except Exception:
+        return None
+
+
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         VERSION = "V41.19-root-fix"
@@ -209,7 +221,24 @@ class handler(BaseHTTPRequestHandler):
 
             build_started = time.monotonic()
             mark("08_BUILD_START", includeImages=not no_images, noteLength=len(note))
-            build_order_pdf(order, tmp_path, export_note=note, include_images=not no_images)
+            image_stats: dict = {}
+            build_order_pdf(
+                order,
+                tmp_path,
+                export_note=note,
+                include_images=not no_images,
+                base_url=_request_base_url(self.headers),
+                stats=image_stats,
+            )
+            if image_stats:
+                # V135.2: log rõ số ảnh tải được để chẩn đoán khi PDF thiếu ảnh.
+                mark(
+                    "08B_IMAGES",
+                    requested=image_stats.get("imagesRequested"),
+                    loaded=image_stats.get("imagesLoaded"),
+                    failed=image_stats.get("imagesFailed"),
+                    targetPx=image_stats.get("imageTargetPx"),
+                )
             mark("09_BUILD_DONE")
             file_size = tmp_path.stat().st_size
             pages = _count_pages(tmp_path)
@@ -261,7 +290,14 @@ class handler(BaseHTTPRequestHandler):
 
             mark("14_HEADERS_WRITE_START")
             response_started = True
-            self._send_pdf(pdf_bytes, filename, pages=pages, ascii_filename=f"Bao-gia-V2-{order_id}.pdf")
+            self._send_pdf(
+                pdf_bytes,
+                filename,
+                pages=pages,
+                ascii_filename=f"Bao-gia-V2-{order_id}.pdf",
+                # V135.2: cho giao diện biết PDF có đủ ảnh hay không.
+                image_stats=image_stats,
+            )
             mark("15_RESPONSE_DONE", orderId=order_id, bytes=len(pdf_bytes), pages=pages)
             return
         except ValueError as exc:
@@ -288,7 +324,7 @@ class handler(BaseHTTPRequestHandler):
                 except Exception:
                     pass
 
-    def _send_pdf(self, pdf_bytes: bytes, filename: str, pages: int = 0, ascii_filename: str | None = None):
+    def _send_pdf(self, pdf_bytes: bytes, filename: str, pages: int = 0, ascii_filename: str | None = None, image_stats: dict | None = None):
         # V41.19 root cause fix:
         # BaseHTTPRequestHandler.send_header() mã hóa header bằng latin-1 strict.
         # Vì vậy filename= phải chỉ chứa ASCII; tên Unicode thật đi qua filename*=UTF-8''.
@@ -310,6 +346,9 @@ class handler(BaseHTTPRequestHandler):
         self.send_header("X-GoldMax-PDF-Version", "V41.19")
         if pages:
             self.send_header("X-GoldMax-PDF-Pages", str(pages))
+        if image_stats:
+            self.send_header("X-GoldMax-Images-Requested", str(image_stats.get("imagesRequested", 0)))
+            self.send_header("X-GoldMax-Images-Loaded", str(image_stats.get("imagesLoaded", 0)))
         self.end_headers()
         self.wfile.write(pdf_bytes)
         self.wfile.flush()

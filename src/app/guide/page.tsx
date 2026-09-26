@@ -67,6 +67,15 @@ export default function GuidePage() {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={step.image} alt={`${step.code} — ${step.title}`} loading="lazy" className="w-full rounded-lg border border-slate-300" />
                 </a>
+                {step.extraImage ? (
+                  <div className="xl:col-span-2">
+                    <div className="mb-1 text-[12.5px] font-semibold text-slate-600">{step.extraImageCaption ?? "Ảnh phụ"}</div>
+                    <a href={step.extraImage} target="_blank" rel="noreferrer" title="Bấm để xem ảnh lớn">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={step.extraImage} alt={`${step.code} — ảnh phụ`} loading="lazy" className="w-full rounded-lg border border-slate-300" />
+                    </a>
+                  </div>
+                ) : null}
                 <ol className="space-y-2 text-[13px] leading-relaxed text-slate-700">
                   {step.points.map((point, pointIndex) => (
                     <li key={point} className="flex gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5">

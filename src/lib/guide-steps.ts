@@ -7,6 +7,9 @@ export type GuideStep = {
   code: string;
   title: string;
   image: string;
+  /** Ảnh phụ (nếu có) — ví dụ trang in của cùng đơn. */
+  extraImage?: string;
+  extraImageCaption?: string;
   href: string;
   points: string[];
 };
@@ -101,12 +104,18 @@ export const GUIDE_STEPS: GuideStep[] = [
   },
   {
     code: "Bước 8",
-    title: "Bản in / PDF của đơn",
-    image: "/huong-dan/08-ban-in-pdf.png",
+    title: "File PDF V2 xuất từ đơn (và trang in)",
+    image: "/huong-dan/08-pdf-v2.png",
+    extraImage: "/huong-dan/08-ban-in-pdf.png",
+    extraImageCaption: "Ảnh phụ: trang IN của cùng đơn (Ctrl+P) — cùng bố cục với file PDF, dùng khi cần in trực tiếp.",
     href: "/orders",
     points: [
-      "Bản in / PDF: cột HÌNH ẢNH SP chứa đủ các ảnh của bộ cửa, đúng cỡ đã đặt trong ô ảnh.",
-      "Trang này dùng để in trực tiếp (Ctrl+P) hoặc lưu PDF — cùng bố cục với file PDF xuất từ đơn.",
+      "Đây là ẢNH CHỤP TỪ CHÍNH FILE PDF xuất ra (nút “Xuất PDF”), không phải trang in hay bảng Excel.",
+      "Cột Hình ảnh SP trong file PDF có đủ các ảnh của bộ cửa, xếp dọc theo thứ tự đã dán và đúng cỡ đã đặt (ảnh số 1 trong ví dụ đặt 320×426 px nên cột ảnh tự nới rộng).",
+      "Phần trên trang 1: tiêu đề đơn, mã đại lý / khách hàng, bảng hàng hóa gồm dòng chính (bộ cửa) và dòng phụ kiện / chi tiết.",
+      "File PDF khổ A4 ngang; đơn trong ví dụ xuất ra 3 trang (trang 1 là bảng hàng hóa, trang 2–3 là phần còn lại và phần tổng hợp giá trị).",
+      "Nếu ảnh tải không kịp, hộp thoại xuất PDF sẽ báo rõ thiếu bao nhiêu ảnh để bạn bấm xuất lại.",
+      "Cần bản không kèm ảnh (file nhẹ hơn): dùng tùy chọn xuất PDF không ảnh — cột Hình ảnh SP vẫn còn nhưng để trống.",
     ],
   },
   {

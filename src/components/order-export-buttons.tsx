@@ -59,7 +59,7 @@ export function OrderExportButtons({
     setExportError("");
   }
 
-  async function downloadPdfV2(url: string) {
+  async function downloadPdfV2(url: string): Promise<string> {
     const response = await fetch(url, { cache: "no-store" });
     if (!response.ok) {
       const body = await response.text().catch(() => "");
@@ -89,6 +89,14 @@ export function OrderExportButtons({
     link.click();
     link.remove();
     window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
+
+    // V135.2: hàm PDF báo lại số ảnh đã nhúng để cảnh báo khi thiếu ảnh.
+    const requested = Number(response.headers.get("X-GoldMax-Images-Requested") ?? "");
+    const loaded = Number(response.headers.get("X-GoldMax-Images-Loaded") ?? "");
+    if (Number.isFinite(requested) && Number.isFinite(loaded) && requested > 0 && loaded < requested) {
+      return `PDF đã xuất nhưng thiếu ${requested - loaded}/${requested} ảnh sản phẩm do tải ảnh quá chậm. Bấm Xuất PDF lại để lấy bản đủ ảnh.`;
+    }
+    return "";
   }
 
   async function confirmExport() {
@@ -108,9 +116,14 @@ export function OrderExportButtons({
       setIsExporting(true);
       setExportError("");
       try {
-        await downloadPdfV2(`/api/order_pdf_v2?orderId=${orderId}${notePart}`);
-        setExportType(null);
-        setNote("");
+        const imageWarning = await downloadPdfV2(`/api/order_pdf_v2?orderId=${orderId}${notePart}`);
+        if (imageWarning) {
+          // Vẫn giữ hộp thoại để người dùng đọc cảnh báo và xuất lại nếu cần.
+          setExportError(imageWarning);
+        } else {
+          setExportType(null);
+          setNote("");
+        }
       } catch {
         // Chế độ an toàn chỉ chạy khi PDF đầy đủ thất bại. Mục tiêu là tránh
         // người dùng bị kẹt ở trang 500; cột Hình ảnh SP vẫn còn nhưng ảnh để trống.

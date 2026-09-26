@@ -516,27 +516,59 @@ def totals(order: dict[str, Any], groups: list[dict[str, Any]]) -> dict[str, flo
     }
 
 
-def _download_image_bytes(url: str, max_bytes: int = 6_000_000, timeout: float = 1.5) -> bytes | None:
-    """Tải ảnh sản phẩm với giới hạn dung lượng để bảo vệ Vercel Function."""
+def _download_image_bytes(url: str, max_bytes: int = 15_000_000, timeout: float = 6.0, retries: int = 1) -> bytes | None:
+    """Tải ảnh sản phẩm với giới hạn dung lượng để bảo vệ Vercel Function.
+
+    V135.2: trước đây chỉ chờ **1,5 giây** nên ảnh thật (vài MB trên Supabase Storage)
+    thường bị bỏ ⇒ cột Hình ảnh SP trong PDF trắng, trong khi Excel vẫn có ảnh.
+    Nay chờ 6 giây và thử lại 1 lần; hàm Vercel đã đặt maxDuration 300 giây nên an toàn.
+    """
     if not url or not re.match(r"^https?://", url, re.I):
         return None
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "GoldMax-PDF-V2/1.0"})
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = resp.read(max_bytes + 1)
-            if len(data) > max_bytes:
+    for attempt in range(retries + 1):
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={"User-Agent": "GoldMax-PDF-V2/1.0", "Accept": "image/*,*/*"},
+            )
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = resp.read(max_bytes + 1)
+                if len(data) > max_bytes:
+                    return None
+                return data
+        except Exception:
+            if attempt >= retries:
                 return None
-            return data
-    except Exception:
+            time.sleep(0.25)
+    return None
+
+
+def _absolute_image_url(url: Any, base_url: str | None = None) -> str | None:
+    """Trả URL tuyệt đối của ảnh.
+
+    V135.2: đơn tạo khi chưa cấu hình Supabase Storage lưu đường dẫn tương đối
+    (`/uploads/orders/...`) — trước đây bị bỏ qua hoàn toàn nên PDF không có ảnh.
+    Nay ghép với base_url (host của chính app) để vẫn tải được.
+    """
+    text = clean(url)
+    if not text:
         return None
+    if re.match(r"^https?://", text, re.I):
+        return text
+    if text.startswith("//"):
+        return f"https:{text}"
+    if text.startswith("/") and base_url:
+        return f"{base_url.rstrip('/')}{text}"
+    return None
 
 
-def _optimize_product_image(data: bytes) -> bytes | None:
+def _optimize_product_image(data: bytes, max_px: int = 360, quality: int = 76) -> bytes | None:
     """Thu nhỏ ảnh trước khi nhúng PDF.
 
     Ảnh trên web có thể vài MB. Nếu ReportLab nhúng nguyên ảnh cho 10-20 bộ cửa,
     PDF nhiều trang có thể vượt bộ nhớ/response limit của Vercel và trả 500.
-    Cột ảnh trong PDF chỉ rộng ~11 mm nên 240 px là đủ sắc nét khi in.
+    V135.2: người dùng đặt được cỡ ảnh tới 800 px nên thumbnail cũ 240 px bị mờ;
+    nay lấy theo cỡ ảnh lớn nhất của đơn (360–900 px), vẫn giữ PDF nhẹ.
     """
     try:
         from PIL import Image as PILImage, ImageOps
@@ -551,25 +583,82 @@ def _optimize_product_image(data: bytes) -> bytes | None:
             else:
                 image = image.convert("RGB")
 
-            image.thumbnail((240, 240), PILImage.Resampling.LANCZOS)
+            limit = max(240, min(900, int(max_px)))
+            image.thumbnail((limit, limit), PILImage.Resampling.LANCZOS)
             out = io.BytesIO()
-            image.save(out, format="JPEG", quality=68, optimize=True, progressive=False)
+            image.save(out, format="JPEG", quality=max(60, min(90, int(quality))), optimize=True, progressive=False)
             return out.getvalue()
     except Exception:
         return None
 
 
-def _fetch_and_optimize_image(url: str) -> tuple[str, bytes | None]:
+def _fetch_and_optimize_image(url: str, max_px: int = 360) -> tuple[str, bytes | None]:
     """Tải + thu nhỏ một ảnh trong worker riêng.
 
     Quan trọng với Vercel: không giữ toàn bộ ảnh gốc trong RAM cùng lúc và không
     tải tuần tự từng ảnh khi ReportLab đang layout nhiều trang.
     """
-    raw = _download_image_bytes(url, timeout=1.5)
-    return url, (_optimize_product_image(raw) if raw else None)
+    raw = _download_image_bytes(url)
+    return url, (_optimize_product_image(raw, max_px=max_px) if raw else None)
 
 
-def _prefetch_product_images(groups: list[dict[str, Any]]) -> dict[str, bytes | None]:
+def _image_target_px(groups: list[dict[str, Any]]) -> int:
+    """Cỡ ảnh (px) cần giữ trong PDF: theo cỡ ảnh đặt tay lớn nhất của đơn, 360–900."""
+    largest = 0
+    for group in groups:
+        candidates: list[Any] = [group.get("imageWidth")]
+        for image in group.get("images") or []:
+            candidates.append(image.get("imageWidth"))
+        for entry in group.get("rows") or []:
+            candidates.append((entry.get("row") or {}).get("imageWidth"))
+        for value in candidates:
+            parsed = number(value)
+            if parsed and parsed > largest:
+                largest = int(parsed)
+    return max(360, min(900, largest)) if largest else 360
+
+
+def _collect_image_targets(groups: list[dict[str, Any]], base_url: str | None = None) -> list[tuple[str, str | None]]:
+    """Liệt kê ảnh cần tải: [(giá trị lưu trong đơn, URL tuyệt đối để tải | None)]."""
+    targets: list[tuple[str, str | None]] = []
+    seen: set[str] = set()
+
+    def add(value: Any) -> None:
+        raw = clean(value)
+        if not raw or raw in seen:
+            return
+        seen.add(raw)
+        targets.append((raw, _absolute_image_url(raw, base_url)))
+
+    for group in groups:
+        add(group.get("imagePath"))
+        for image in group.get("images") or []:
+            add(image.get("imagePath"))
+        for entry in group.get("rows") or []:
+            add((entry.get("row") or {}).get("imagePath"))
+    return targets
+
+
+def _image_budget_px(image_count: int) -> int:
+    """Cỡ thumbnail tối đa theo SỐ ẢNH để PDF không vượt giới hạn dung lượng của Vercel.
+
+    PDF phải nằm dưới ngưỡng response (~4,5 MB). Ước lượng: 900 px ≈ 120 KB/ảnh.
+    """
+    if image_count <= 6:
+        return 900
+    if image_count <= 12:
+        return 600
+    if image_count <= 20:
+        return 420
+    return 300
+
+
+def _prefetch_product_images(
+    groups: list[dict[str, Any]],
+    base_url: str | None = None,
+    max_px: int = 360,
+    stats: dict[str, Any] | None = None,
+) -> dict[str, bytes | None]:
     """Prefetch ảnh sản phẩm song song trước khi dựng bảng.
 
     Bản cũ tải ảnh *ngay trong* `_image_flowable`. Với đơn nhiều bộ cửa, mỗi URL
@@ -577,44 +666,48 @@ def _prefetch_product_images(groups: list[dict[str, Any]]) -> dict[str, bytes | 
     Bản này tải tối đa 6 ảnh song song, timeout ngắn; ảnh nào chậm/lỗi sẽ để trống
     thay vì làm hỏng toàn bộ PDF. Cache chỉ giữ thumbnail JPEG đã nén.
     """
-    urls: list[str] = []
-    seen: set[str] = set()
-
-    def add_url(value: Any) -> None:
-        url = clean(value)
-        if url and re.match(r"^https?://", url, re.I) and url not in seen:
-            seen.add(url)
-            urls.append(url)
-
-    for group in groups:
-        # Ảnh của dòng sản phẩm chính.
-        add_url(group.get("imagePath"))
-        # V133: tải cả gallery nhiều ảnh của bộ cửa (nếu có).
-        for image in group.get("images") or []:
-            add_url(image.get("imagePath"))
-        # V41.21: tải cả ảnh riêng của các dòng chi tiết / phụ kiện / phụ phí.
-        for entry in group.get("rows") or []:
-            row = entry.get("row") or {}
-            add_url(row.get("imagePath"))
-
-    cache: dict[str, bytes | None] = {url: None for url in urls}
-    if not urls:
+    # Khoá cache giữ NGUYÊN giá trị lưu trong đơn (để chỗ vẽ ảnh tìm đúng),
+    # còn URL dùng để tải là URL tuyệt đối (đã ghép base_url nếu là đường dẫn tương đối).
+    targets = _collect_image_targets(groups, base_url)
+    cache: dict[str, bytes | None] = {raw: None for raw, _resolved in targets}
+    fetchable = [(raw, resolved) for raw, resolved in targets if resolved]
+    if not fetchable:
+        if stats is not None:
+            stats.update({
+                "imagesRequested": len(targets),
+                "imagesLoaded": 0,
+                "imagesFailed": len(targets),
+                "imageTargetPx": max_px,
+            })
         return cache
 
     # Giữ concurrency vừa phải để không tăng RAM đột biến trên Vercel.
-    workers = min(6, len(urls))
+    workers = min(8, len(fetchable))
     executor = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="gm-img")
-    futures = [executor.submit(_fetch_and_optimize_image, url) for url in urls]
+    futures = {
+        executor.submit(_fetch_and_optimize_image, resolved, max_px): raw
+        for raw, resolved in fetchable
+    }
     try:
         for future in as_completed(futures):
+            raw = futures[future]
             try:
-                url, data = future.result()
-                cache[url] = data
+                _url, data = future.result()
+                cache[raw] = data
             except Exception:
                 # Ảnh lỗi không được phép làm hỏng PDF.
                 continue
     finally:
         executor.shutdown(wait=True, cancel_futures=True)
+
+    if stats is not None:
+        loaded = sum(1 for value in cache.values() if value)
+        stats.update({
+            "imagesRequested": len(targets),
+            "imagesLoaded": loaded,
+            "imagesFailed": len(targets) - loaded,
+            "imageTargetPx": max_px,
+        })
     return cache
 
 
@@ -772,7 +865,23 @@ def _draw_footer(canvas: pdfcanvas.Canvas, doc: SimpleDocTemplate, order_code: s
     canvas.drawRightString(PAGE_W - RIGHT, y, f"Trang {canvas.getPageNumber()}")
     canvas.restoreState()
 
-def build_order_pdf(order: dict[str, Any], output: str | os.PathLike[str] | io.BytesIO, export_note: str = "", include_images: bool = True) -> None:
+def _default_base_url() -> str | None:
+    """Base URL dự phòng khi hàm PDF không nhận được host của request."""
+    for key in ("SITE_URL", "NEXT_PUBLIC_SITE_URL", "VERCEL_URL"):
+        value = clean(os.getenv(key))
+        if value:
+            return value if re.match(r"^https?://", value, re.I) else f"https://{value}"
+    return None
+
+
+def build_order_pdf(
+    order: dict[str, Any],
+    output: str | os.PathLike[str] | io.BytesIO,
+    export_note: str = "",
+    include_images: bool = True,
+    base_url: str | None = None,
+    stats: dict[str, Any] | None = None,
+) -> None:
     groups = build_groups(order)
     calc = totals(order, groups)
     order_code = clean(order.get("orderCode")) or f"DH-{order.get('id', '')}"
@@ -801,7 +910,17 @@ def build_order_pdf(order: dict[str, Any], output: str | os.PathLike[str] | io.B
     # Prefetch thumbnail trước khi ReportLab bắt đầu layout. Điều này đặc biệt
     # quan trọng với đơn nhiều trang trên Vercel vì tránh network I/O lặp trong
     # quá trình Table.split()/layout.
-    image_cache = _prefetch_product_images(groups) if include_images else {}
+    if include_images:
+        image_count = len(_collect_image_targets(groups))
+        image_max_px = max(240, min(_image_target_px(groups), _image_budget_px(image_count)))
+        image_cache = _prefetch_product_images(
+            groups,
+            base_url=base_url or _default_base_url(),
+            stats=stats,
+            max_px=image_max_px,
+        )
+    else:
+        image_cache = {}
     # V72: tự chia bảng theo trang sao cho mỗi bộ cửa nằm trọn trong 1 trang.
     frame_height = PAGE_H - TOP - BOTTOM
     used_height = 0.0
@@ -834,9 +953,22 @@ def build_order_pdf(order: dict[str, Any], output: str | os.PathLike[str] | io.B
     doc.build(story, onFirstPage=footer, onLaterPages=footer)
 
 
-def build_order_pdf_bytes(order: dict[str, Any], export_note: str = "", include_images: bool = True) -> bytes:
+def build_order_pdf_bytes(
+    order: dict[str, Any],
+    export_note: str = "",
+    include_images: bool = True,
+    base_url: str | None = None,
+    stats: dict[str, Any] | None = None,
+) -> bytes:
     output = io.BytesIO()
-    build_order_pdf(order, output, export_note=export_note, include_images=include_images)
+    build_order_pdf(
+        order,
+        output,
+        export_note=export_note,
+        include_images=include_images,
+        base_url=base_url,
+        stats=stats,
+    )
     return output.getvalue()
 
 
