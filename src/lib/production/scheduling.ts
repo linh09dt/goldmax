@@ -91,16 +91,17 @@ export function missingInfoForPlanning(
 
 /** Thời lượng đường găng của một bộ, suy từ chính các công đoạn đã sinh. */
 export function setLeadHoursFromTasks(
-  tasks: Array<Pick<ProductionTaskRow, "stageCode" | "status">>,
+  tasks: Array<Pick<ProductionTaskRow, "stageCode" | "seq" | "status">>,
   stages: ProductionStageRow[],
   config: ProductionConfig,
 ): number {
   const byCode = new Map(stages.map((stage) => [stage.code, stage]));
-  const seen = new Set<string>();
+  // V139: các công đoạn CÙNG BƯỚC (cùng `seq`) chạy SONG SONG → chỉ tính 1 lần.
+  const seen = new Set<number>();
   const durations: number[] = [];
   for (const task of tasks) {
-    if (task.status === "BO_QUA" || seen.has(task.stageCode)) continue;
-    seen.add(task.stageCode);
+    if (task.status === "BO_QUA" || seen.has(task.seq)) continue;
+    seen.add(task.seq);
     const stage = byCode.get(task.stageCode);
     if (!stage) continue;
     durations.push(Math.max(0, Number(stage.leadTimeHours) || 0));

@@ -187,7 +187,10 @@ export function DailyWorkSheet({
                 <td>{row.model ?? "—"}</td>
                 <td className="c">{row.paintColor ?? "—"}</td>
                 <td>
-                  {row.stageName} <span style={{ color: "#555" }}>({row.scopeLabel})</span>
+                  {row.stageName}
+                  {row.scopeLabel && !row.stageName.toLowerCase().includes(row.scopeLabel.toLowerCase()) ? (
+                    <span style={{ color: "#555" }}> ({row.scopeLabel})</span>
+                  ) : null}
                 </td>
                 <td className="n">{row.qtyExpected ?? "—"}</td>
                 <td className="c">{formatDate(row.dueDate)}</td>

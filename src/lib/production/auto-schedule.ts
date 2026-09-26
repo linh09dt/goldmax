@@ -7,10 +7,11 @@
  * Ràng buộc có mô hình hoá:
  *   - Năng lực TỪNG TỔ theo ngày (giới hạn số cánh) — KH6/KH7.
  *   - Ngày làm việc: bỏ Chủ nhật + ngày lễ — A2.
- *   - Một bộ đi tuần tự qua các công đoạn, mỗi công đoạn 1 ngày làm việc (bảo thủ, đúng
+ *   - Một bộ đi tuần tự qua các BƯỚC (`seq`), mỗi bước 1 ngày làm việc (bảo thủ, đúng
  *     cách xưởng đang gối 1 ngày/bước — C6: đặt `overlapHoursPerStep` > 0 để cho phép
  *     gối nhiều hơn ở tầng tính đường găng).
- *   - Công đoạn tách khung/cánh/phào chạy SONG SONG trong cùng ngày.
+ *   - Các công đoạn CÙNG BƯỚC (`seq`) — vd Cắt cánh / Cắt khung / Cắt phào (V139) — chạy
+ *     SONG SONG trong cùng ngày.
  *   - Công đoạn CHỜ chiếm 1 ngày nhưng không tiêu năng lực tổ.
  *
  * CHƯA mô hình hoá (ghi rõ để đợt sau): gom lô màu sơn (SON7), giới hạn 2 lượt đổi khuôn/ngày
@@ -89,30 +90,24 @@ export function autoSchedule(options: {
       continue;
     }
 
-    // Gom theo CÔNG ĐOẠN: khung / cánh / phào của cùng một công đoạn chạy SONG SONG trong
-    // cùng một ngày (HAN5: "làm độc lập") → tiến con trỏ 1 lần cho cả công đoạn.
-    const byStage = new Map<string, ScheduleTaskInput[]>();
+    // Gom theo BƯỚC (`seq`): các công đoạn CÙNG BƯỚC (vd Cắt cánh / Cắt khung / Cắt phào)
+    // chạy SONG SONG trong cùng một ngày (HAN5: "làm độc lập") → tiến con trỏ 1 lần cho cả bước.
+    const byStep = new Map<number, ScheduleTaskInput[]>();
     for (const task of tasks) {
-      const group = byStage.get(task.stageCode);
+      const group = byStep.get(task.seq);
       if (group) group.push(task);
-      else byStage.set(task.stageCode, [task]);
+      else byStep.set(task.seq, [task]);
     }
-    const stageOrder = [...byStage.keys()].sort((a, b) => {
-      const firstA = byStage.get(a)![0];
-      const firstB = byStage.get(b)![0];
-      return firstA.seq - firstB.seq || a.localeCompare(b);
-    });
+    const stepOrder = [...byStep.keys()].sort((a, b) => a - b);
 
     const canh = canhEquivalentOf(set);
     let cursor = atOrAfterWorking(startDate, calendar);
     const firstDay = cursor;
     let lastAssigned = cursor;
-    const countedCenters = new Set<string>();
 
-    for (const stageCode of stageOrder) {
-      const group = byStage.get(stageCode)!;
+    for (const step of stepOrder) {
+      const group = byStep.get(step)!;
       const stageKind = group[0].stageKind;
-      const centerCode = group[0].workCenterCode;
 
       if (stageKind === "CHO") {
         for (const task of group) scheduledTasks.push({ id: task.id, plannedStart: cursor });
@@ -121,30 +116,38 @@ export function autoSchedule(options: {
         continue;
       }
 
-      const capacity = centerCode ? capacityByCenter.get(centerCode) ?? null : null;
+      // Một bước có thể gồm nhiều công đoạn cùng chạy (khác `scope`, có thể khác tổ).
+      const centerCodes = Array.from(
+        new Set(group.map((task) => task.workCenterCode).filter((code): code is string => Boolean(code))),
+      );
 
-      // Tìm ngày sớm nhất mà tổ còn đủ năng lực cho bộ này.
+      // Ngày sớm nhất mà MỌI tổ của bước này còn đủ năng lực cho bộ.
       let placed = cursor;
-      let guard = 0;
-      while (centerCode && capacity !== null && capacity > 0 && guard < 400) {
-        const key = `${centerCode}|${dayKey(placed)}`;
-        const already = used.get(key) ?? 0;
-        // Bộ solo lớn hơn năng lực 1 ngày thì vẫn phải nhận (không thể chờ vô hạn) — sẽ thành cảnh báo quá tải.
-        if (already === 0 || already + canh <= capacity) break;
-        placed = nextWorking(placed, calendar);
-        guard += 1;
+      for (const centerCode of centerCodes) {
+        const capacity = capacityByCenter.get(centerCode) ?? null;
+        if (capacity === null || capacity <= 0) continue;
+        let day = cursor;
+        let guard = 0;
+        while (guard < 400) {
+          const key = `${centerCode}|${dayKey(day)}`;
+          const already = used.get(key) ?? 0;
+          // Bộ solo lớn hơn năng lực 1 ngày thì vẫn phải nhận (không thể chờ vô hạn) — sẽ thành cảnh báo quá tải.
+          if (already === 0 || already + canh <= capacity) break;
+          day = nextWorking(day, calendar);
+          guard += 1;
+        }
+        if (day.getTime() > placed.getTime()) placed = day;
       }
 
       for (const task of group) scheduledTasks.push({ id: task.id, plannedStart: placed });
 
-      if (centerCode && capacity !== null && capacity > 0) {
+      for (const centerCode of centerCodes) {
+        const capacity = capacityByCenter.get(centerCode) ?? null;
+        if (capacity === null || capacity <= 0) continue;
         const key = `${centerCode}|${dayKey(placed)}`;
-        if (!countedCenters.has(key)) {
-          countedCenters.add(key);
-          const nextUsed = (used.get(key) ?? 0) + canh;
-          used.set(key, nextUsed);
-          if (nextUsed > capacity) overloadCells += 1;
-        }
+        const nextUsed = (used.get(key) ?? 0) + canh;
+        used.set(key, nextUsed);
+        if (nextUsed > capacity) overloadCells += 1;
       }
 
       lastAssigned = placed;

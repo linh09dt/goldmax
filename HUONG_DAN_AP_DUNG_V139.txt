@@ -1,0 +1,39 @@
+HƯỚNG DẪN ÁP DỤNG V139 — TÁCH CÔNG ĐOẠN CẮT/CHẤN/HÀN/VÂN THEO CÁNH · KHUNG · PHÀO
+================================================================================
+
+Bản vá gồm 6 file code + 1 file migration + 1 tài liệu. Giữ nguyên đường dẫn.
+
+CÁC BƯỚC
+--------
+1. Giải nén đè các file vào thư mục dự án (giữ đúng cấu trúc thư mục).
+
+2. KIỂM TRA trước khi build:
+     npx tsc --noEmit
+     npx eslint src/lib/production src/components/production
+     npm run build
+
+3. DEPLOY CODE trước (code mới hiểu scope_mode = 'PART').
+
+4. CHẠY MIGRATION DỮ LIỆU (chạy SAU khi deploy code):
+     psql "$DATABASE_URL" -f migrate-production-v139-split-parts.sql
+   • Lệnh idempotent — chạy lại vô hại.
+   • Không có thay đổi cột/bảng nên KHÔNG cần `prisma migrate`.
+
+5. VÀO APP KIỂM TRA:
+   • Menu trái → Kế hoạch sản xuất → Cấu hình sản xuất → tab "Công đoạn".
+     Phải thấy 12 dòng mới: Cắt cánh / Cắt khung / Cắt phào, Chấn …, Hàn …, Vân …
+     (mỗi dòng Phạm vi = "Một bộ phận", Bộ phận = CANH/KHUNG/PHAO).
+   • Mở một bộ cửa → 12 công đoạn này hiện riêng, đúng tổ.
+   • Bấm "Sinh lại công đoạn" ở một bộ cũ nếu muốn chắc chắn (không bắt buộc — migration đã chuyển).
+
+TÙY CHỈNH SAU KHI CHẠY
+----------------------
+• Thuê ngoài hàn khung: sửa dòng HAN_KHUNG, đổi Tổ từ TO_HAN sang NGOAI.
+• Đổi thứ tự / gối công đoạn: sửa cột "Bước" (seq).
+  – Các dòng CÙNG số bước = chạy SONG SONG trong cùng ngày.
+  – Khác số bước = nối tiếp (bước sau 1 ngày làm việc).
+• Muốn bỏ một công đoạn cho vài loại cửa: đặt "Bỏ qua khi" (skip_condition) hoặc tắt "Dùng".
+
+CẦN HOÀN NGUYÊN?
+----------------
+Chỉ cần chạy lại backup DB trước migration; file code có thể khôi phục từ bản zip gốc.

@@ -82,6 +82,7 @@ const STAGE_KIND_OPTIONS = Object.entries(STAGE_KIND_LABELS).map(([value, label]
 const SCOPE_MODE_OPTIONS = [
   { value: "BO", label: "Cả bộ" },
   { value: "PARTS", label: "Tách khung/cánh/phào" },
+  { value: "PART", label: "Một bộ phận" },
   { value: "MODEL", label: "Theo model (tái dùng)" },
 ];
 const CENTER_KIND_OPTIONS = Object.entries(WORK_CENTER_KIND_LABELS).map(([value, label]) => ({ value, label }));

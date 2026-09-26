@@ -70,6 +70,11 @@ export function scopesOfStage(stage: ProductionStageRow): TaskScope[] {
     const parts = parseScopeParts(stage.scopeParts);
     return parts.length ? parts : DEFAULT_PARTS;
   }
+  // V139: công đoạn CỐ ĐỊNH một bộ phận (vd CAT_CANH chỉ làm cho cánh).
+  if (stage.scopeMode === "PART") {
+    const parts = parseScopeParts(stage.scopeParts);
+    return [parts[0] ?? "CANH"];
+  }
   // BO và MODEL đều theo dõi ở mức cả bộ (MODEL chỉ nghĩa là thời lượng tái dùng theo model).
   return ["BO"];
 }
@@ -111,18 +116,18 @@ export function buildTaskDrafts({ set, stages, config, modelHasProgram = false }
  * `overlapHoursPerStep` = gối công đoạn (C6 nói xưởng gối 1 ngày → đặt 24).
  */
 export function totalLeadTimeHours(
-  drafts: Array<Pick<TaskDraft, "stageCode" | "status">>,
+  drafts: Array<Pick<TaskDraft, "stageCode" | "seq" | "status">>,
   stages: ProductionStageRow[],
   config: ProductionConfig,
 ): number {
   const byCode = new Map(stages.map((stage) => [stage.code, stage]));
   const durations: number[] = [];
-  const seen = new Set<string>();
+  // V139: các công đoạn CÙNG BƯỚC (cùng `seq`) chạy SONG SONG → chỉ tính 1 lần.
+  const seen = new Set<number>();
   for (const draft of drafts) {
     if (draft.status === "BO_QUA") continue;
-    // Một công đoạn tách 3 bộ phận (khung/cánh/phào) chạy SONG SONG → chỉ tính 1 lần.
-    if (seen.has(draft.stageCode)) continue;
-    seen.add(draft.stageCode);
+    if (seen.has(draft.seq)) continue;
+    seen.add(draft.seq);
     const stage = byCode.get(draft.stageCode);
     if (!stage) continue;
     durations.push(Math.max(0, Number(stage.leadTimeHours) || 0));

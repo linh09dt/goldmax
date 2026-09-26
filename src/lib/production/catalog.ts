@@ -123,20 +123,48 @@ export const STAGE = {
   THIET_KE: "THIET_KE",
   BOI_LARES: "BOI_LARES",
   CHO_SAU_BOI_LARES: "CHO_SAU_BOI_LARES",
-  CAT: "CAT",
-  CHAN: "CHAN",
-  HAN: "HAN",
+  // V139 — Cắt / Chấn / Hàn / Vân tách RIÊNG từng phần (khung · cánh · phào).
+  CAT_CANH: "CAT_CANH",
+  CAT_KHUNG: "CAT_KHUNG",
+  CAT_PHAO: "CAT_PHAO",
+  CHAN_CANH: "CHAN_CANH",
+  CHAN_KHUNG: "CHAN_KHUNG",
+  CHAN_PHAO: "CHAN_PHAO",
+  HAN_CANH: "HAN_CANH",
+  HAN_KHUNG: "HAN_KHUNG",
+  HAN_PHAO: "HAN_PHAO",
   EP_CANH: "EP_CANH",
   TEST_CO_KHI: "TEST_CO_KHI",
   CHO_TRUOC_SON: "CHO_TRUOC_SON",
   SON: "SON",
   CHO_KHO_SAU_SON: "CHO_KHO_SAU_SON",
-  VAN: "VAN",
+  VAN_CANH: "VAN_CANH",
+  VAN_KHUNG: "VAN_KHUNG",
+  VAN_PHAO: "VAN_PHAO",
   CHO_SAU_VAN: "CHO_SAU_VAN",
   LAP_KINH: "LAP_KINH",
   DONG_GOI: "DONG_GOI",
   KHO_GIAO: "KHO_GIAO",
 } as const;
+
+/**
+ * V139 — Các thao tác GIA CÔNG tách riêng từng phần.
+ * Mã công đoạn = `<THAO TÁC>_<PHẦN>`, vd `CAT_CANH`, `HAN_KHUNG`, `VAN_PHAO`.
+ * Các công đoạn CÙNG BƯỚC (`seq`) chạy SONG SONG trong cùng ngày (xem `auto-schedule.ts`).
+ */
+export const PART_OPERATIONS = {
+  CAT: { seq: 30, label: "Cắt" },
+  CHAN: { seq: 40, label: "Chấn" },
+  HAN: { seq: 50, label: "Hàn" },
+  VAN: { seq: 90, label: "Vân" },
+} as const;
+
+export type PartOperation = keyof typeof PART_OPERATIONS;
+
+/** Mã công đoạn của một thao tác cho một phần, vd `partStageCode("CAT", "CANH")` → `"CAT_CANH"`. */
+export function partStageCode(operation: PartOperation, scope: TaskScope): string {
+  return `${operation}_${scope}`;
+}
 
 export const WORK_CENTER = {
   TO_MAY: "TO_MAY",
@@ -421,6 +449,9 @@ export type UnlockState = {
  *     (vd: Ép cánh chỉ cần Hàn của CÁNH, không phải Hàn của cả khung và phào.)
  *   - Nếu S chỉ tồn tại ở lệnh cha (vd SON, TEST) → tính toàn bộ.
  *
+ * V139: `requiresStage` đọc được NHIỀU mã, cách nhau dấu phẩy — dùng cho các mốc GỘP
+ * (test cơ khí cần `HAN_CANH,HAN_KHUNG,HAN_PHAO`; lắp kính cần `VAN_CANH,VAN_KHUNG,VAN_PHAO`).
+ *
  * Nhờ vậy mô hình hoá đúng các mốc GỘP mà nhà máy mô tả:
  *   TEST CƠ KHÍ chỉ chạy khi CẢ 3 phần đã hàn xong;
  *   LẮP KÍNH + ĐÓNG GÓI chỉ chạy khi CẢ 3 phần đã vân xong.
@@ -431,15 +462,22 @@ export function taskUnlockState(
   stageByCode: Map<string, Pick<ProductionStageRow, "code" | "requiresStage">>,
 ): UnlockState {
   const stage = stageByCode.get(task.stageCode);
-  const required = String(stage?.requiresStage ?? "").trim();
-  if (!required) return { unlocked: true, waitingFor: [] };
+  const requiredCodes = String(stage?.requiresStage ?? "")
+    .split(",")
+    .map((code) => code.trim())
+    .filter(Boolean);
+  if (!requiredCodes.length) return { unlocked: true, waitingFor: [] };
 
-  const sameScope = setTasks.filter((row) => row.stageCode === required && row.scope === task.scope);
-  const candidates = sameScope.length ? sameScope : setTasks.filter((row) => row.stageCode === required);
-  if (!candidates.length) return { unlocked: true, waitingFor: [] };
-
-  const pending = candidates.filter((row) => row.status !== "XONG" && row.status !== "BO_QUA");
-  return { unlocked: pending.length === 0, waitingFor: pending.length ? [required] : [] };
+  const waitingFor: string[] = [];
+  for (const required of requiredCodes) {
+    const sameScope = setTasks.filter((row) => row.stageCode === required && row.scope === task.scope);
+    const candidates = sameScope.length ? sameScope : setTasks.filter((row) => row.stageCode === required);
+    // Công đoạn bắt buộc không tồn tại (đã tắt / bỏ qua) → coi như đã mở.
+    if (!candidates.length) continue;
+    const pending = candidates.some((row) => row.status !== "XONG" && row.status !== "BO_QUA");
+    if (pending) waitingFor.push(required);
+  }
+  return { unlocked: waitingFor.length === 0, waitingFor };
 }
 
 /** Tiến độ của một lệnh con, suy từ công đoạn có `scope` = kind. */
