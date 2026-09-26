@@ -6,7 +6,7 @@
  * File dữ liệu thuần (không "use client") để server và client dùng chung.
  */
 
-export type SettingsTabKey = "items" | "options" | "pricing";
+export type SettingsTabKey = "items" | "options" | "categories" | "pricing";
 
 type SettingsTab = {
   key: SettingsTabKey;
@@ -37,6 +37,12 @@ export const SETTINGS_TAB_GROUPS: SettingsTabGroup[] = [
         code: "A2",
         title: "Danh mục cấu hình",
         description: "Các giá trị chọn nhanh trong đơn: màu sơn, hướng mở, hướng phào, ô thoáng, mã đại lý.",
+      },
+      {
+        key: "categories",
+        code: "A3",
+        title: "Phân loại hàng hóa",
+        description: "Tự thêm / đổi tên / xoá phân loại (Cấp cửa, Phụ kiện, Chi phí gia công...) và cách dùng trong đơn.",
       },
     ],
   },

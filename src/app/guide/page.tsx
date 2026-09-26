@@ -108,7 +108,7 @@ export default function GuidePage() {
 
           <GuideSubTitle code="A1" title="Danh mục hàng hóa" text="Master Data dùng khi lập đơn: TENHANG, MODEL, ĐVT, giá đại lý và giá bán lẻ." />
           <ActionTable rows={[
-            ["Phân loại", "Mỗi hàng hóa thuộc 1 trong 3 nhóm: Cấp cửa / Phụ kiện / Chi phí gia công. Danh mục chia 3 khối theo cột này; đổi ô Phân loại ở từng dòng là lưu ngay. Phân loại quyết định ô “Nhóm cửa” và “Nhóm hàng” khi lập đơn."],
+            ["Phân loại", "Mỗi hàng hóa thuộc 1 phân loại (Cấp cửa / Phụ kiện / Chi phí gia công...). Danh mục chia khối theo cột này; đổi ô Phân loại ở từng dòng là lưu ngay. Danh sách phân loại tự thêm/đổi tên/xoá ở mục A3."],
             ["Tạo lại Master Data từ Excel", "Tạo lại danh mục từ file Excel nguồn. Đơn hàng đã có không bị xóa; phân loại đã đặt được giữ lại theo MODEL."],
             ["Xuất Master Data", "Xuất Danh mục hàng hóa hiện tại ra Excel."],
             ["+ Thêm hàng hóa", "Thêm thủ công một TENHANG / MODEL mới."],
@@ -118,6 +118,16 @@ export default function GuidePage() {
             ["Sửa", "Cho phép chỉnh TENHANG, tên diễn giải, MODEL, ĐVT, giá và trạng thái."],
             ["Lưu / Hủy", "Lưu chỉnh sửa hoặc bỏ chỉnh sửa đang thực hiện."],
             ["Xóa", "Xóa hàng hóa khỏi Master Data sau khi xác nhận."],
+          ]} />
+
+          <GuideSubTitle code="A3" title="Phân loại hàng hóa" text="Tự cấu hình danh sách phân loại dùng cho tab A1 và form tạo đơn." />
+          <ActionTable rows={[
+            ["+ Thêm phân loại", "Thêm phân loại mới. Mã sinh tự động từ tên; đổi tên sau đó không làm thay đổi hàng hóa đã gán."],
+            ["Dùng cho", "“Dòng chính (bộ cửa)” = hàng hóa hiện ở ô Nhóm cửa khi lập đơn; “Dòng phụ kiện / chi tiết” = hiện ở ô Nhóm hàng."],
+            ["Nhóm riêng", "Bật thì các nhóm hàng thuộc phân loại này nằm trong một optgroup riêng trong ô chọn nhóm hàng (như Chi phí gia công)."],
+            ["Lưu", "Lưu tên, cách dùng, thứ tự của phân loại."],
+            ["Ngưng dùng / Dùng lại", "Ẩn khỏi danh sách chọn nhưng giữ nguyên phân loại của hàng hóa cũ."],
+            ["Xoá", "Nếu còn hàng hóa đang dùng, hệ thống yêu cầu chọn phân loại thay thế để chuyển trước khi xoá."],
           ]} />
 
           <GuideSubTitle code="A2" title="Danh mục cấu hình" text="Các giá trị chọn nhanh trong đơn: Mã Đại Lý, Màu sơn, Hướng mở, Hướng phào, Ô thoáng / Pano / Nan chớp." />

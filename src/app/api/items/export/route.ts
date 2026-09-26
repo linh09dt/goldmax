@@ -1,10 +1,12 @@
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
-import { itemCategoryLabel, resolveItemCategory } from "@/lib/item-category";
+import { categoryLabel, resolveItemCategory } from "@/lib/item-category";
+import { loadItemCategories } from "@/lib/item-category-store";
 
 export const runtime = "nodejs";
 
 export async function GET() {
+  const categories = await loadItemCategories();
   const items = await prisma.itemMaster.findMany({
     orderBy: [{ name: "asc" }, { code: "asc" }],
   });
@@ -16,7 +18,7 @@ export async function GET() {
     { header: "TENHANG", key: "name", width: 28 },
     { header: "TÊN SẢN PHẨM DIỄN GIẢI", key: "productDescription", width: 48 },
     { header: "MODEL", key: "code", width: 38 },
-    { header: "PHÂN LOẠI", key: "category", width: 18 },
+    { header: "PHÂN LOẠI", key: "category", width: 22 },
     { header: "ĐVT", key: "unit", width: 12 },
     { header: "GIÁ ĐẠI LÝ", key: "dealerPrice", width: 18 },
     { header: "GIÁ BÁN LẺ", key: "retailPrice", width: 18 },
@@ -29,7 +31,7 @@ export async function GET() {
       name: item.name,
       productDescription: item.productDescription ?? "",
       code: item.code,
-      category: itemCategoryLabel(resolveItemCategory(item.category, item.name)),
+      category: categoryLabel(categories, resolveItemCategory(item.category, item.name, categories)),
       unit: item.unit ?? "",
       dealerPrice: item.dealerPrice === null ? null : Number(item.dealerPrice),
       retailPrice: item.retailPrice === null ? null : Number(item.retailPrice),

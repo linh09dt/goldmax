@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { classifyItemByName, normalizeItemCategory } from "@/lib/item-category";
+import { classifyItemByName, findCategoryRow } from "@/lib/item-category";
+import { loadItemCategories } from "@/lib/item-category-store";
 import { parseMasterItemWorkbookV14 } from "@/lib/item-master-v14-excel";
 
 export const runtime = "nodejs";
@@ -39,6 +40,8 @@ export async function POST(request: Request) {
       0,
     );
 
+    const categories = await loadItemCategories();
+
     await prisma.$transaction(
       async (tx) => {
         // V134: giữ lại phân loại (Cấp cửa / Phụ kiện / Chi phí gia công) mà người dùng đã đặt,
@@ -57,8 +60,10 @@ export async function POST(request: Request) {
           data: parsed.items.map((item) => ({
             code: item.model,
             name: item.name,
-            // V134: ưu tiên phân loại đã đặt trước đó; mã mới thì phân loại theo TENHANG.
-            category: normalizeItemCategory(previousCategoryByCode.get(item.model)) ?? classifyItemByName(item.name),
+            // V135: ưu tiên phân loại đã đặt trước đó (nếu vẫn còn trong danh mục);
+            // mã mới thì phân loại theo TENHANG.
+            category: findCategoryRow(categories, previousCategoryByCode.get(item.model))?.code
+              ?? classifyItemByName(item.name, categories),
             salesName: item.name,
             salesModel: item.model,
             unit: null,

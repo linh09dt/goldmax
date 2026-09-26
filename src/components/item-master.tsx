@@ -9,12 +9,14 @@ import {
   SettingsTable,
 } from "@/components/settings/settings-ui";
 import {
-  ITEM_CATEGORY_SECTIONS,
+  DEFAULT_ITEM_CATEGORIES,
+  categoryLabel,
+  categoryToneAt,
   classifyItemByName,
-  itemCategoryLabel,
-  normalizeItemCategory,
+  normalizeCategoryRows,
   resolveItemCategory,
-  type ItemCategory,
+  type CategoryTone,
+  type ItemCategoryRow,
 } from "@/lib/item-category";
 
 type Item = {
@@ -57,7 +59,7 @@ type RebuildSummary = {
 type ItemSection = {
   key: string;
   label: string;
-  tone: "cyan" | "amber" | "red";
+  tone: CategoryTone;
   hint: string;
   items: Item[];
 };
@@ -72,7 +74,7 @@ type ListRow =
       kind: "section";
       key: string;
       label: string;
-      tone: "cyan" | "amber" | "red";
+      tone: CategoryTone;
       hint: string;
       total: number;
       activeCount: number;
@@ -86,6 +88,8 @@ const cellInputClass = "erp-cell-input";
 /** V76: khối A1 của tab CẤU HÌNH — Danh mục hàng hóa (Master Data). */
 export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void } = {}) {
   const [items, setItems] = useState<Item[]>([]);
+  // V135: danh mục phân loại lấy từ API (bảng item_categories) — không hard-code.
+  const [categories, setCategories] = useState<ItemCategoryRow[]>(DEFAULT_ITEM_CATEGORIES);
   const [imports, setImports] = useState<ImportLog[]>([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"all" | "active" | "inactive">("all");
@@ -101,8 +105,8 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
   const [newUnit, setNewUnit] = useState("");
   const [newDealerPrice, setNewDealerPrice] = useState("");
   const [newRetailPrice, setNewRetailPrice] = useState("");
-  // V134: "" = tự phân loại theo TENHANG, ngược lại là người dùng chọn tay.
-  const [newCategory, setNewCategory] = useState<ItemCategory | "">("");
+  // V135: "" = tự phân loại theo TENHANG, ngược lại là người dùng chọn tay.
+  const [newCategory, setNewCategory] = useState<string>("");
   const [adding, setAdding] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   // V84: chỉ còn 2 khối Cửa / Phụ kiện, mặc định mở hết để thấy toàn bộ dòng chi tiết.
@@ -130,11 +134,13 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
       const result = await response.json() as {
         ok: boolean;
         items?: Item[];
+        categories?: ItemCategoryRow[];
         imports?: ImportLog[];
         error?: string;
       };
       if (!response.ok || !result.ok) throw new Error(result.error || "Không thể tải Danh mục hàng hóa.");
       setItems(result.items ?? []);
+      setCategories(normalizeCategoryRows(result.categories));
       setImports(result.imports ?? []);
     } catch (error) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Không thể tải dữ liệu." });
@@ -155,29 +161,37 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
   const activeCount = useMemo(() => items.filter((item) => item.active).length, [items]);
   const isSearching = search.trim().length > 0;
 
-  // V134: phân loại lấy từ cột `category` của dữ liệu (không đoán theo tên nữa).
+  // V135: phân loại lấy từ bảng item_categories (người dùng tự thêm/đổi tên/xoá ở mục A3).
   const itemsOfCategory = useCallback(
-    (category: ItemCategory) => items.filter((item) => resolveItemCategory(item.category, item.name) === category),
-    [items],
+    (code: string) => items.filter((item) => resolveItemCategory(item.category, item.name, categories) === code),
+    [items, categories],
   );
   const categoryCounts = useMemo(
-    () => ITEM_CATEGORY_SECTIONS.map((section) => ({ ...section, count: itemsOfCategory(section.key).length })),
-    [itemsOfCategory],
+    () => categories.map((row, index) => ({ ...row, tone: categoryToneAt(index), count: itemsOfCategory(row.code).length })),
+    [categories, itemsOfCategory],
   );
+
+  /** Mô tả cách dùng của một phân loại (theo cấu hình ở A3). */
+  function categoryHint(row: ItemCategoryRow) {
+    if (row.usage === "MAIN") return "Dòng chính / bộ cửa khi lập đơn";
+    return row.separateGroup
+      ? "Dòng phụ kiện / chi tiết — nhóm riêng trong ô chọn nhóm hàng"
+      : "Dòng phụ kiện / chi tiết khi lập đơn";
+  }
 
   const sections = useMemo<ItemSection[]>(() => {
     // Trong mỗi khối: sắp theo TENHANG rồi theo MODEL, để các MODEL cùng loại nằm liền nhau.
     const byTenhangThenModel = (list: Item[]) => [...list].sort((a, b) =>
       normalizeGroupKey(a.name).localeCompare(normalizeGroupKey(b.name), "vi") || a.code.localeCompare(b.code, "vi"));
 
-    return ITEM_CATEGORY_SECTIONS.map((section) => ({
-      key: section.key as string,
-      label: section.label,
-      tone: section.badgeTone,
-      hint: section.hint,
-      items: byTenhangThenModel(itemsOfCategory(section.key)),
+    return categories.map((row, index) => ({
+      key: row.code,
+      label: row.name.toLocaleUpperCase("vi-VN"),
+      tone: categoryToneAt(index),
+      hint: categoryHint(row),
+      items: byTenhangThenModel(itemsOfCategory(row.code)),
     })).filter((section) => section.items.length > 0);
-  }, [itemsOfCategory]);
+  }, [categories, itemsOfCategory]);
 
   const listRows = useMemo<ListRow[]>(() => {
     const rows: ListRow[] = [];
@@ -256,7 +270,7 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
         body: JSON.stringify({
           name: newName,
           code: newCode,
-          category: newCategory || classifyItemByName(newName),
+          category: newCategory || classifyItemByName(newName, categories),
           productDescription: newProductDescription,
           unit: newUnit,
           dealerPrice: newDealerPrice,
@@ -281,8 +295,8 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
     }
   }
 
-  /** V134: đổi phân loại hàng hóa (Cấp cửa / Phụ kiện / Chi phí gia công) — lưu ngay. */
-  async function saveCategory(item: Item, category: ItemCategory) {
+  /** V135: đổi phân loại hàng hóa (theo danh mục ở A3) — lưu ngay. */
+  async function saveCategory(item: Item, category: string) {
     setCategorySavingId(item.id);
     setMessage(null);
     try {
@@ -303,7 +317,7 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
       const result = await response.json() as { ok: boolean; error?: string };
       if (!response.ok || !result.ok) throw new Error(result.error || "Không thể đổi phân loại hàng hóa.");
       setItems((current) => current.map((entry) => (entry.id === item.id ? { ...entry, category } : entry)));
-      setMessage({ type: "ok", text: `Đã xếp ${item.code} vào ${itemCategoryLabel(category)}.` });
+      setMessage({ type: "ok", text: `Đã xếp ${item.code} vào ${categoryLabel(categories, category)}.` });
     } catch (error) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Không thể đổi phân loại hàng hóa." });
       await load();
@@ -401,14 +415,14 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
           {/* V134: phân loại hàng hóa — lưu ngay khi đổi. */}
           <select
             className={`${cellInputClass} disabled:opacity-60`}
-            value={resolveItemCategory(item.category, item.name)}
+            value={resolveItemCategory(item.category, item.name, categories)}
             disabled={categorySavingId === item.id}
             aria-label={`Phân loại của ${item.code}`}
-            title="Phân loại: Cấp cửa / Phụ kiện / Chi phí gia công"
-            onChange={(event) => void saveCategory(item, event.target.value as ItemCategory)}
+            title="Phân loại hàng hóa (cấu hình ở mục A3)"
+            onChange={(event) => void saveCategory(item, event.target.value)}
           >
-            {ITEM_CATEGORY_SECTIONS.map((section) => (
-              <option key={section.key} value={section.key}>{itemCategoryLabel(section.key)}</option>
+            {categories.map((row) => (
+              <option key={row.code} value={row.code}>{row.name}{row.active ? "" : " (ngưng dùng)"}</option>
             ))}
           </select>
         </td>
@@ -513,11 +527,11 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
             <span className="erp-field-label">Phân loại</span>
             <select
               className="erp-input"
-              value={newCategory || classifyItemByName(newName)}
-              onChange={(e) => setNewCategory(e.target.value as ItemCategory)}
+              value={newCategory || classifyItemByName(newName, categories)}
+              onChange={(e) => setNewCategory(e.target.value)}
             >
-              {ITEM_CATEGORY_SECTIONS.map((section) => (
-                <option key={section.key} value={section.key}>{itemCategoryLabel(section.key)}</option>
+              {categories.map((row) => (
+                <option key={row.code} value={row.code}>{row.name}</option>
               ))}
             </select>
           </label>
@@ -548,8 +562,8 @@ export function ItemMaster({ onSummary }: { onSummary?: (text: string) => void }
               <h3 className="erp-subsection-title">Danh sách hàng hóa</h3>
               <SettingsBadge tone="cyan">{items.length} MODEL</SettingsBadge>
               <SettingsBadge>{activeCount} đang sử dụng</SettingsBadge>
-              {categoryCounts.map((section) => (
-                <SettingsBadge key={section.key} tone={section.badgeTone}>{section.label} {section.count}</SettingsBadge>
+              {categoryCounts.map((row) => (
+                <SettingsBadge key={row.code} tone={row.tone}>{row.name} {row.count}</SettingsBadge>
               ))}
             </div>
             <div className="flex flex-wrap items-center gap-2">

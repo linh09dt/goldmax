@@ -217,6 +217,26 @@ model OrderImport {
   @@map("order_imports")
 }
 
+/// V135: danh mục PHÂN LOẠI hàng hóa — thêm/đổi tên/xoá được từ tab Cấu hình (không còn hard-code).
+/// - `usage` = MAIN  → nhóm này dùng làm DÒNG CHÍNH (bộ cửa) khi lập đơn
+/// - `usage` = DETAIL → dùng làm DÒNG PHỤ KIỆN / CHI TIẾT
+/// - `separateGroup` = true → khi lập đơn, các nhóm hàng thuộc phân loại này nằm trong optgroup riêng.
+model ItemCategory {
+  id            Int      @id @default(autoincrement())
+  code          String   @unique @db.VarChar(40)
+  name          String   @db.VarChar(80)
+  usage         String   @default("DETAIL") @db.VarChar(10)
+  separateGroup Boolean  @default(false) @map("separate_group")
+  sortOrder     Int      @default(0) @map("sort_order")
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([active])
+  @@index([sortOrder])
+  @@map("item_categories")
+}
+
 model ItemMaster {
   id                 Int      @id @default(autoincrement())
   code               String   @unique @db.VarChar(160)

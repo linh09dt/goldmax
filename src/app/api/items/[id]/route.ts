@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { normalizeItemCategory } from "@/lib/item-category";
+import { normalizeCategoryCode } from "@/lib/item-category";
+import { loadItemCategories } from "@/lib/item-category-store";
 
 export const runtime = "nodejs";
 
@@ -24,8 +25,17 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     };
     const code = requiredText(body.code, "MODEL");
     const name = requiredText(body.name, "TENHANG");
-    // V134: chỉ đổi phân loại khi client gửi lên — sửa giá/tên không được tự đổi phân loại.
-    const nextCategory = normalizeItemCategory(body.category);
+    // V135: chỉ đổi phân loại khi client gửi lên — sửa giá/tên không được tự đổi phân loại.
+    // Mã gửi lên phải nằm trong danh mục phân loại (bảng item_categories).
+    let nextCategory: string | null = null;
+    if (body.category !== undefined && body.category !== null && String(body.category).trim() !== "") {
+      const requested = normalizeCategoryCode(body.category);
+      const categories = await loadItemCategories();
+      if (!requested || !categories.some((row) => row.code === requested)) {
+        return NextResponse.json({ ok: false, error: `Phân loại "${String(body.category)}" không tồn tại trong danh mục phân loại.` }, { status: 400 });
+      }
+      nextCategory = requested;
+    }
 
     const duplicate = await prisma.itemMaster.findFirst({
       where: { code, NOT: { id: itemId } },

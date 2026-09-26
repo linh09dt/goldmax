@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { ItemMaster } from "@/components/item-master";
 import { MasterOptions } from "@/components/master-options";
+import { ItemCategories } from "@/components/item-categories";
 import { CalculationConfigEditor } from "@/components/calculation-config";
 import { SETTINGS_TAB_GROUPS, type SettingsTabKey } from "@/components/settings/settings-tabs";
 
@@ -23,6 +24,7 @@ export function SettingsWorkspace({ initialTab = "items" }: { initialTab?: Setti
   const summaryHandlers = useMemo(() => ({
     items: (text: string) => setSummaries((current) => (current.items === text ? current : { ...current, items: text })),
     options: (text: string) => setSummaries((current) => (current.options === text ? current : { ...current, options: text })),
+    categories: (text: string) => setSummaries((current) => (current.categories === text ? current : { ...current, categories: text })),
   }), []);
 
   const activeTab = SETTINGS_TAB_GROUPS.flatMap((group) => group.tabs).find((item) => item.key === tab);
@@ -52,6 +54,11 @@ export function SettingsWorkspace({ initialTab = "items" }: { initialTab?: Setti
           {visited.includes("options") ? (
             <div className={tab === "options" ? "block" : "hidden"}>
               <MasterOptions onSummary={summaryHandlers.options} />
+            </div>
+          ) : null}
+          {visited.includes("categories") ? (
+            <div className={tab === "categories" ? "block" : "hidden"}>
+              <ItemCategories onSummary={summaryHandlers.categories} />
             </div>
           ) : null}
           {visited.includes("pricing") ? (

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { classifyItemByName, normalizeItemCategory } from "@/lib/item-category";
+import { classifyItemByName, normalizeCategoryCode } from "@/lib/item-category";
+import { loadItemCategories } from "@/lib/item-category-store";
 
 export const runtime = "nodejs";
 
@@ -8,8 +9,8 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const q = (url.searchParams.get("q") ?? "").trim();
   const activeParam = url.searchParams.get("active");
-  // V134: lọc theo phân loại hàng hóa (DOOR / ACCESSORY / PROCESSING).
-  const categoryParam = normalizeItemCategory(url.searchParams.get("category"));
+  // V135: lọc theo phân loại hàng hóa (mã do người dùng cấu hình ở tab Cấu hình).
+  const categoryParam = normalizeCategoryCode(url.searchParams.get("category"));
   const limit = Math.min(3000, Math.max(1, Number(url.searchParams.get("limit") ?? 1000) || 1000));
 
   const items = await prisma.itemMaster.findMany({
@@ -38,9 +39,13 @@ export async function GET(request: Request) {
     prisma.itemMasterImport.findMany({ orderBy: { importedAt: "desc" }, take: 10 }),
   ]);
 
+  // V135: trả kèm danh mục phân loại để tab Cấu hình và form tạo đơn dùng chung một nguồn.
+  const categories = await loadItemCategories();
+
   return NextResponse.json({
     ok: true,
     items,
+    categories,
     metrics: { total, activeCount, inactiveCount, dealerPricedCount, retailPricedCount },
     imports,
   });
@@ -64,12 +69,19 @@ export async function POST(request: Request) {
     const exists = await prisma.itemMaster.findUnique({ where: { code }, select: { id: true } });
     if (exists) return NextResponse.json({ ok: false, error: "MODEL đã tồn tại." }, { status: 409 });
 
+    // V135: phân loại do người dùng cấu hình — chỉ nhận mã có trong danh mục.
+    const categories = await loadItemCategories();
+    const requestedCategory = normalizeCategoryCode(body.category);
+    if (requestedCategory && !categories.some((row) => row.code === requestedCategory)) {
+      return NextResponse.json({ ok: false, error: `Phân loại "${requestedCategory}" không tồn tại trong danh mục phân loại.` }, { status: 400 });
+    }
+
     const item = await prisma.itemMaster.create({
       data: {
         code,
         name,
-        // V134: người dùng chọn phân loại; không chọn thì đoán theo TENHANG.
-        category: normalizeItemCategory(body.category) ?? classifyItemByName(name),
+        // Không chọn thì đoán theo TENHANG (dùng đúng danh mục hiện có).
+        category: requestedCategory ?? classifyItemByName(name, categories),
         salesName: name,
         salesModel: code,
         productDescription: optionalText(body.productDescription),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   createDefaultOrderForm,
@@ -22,7 +22,7 @@ import {
   type OrderLineForm,
   type OrderSaveAction,
 } from "@/lib/order-form";
-import { resolveItemCategory } from "@/lib/item-category";
+import { resolveItemCategory, isMainCategory, normalizeCategoryRows, type ItemCategoryRow } from "@/lib/item-category";
 import {
   DEFAULT_CALCULATION_CONFIG,
   calculateDoorUnitPrice,
@@ -106,6 +106,8 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
   const [message, setMessage] = useState<{ type: "ok" | "error"; text: string } | null>(null);
   const [invalidOrderInfoFields, setInvalidOrderInfoFields] = useState<Set<RequiredOrderInfoKey>>(() => new Set());
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
+  // V135: danh mục phân loại (bảng item_categories) — nguồn duy nhất cho cửa / phụ kiện / chi phí gia công.
+  const [categories, setCategories] = useState<ItemCategoryRow[]>([]);
   const [masterOptions, setMasterOptions] = useState<MasterOption[]>([]);
   const [calculationConfig, setCalculationConfig] = useState<CalculationConfig>(() => cloneCalculationConfig(DEFAULT_CALCULATION_CONFIG));
   const [calculationConfigLoaded, setCalculationConfigLoaded] = useState(false);
@@ -125,8 +127,11 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
     let cancelled = false;
     void Promise.all([
       fetch("/api/items?active=true&limit=3000", { cache: "no-store" }).then(async (response) => {
-        const result = await response.json() as { ok: boolean; items?: CatalogItem[] };
-        if (!cancelled && response.ok && result.ok) setCatalogItems(result.items ?? []);
+        const result = await response.json() as { ok: boolean; items?: CatalogItem[]; categories?: ItemCategoryRow[] };
+        if (!cancelled && response.ok && result.ok) {
+          setCatalogItems(result.items ?? []);
+          setCategories(normalizeCategoryRows(result.categories));
+        }
       }),
       fetch("/api/master-options?active=true", { cache: "no-store" }).then(async (response) => {
         const result = await response.json() as { ok: boolean; items?: MasterOption[] };
@@ -151,17 +156,35 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
     dealer: masterOptions.filter((item) => item.groupCode === "DEALER_CODE"),
   }), [masterOptions]);
 
-  const doorCatalogItems = useMemo(() => catalogItems.filter(isDoorCatalogItem), [catalogItems]);
-  const accessoryCatalogItems = useMemo(() => catalogItems.filter((item) => !isDoorCatalogItem(item)), [catalogItems]);
+  // V135: cửa / phụ kiện / chi phí gia công đọc theo danh mục phân loại người dùng cấu hình (mục A3).
+  const isDoorItem = useCallback(
+    (item: CatalogItem) => isMainCategory(categories, item.category, item.name),
+    [categories],
+  );
+  const categoryCodeOf = useCallback(
+    (item: CatalogItem) => resolveItemCategory(item.category, item.name, categories),
+    [categories],
+  );
+  const doorCatalogItems = useMemo(() => catalogItems.filter(isDoorItem), [catalogItems, isDoorItem]);
+  const accessoryCatalogItems = useMemo(() => catalogItems.filter((item) => !isDoorItem(item)), [catalogItems, isDoorItem]);
   const doorGroups = useMemo(() => catalogGroups(doorCatalogItems), [doorCatalogItems]);
-  // V134: "Chi phí gia công" tách riêng khỏi phụ kiện trong ô chọn nhóm hàng của dòng chi tiết.
-  const processingGroups = useMemo(
-    () => catalogGroups(accessoryCatalogItems.filter(isProcessingCatalogItem)),
-    [accessoryCatalogItems],
+  // Phân loại DETAIL có bật "nhóm riêng" → hiện thành optgroup riêng trong ô chọn nhóm hàng.
+  const separateGroupOptions = useMemo(
+    () => categories
+      .filter((row) => row.usage !== "MAIN" && row.separateGroup)
+      .map((row) => ({
+        label: row.name.toLocaleUpperCase("vi-VN"),
+        options: catalogGroups(accessoryCatalogItems.filter((item) => categoryCodeOf(item) === row.code)),
+      }))
+      .filter((entry) => entry.options.length > 0),
+    [categories, accessoryCatalogItems, categoryCodeOf],
   );
   const accessoryGroups = useMemo(
-    () => catalogGroups(accessoryCatalogItems.filter((item) => !isProcessingCatalogItem(item))),
-    [accessoryCatalogItems],
+    () => catalogGroups(accessoryCatalogItems.filter((item) => {
+      const row = categories.find((entry) => entry.code === categoryCodeOf(item));
+      return !row ? true : !row.separateGroup;
+    })),
+    [accessoryCatalogItems, categories, categoryCodeOf],
   );
 
   // Khi tạo đơn mới, các dòng mẫu có MODEL trùng Master Data sẽ tự lấy
@@ -603,7 +626,7 @@ export function OrderForm({ mode, orderId, initialData }: Props) {
               catalogItems={catalogItems}
               doorCatalogItems={doorCatalogItems}
               doorGroups={doorGroups}
-              processingGroups={processingGroups}
+              separateGroupOptions={separateGroupOptions}
               accessoryCatalogItems={accessoryCatalogItems}
               accessoryGroups={accessoryGroups}
               onMainCatalogSelect={applyMainCatalog}
@@ -691,7 +714,7 @@ function DoorSetCard({
   catalogItems,
   doorCatalogItems,
   doorGroups,
-  processingGroups,
+  separateGroupOptions,
   accessoryCatalogItems,
   accessoryGroups,
   onMainCatalogSelect,
@@ -718,7 +741,7 @@ function DoorSetCard({
   catalogItems: CatalogItem[];
   doorCatalogItems: CatalogItem[];
   doorGroups: string[];
-  processingGroups: string[];
+  separateGroupOptions: Array<{ label: string; options: string[] }>;
   accessoryCatalogItems: CatalogItem[];
   accessoryGroups: string[];
   onMainCatalogSelect: (index: number, item: CatalogItem) => void;
@@ -903,7 +926,7 @@ function DoorSetCard({
                 catalogItems={catalogItems}
                 accessoryCatalogItems={accessoryCatalogItems}
                 accessoryGroups={accessoryGroups}
-                processingGroups={processingGroups}
+                separateGroupOptions={separateGroupOptions}
                 onCatalogSelect={onDetailCatalogSelect}
               />
             ))}
@@ -927,7 +950,7 @@ function DetailMasterRow({
   catalogItems,
   accessoryCatalogItems,
   accessoryGroups,
-  processingGroups,
+  separateGroupOptions,
   onCatalogSelect,
 }: {
   row: OrderLineForm;
@@ -938,7 +961,7 @@ function DetailMasterRow({
   catalogItems: CatalogItem[];
   accessoryCatalogItems: CatalogItem[];
   accessoryGroups: string[];
-  processingGroups: string[];
+  separateGroupOptions: Array<{ label: string; options: string[] }>;
   onCatalogSelect: (itemIndex: number, detailIndex: number, item: CatalogItem) => void;
 }) {
   const inferredGroup = catalogGroupForCode(accessoryCatalogItems, row.productCode) || catalogGroupFromText(accessoryGroups, row.productName);
@@ -977,7 +1000,7 @@ function DetailMasterRow({
           {/* V77: bỏ min-width cứng — lưới co theo màn hình nên không còn thanh cuộn ngang. */}
           <div className="grid grid-cols-2 gap-1.5 md:grid-cols-4 xl:grid-cols-[8.6fr_35.3fr_4.2fr_4.2fr_4.2fr_3.6fr_7.9fr_7.2fr_8.2fr_12.9fr]">
             <CardField label="Nhóm hàng">
-              <CardSelectShell><GridGroupSelect value={selectedGroup} groups={accessoryGroups} extraGroups={processingGroups} extraLabel="CHI PHÍ GIA CÔNG" placeholder="Chọn nhóm hàng" onChange={changeGroup} /></CardSelectShell>
+              <CardSelectShell><GridGroupSelect value={selectedGroup} groups={accessoryGroups} separateGroups={separateGroupOptions} placeholder="Chọn nhóm hàng" onChange={changeGroup} /></CardSelectShell>
             </CardField>
             <CardField label="Model">
               <CardSelectShell>
@@ -1239,7 +1262,7 @@ function EditableDetailRow({ row, itemIndex, detailIndex, onChange, onUpload, on
   catalogItems: CatalogItem[];
   accessoryCatalogItems: CatalogItem[];
   accessoryGroups: string[];
-  processingGroups: string[];
+  separateGroupOptions: Array<{ label: string; options: string[] }>;
   onCatalogSelect: (itemIndex: number, detailIndex: number, item: CatalogItem) => void;
   optionValues: { panel: MasterOption[]; opening: MasterOption[]; trim: MasterOption[]; color: MasterOption[] };
 }) {
@@ -1588,18 +1611,26 @@ function GridReadOnly({ value, placeholder }: { value: string; placeholder?: str
   return <div className="min-h-9 w-full bg-slate-50 px-2.5 py-2 text-[12px] text-slate-700">{value || <span className="text-slate-400">{placeholder ?? "—"}</span>}</div>;
 }
 
-function GridGroupSelect({ value, groups, extraGroups, extraLabel, placeholder, onChange }: { value: string; groups: string[]; extraGroups?: string[]; extraLabel?: string; placeholder: string; onChange: (value: string) => void }) {
-  // V134: nhóm hàng thường + nhóm "Chi phí gia công" nằm trong optgroup riêng.
-  const extras = (extraGroups ?? []).filter((group) => !groups.includes(group));
+function GridGroupSelect({ value, groups, separateGroups, placeholder, onChange }: { value: string; groups: string[]; separateGroups?: Array<{ label: string; options: string[] }>; placeholder: string; onChange: (value: string) => void }) {
+  // V135: nhóm hàng thường ở trên; mỗi phân loại bật "nhóm riêng" (vd Chi phí gia công) là 1 optgroup.
+  // Một nhóm hàng chỉ xuất hiện 1 lần: ưu tiên danh sách thường, rồi tới từng optgroup riêng.
+  const seen = new Set(groups);
+  const extras = (separateGroups ?? [])
+    .map((entry) => {
+      const options = entry.options.filter((option) => !seen.has(option));
+      options.forEach((option) => seen.add(option));
+      return { label: entry.label, options };
+    })
+    .filter((entry) => entry.options.length > 0);
   return (
     <select className="h-8 w-full min-w-0 border-0 bg-transparent px-2 text-[11px] font-medium text-sky-900 outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">{placeholder}</option>
       {groups.map((group) => <option key={group} value={group}>{group}</option>)}
-      {extras.length && extraLabel ? (
-        <optgroup label={extraLabel}>
-          {extras.map((group) => <option key={group} value={group}>{group}</option>)}
+      {extras.map((entry) => (
+        <optgroup key={entry.label} label={entry.label}>
+          {entry.options.map((group) => <option key={group} value={group}>{group}</option>)}
         </optgroup>
-      ) : null}
+      ))}
     </select>
   );
 }
@@ -1717,16 +1748,6 @@ function normalizeText(value: string) {
 
 function sameText(left: string, right: string) {
   return normalizeText(left) === normalizeText(right);
-}
-
-/** V134: hàng hóa là BỘ CỬA khi cột Phân loại = Cấp cửa (chưa có phân loại thì đoán theo TENHANG). */
-function isDoorCatalogItem(item: CatalogItem) {
-  return resolveItemCategory(item.category, item.name) === "DOOR";
-}
-
-/** V134: hàng hóa là CHI PHÍ GIA CÔNG (nhóm riêng trong ô "Nhóm hàng" của dòng chi tiết). */
-function isProcessingCatalogItem(item: CatalogItem) {
-  return resolveItemCategory(item.category, item.name) === "PROCESSING";
 }
 
 function catalogGroups(items: CatalogItem[]) {
