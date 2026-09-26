@@ -63,6 +63,11 @@ model SalesOrder {
   @@index([status])
   @@index([orderType])
   @@index([lastImportedAt])
+  // V130: index phục vụ lọc/báo cáo (order_date, created_at, NVKD, vùng miền).
+  @@index([orderDate])
+  @@index([createdAt])
+  @@index([salesEmployeeCode])
+  @@index([region])
   @@map("sales_orders")
 }
 
@@ -107,6 +112,8 @@ model SalesOrderItem {
   @@unique([orderId, lineNo])
   @@index([setNo])
   @@index([productCode])
+  // V130: index theo model phục vụ báo cáo sản phẩm.
+  @@index([model])
   @@map("sales_order_items")
 }
 

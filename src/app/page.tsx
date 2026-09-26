@@ -38,6 +38,8 @@ type DashboardQuery = {
   dealer?: string;
   type?: string;
   status?: string;
+  /** V130: trạng thái nháp/đã xác nhận (dùng cho drill-down). */
+  state?: string;
 };
 
 const ORDER_INCLUDE = {
@@ -68,10 +70,19 @@ export default async function Home({ searchParams }: { searchParams: Promise<Das
 
   // Kỳ trước liền kề (cùng độ dài) để tính % tăng/giảm.
   let previousFrom: Date | null = null;
+  // V130: cùng kỳ năm trước (lùi đúng 1 năm) để tính tăng trưởng.
+  let priorFrom: Date | null = null;
+  let priorTo: Date | null = null;
   if (fromDate && toDate) {
     const spanMs = toDate.getTime() - fromDate.getTime() + 86_400_000;
     previousFrom = new Date(fromDate.getTime() - spanMs);
+    priorFrom = new Date(Date.UTC(fromDate.getUTCFullYear() - 1, fromDate.getUTCMonth(), fromDate.getUTCDate()));
+    priorTo = new Date(Date.UTC(toDate.getUTCFullYear() - 1, toDate.getUTCMonth(), toDate.getUTCDate()));
   }
+  const rangeStart = [previousFrom, priorFrom].filter((value): value is Date => Boolean(value)).reduce<Date | null>(
+    (earliest, value) => (!earliest || value < earliest ? value : earliest),
+    null,
+  );
 
   const dealerFilter = parseDealerFilter(clean(query.dealer));
   const typeFilter = ORDER_TYPE_OPTIONS.some((option) => option.value === clean(query.type)) ? clean(query.type) : "";
@@ -96,10 +107,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<Das
     prisma.salesOrder.findMany({
       where: {
         ...commonWhere,
-        ...(previousFrom || fromDate || toDate
+        ...(rangeStart || fromDate || toDate
           ? {
               orderDate: {
-                ...(previousFrom || fromDate ? { gte: previousFrom ?? fromDate ?? undefined } : {}),
+                ...(rangeStart || fromDate ? { gte: rangeStart ?? fromDate ?? undefined } : {}),
                 ...(toDate ? { lte: toDate } : {}),
               },
             }
@@ -123,9 +134,19 @@ export default async function Home({ searchParams }: { searchParams: Promise<Das
   const current = previousFrom
     ? rangeOrders.filter((order) => order.orderDate && order.orderDate >= (fromDate ?? previousFrom))
     : rangeOrders;
+  // Chặn dưới bằng previousFrom vì truy vấn đã được mở rộng tới tận priorFrom (1 năm trước).
   const previous = previousFrom
-    ? rangeOrders.filter((order) => order.orderDate && order.orderDate < (fromDate ?? previousFrom))
+    ? rangeOrders.filter(
+        (order) =>
+          order.orderDate &&
+          order.orderDate >= previousFrom &&
+          order.orderDate < (fromDate ?? previousFrom),
+      )
     : [];
+  const priorYearOrders =
+    priorFrom && priorTo
+      ? rangeOrders.filter((order) => order.orderDate && order.orderDate >= priorFrom && order.orderDate <= priorTo)
+      : undefined;
 
   const periodLabel = rangeKey === "all"
     ? "tất cả các kỳ"
@@ -133,6 +154,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Das
 
   const dashboard = buildDashboard(current as unknown as DashboardOrder[], {
     previousOrders: previous as unknown as DashboardOrder[],
+    priorYearOrders: priorYearOrders as unknown as DashboardOrder[] | undefined,
     monthsWindow: trendOrders as unknown as DashboardOrder[],
     today,
     periodLabel,
@@ -144,7 +166,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<Das
     {
       label: "Doanh thu",
       value: formatMoneyShort(dashboard.kpis.revenue),
-      hint: `Đơn Sản xuất đã xác nhận · ${dashboard.kpis.revenueDelta === null ? "chưa có kỳ trước" : "so với kỳ trước liền kề"}`,
+      hint: `Đơn Sản xuất đã xác nhận · ${
+        dashboard.kpis.revenueDelta === null ? "chưa có kỳ trước" : "so với kỳ trước liền kề"
+      }${dashboard.kpis.revenueYoYDelta === null ? "" : ` · cùng kỳ năm trước ${dashboard.kpis.revenueYoYDelta >= 0 ? "+" : ""}${dashboard.kpis.revenueYoYDelta.toFixed(1)}%`}`,
       tone: "good",
       deltaPercent: dashboard.kpis.revenueDelta,
     },
@@ -184,6 +208,15 @@ export default async function Home({ searchParams }: { searchParams: Promise<Das
       deltaPercent: null,
     },
   ];
+
+  const kpiHrefs: Record<string, string> = {
+    "Doanh thu": `/orders${queryString({ from, to, dealer: clean(query.dealer) }, { type: "san_xuat", state: "da_xac_nhan" })}`,
+    "Đơn đã xác nhận": `/orders${queryString({ from, to, dealer: clean(query.dealer) }, { state: "da_xac_nhan" })}`,
+    "Đơn nháp cần xử lý": `/orders${queryString({ from, to, dealer: clean(query.dealer) }, { state: "nhap" })}`,
+    "Còn phải thu": "/reports/receivables",
+    "Đơn quá hạn giao": "/reports/production-load",
+    "Sản lượng": "/reports/products",
+  };
 
   const dealerOptions = dealerRows
     .map((row) => {
@@ -257,7 +290,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Das
         {/* Dải KPI */}
         <section className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-6">
           {kpis.map((kpi) => (
-            <KpiCard key={kpi.label} kpi={kpi} />
+            <KpiCard key={kpi.label} kpi={kpi} href={kpiHrefs[kpi.label]} />
           ))}
         </section>
 
@@ -293,12 +326,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<Das
             hint="Theo doanh thu đơn Sản xuất đã xác nhận"
             rows={dashboard.topDealers}
             emptyText="Chưa có đơn Sản xuất đã xác nhận trong kỳ"
+            hrefFor={(row) => `/orders?q=${encodeURIComponent(row.key)}`}
           />
           <RankCard
             title="Top NVKD"
             hint="Theo doanh thu đơn Sản xuất đã xác nhận"
             rows={dashboard.topEmployees}
             emptyText="Chưa có dữ liệu"
+            hrefFor={(row) => `/reports/sales-performance?sales=${encodeURIComponent(row.key)}`}
           />
           <RankCard
             title="Top sản phẩm / Model"

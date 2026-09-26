@@ -37,11 +37,52 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
         icon: <IconUsers />,
         isActive: (pathname) => pathname.startsWith("/customers"),
       },
+    ],
+  },
+  {
+    label: "Báo cáo",
+    items: [
+      {
+        href: "/reports",
+        label: "Trung tâm báo cáo",
+        icon: <IconReport />,
+        isActive: (pathname) => pathname === "/reports",
+      },
       {
         href: "/revenue",
-        label: "Theo dõi doanh thu",
+        label: "Doanh thu",
         icon: <IconChart />,
         isActive: (pathname) => pathname.startsWith("/revenue"),
+      },
+      {
+        href: "/reports/orders",
+        label: "Đơn hàng",
+        icon: <IconOrder />,
+        isActive: (pathname) => pathname.startsWith("/reports/orders"),
+      },
+      {
+        href: "/reports/products",
+        label: "Sản phẩm",
+        icon: <IconBox />,
+        isActive: (pathname) => pathname.startsWith("/reports/products"),
+      },
+      {
+        href: "/reports/sales-performance",
+        label: "Nhân viên Sales",
+        icon: <IconUsers />,
+        isActive: (pathname) => pathname.startsWith("/reports/sales-performance"),
+      },
+      {
+        href: "/reports/receivables",
+        label: "Công nợ",
+        icon: <IconWallet />,
+        isActive: (pathname) => pathname.startsWith("/reports/receivables"),
+      },
+      {
+        href: "/reports/production-load",
+        label: "Tải sản xuất",
+        icon: <IconTruck />,
+        isActive: (pathname) => pathname.startsWith("/reports/production-load"),
       },
     ],
   },
@@ -127,6 +168,35 @@ export function ErpNav() {
         </div>
       ))}
     </nav>
+  );
+}
+
+function IconReport() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M6 3h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" />
+      <path d="M14 3v4h4" />
+      <path d="M8.5 17v-3M11.5 17v-6M14.5 17v-4" />
+    </svg>
+  );
+}
+
+function IconBox() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5Z" />
+      <path d="M3.5 7.5 12 12l8.5-4.5M12 12v9" />
+    </svg>
+  );
+}
+
+function IconWallet() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H18a1 1 0 0 1 1 1v1.5" />
+      <path d="M3 7.5V18a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1H5.5" />
+      <circle cx="16" cy="13.5" r="1.2" />
+    </svg>
   );
 }
 

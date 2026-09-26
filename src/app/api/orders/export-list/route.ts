@@ -12,17 +12,9 @@ type OrderQuery = OrderListQuery;
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
-    const query: OrderQuery = {
-      date: url.searchParams.get("date") ?? undefined,
-      month: url.searchParams.get("month") ?? undefined,
-      year: url.searchParams.get("year") ?? undefined,
-      from: url.searchParams.get("from") ?? undefined,
-      to: url.searchParams.get("to") ?? undefined,
-      dealer: url.searchParams.get("dealer") ?? undefined,
-      customer: url.searchParams.get("customer") ?? undefined,
-      q: url.searchParams.get("q") ?? undefined,
-      status: url.searchParams.get("status") ?? undefined,
-    };
+    // V130: nhận toàn bộ tham số lọc hiện có (gồm type/state/sales/region) để file xuất
+    // khớp đúng những gì đang xem trên màn Quản lý đơn hàng. Trước đây chỉ đọc 9 tham số cũ.
+    const query: OrderQuery = Object.fromEntries(url.searchParams.entries());
 
     // V100: dùng chung bộ lọc với màn Quản lý đơn hàng (gồm cả tìm nhanh và lọc trạng thái).
     const { where } = buildOrderListWhere(query);

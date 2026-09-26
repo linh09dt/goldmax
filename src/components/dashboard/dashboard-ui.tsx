@@ -14,10 +14,10 @@ const TONE_CLASS: Record<KpiBlock["tone"], { box: string; value: string; badge: 
   bad: { box: "border-red-200 bg-red-50/60", value: "text-red-700", badge: "bg-red-100 text-red-700" },
 };
 
-export function KpiCard({ kpi }: { kpi: KpiBlock }) {
+export function KpiCard({ kpi, href }: { kpi: KpiBlock; href?: string }) {
   const tone = TONE_CLASS[kpi.tone];
-  return (
-    <div className={`rounded-xl border px-3 py-2.5 shadow-sm ${tone.box}`}>
+  const inner = (
+    <div className={`h-full rounded-xl border px-3 py-2.5 shadow-sm ${tone.box} ${href ? "transition hover:ring-2 hover:ring-cyan-300" : ""}`}>
       <div className="flex items-start justify-between gap-2">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{kpi.label}</span>
         {kpi.deltaPercent !== null ? (
@@ -30,6 +30,14 @@ export function KpiCard({ kpi }: { kpi: KpiBlock }) {
       <div className="mt-0.5 text-[10.5px] text-slate-500">{kpi.hint}</div>
     </div>
   );
+  if (href) {
+    return (
+      <Link href={href} className="block h-full">
+        {inner}
+      </Link>
+    );
+  }
+  return inner;
 }
 
 /** Biểu đồ cột doanh thu + đường số đơn theo tháng (SVG thuần, không thêm thư viện). */
@@ -149,12 +157,14 @@ export function RankCard({
   rows,
   unitLabel = "KH/Lượng",
   emptyText = "Chưa có dữ liệu",
+  hrefFor,
 }: {
   title: string;
   hint?: string;
   rows: RankRow[];
   unitLabel?: string;
   emptyText?: string;
+  hrefFor?: (row: RankRow) => string;
 }) {
   const max = Math.max(...rows.map((row) => row.revenue), 1);
   return (
@@ -172,7 +182,11 @@ export function RankCard({
             <li key={row.key} className="grid grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2">
               <span className="text-[10.5px] font-bold tabular-nums text-slate-400">{index + 1}</span>
               <span className="min-w-0">
-                <span className="block truncate text-[11.5px] font-semibold text-slate-800" title={row.label}>{row.label}</span>
+                <span className="block truncate text-[11.5px] font-semibold text-slate-800" title={row.label}>
+                  {hrefFor ? (
+                    <Link className="hover:text-cyan-700 hover:underline" href={hrefFor(row)}>{row.label}</Link>
+                  ) : row.label}
+                </span>
                 <span className="mt-0.5 block h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
                   <span className="block h-full rounded-full bg-cyan-500" style={{ width: `${(row.revenue / max) * 100}%` }} />
                 </span>

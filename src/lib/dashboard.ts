@@ -67,6 +67,9 @@ export type DashboardResult = {
     revenue: number;
     revenuePrev: number | null;
     revenueDelta: number | null;
+    /** V130: doanh thu cùng kỳ năm trước + % thay đổi (chỉ khi có dữ liệu năm trước trong khoảng lấy). */
+    revenuePriorYear: number | null;
+    revenueYoYDelta: number | null;
     confirmedOrders: number;
     confirmedSets: number;
     draftOrders: number;
@@ -147,6 +150,8 @@ export function buildDashboard(
   orders: DashboardOrder[],
   options: {
     previousOrders?: DashboardOrder[];
+    /** V130: đơn của cùng kỳ năm trước (đã trừ 1 năm) để tính % tăng trưởng. */
+    priorYearOrders?: DashboardOrder[];
     monthsWindow?: DashboardOrder[];
     today?: Date;
     periodLabel: string;
@@ -167,6 +172,12 @@ export function buildDashboard(
   const previousRevenueOrders = (options.previousOrders ?? []).filter(isRevenueOrder);
   const previousRevenue = previousRevenueOrders.length
     ? previousRevenueOrders.reduce((sum, order) => sum + orderRevenue(order), 0)
+    : null;
+
+  // V130: cùng kỳ năm trước.
+  const priorYearProvided = options.priorYearOrders !== undefined;
+  const priorYearRevenue = priorYearProvided
+    ? (options.priorYearOrders ?? []).filter(isRevenueOrder).reduce((sum, order) => sum + orderRevenue(order), 0)
     : null;
 
   const confirmed = orders.filter(isConfirmed);
@@ -316,6 +327,8 @@ export function buildDashboard(
       revenue,
       revenuePrev: previousRevenue,
       revenueDelta: previousRevenue === null ? null : percentDelta(revenue, previousRevenue),
+      revenuePriorYear: priorYearRevenue,
+      revenueYoYDelta: priorYearRevenue === null ? null : percentDelta(revenue, priorYearRevenue),
       confirmedOrders: confirmed.length,
       confirmedSets,
       draftOrders: drafts.length,

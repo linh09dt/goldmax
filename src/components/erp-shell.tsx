@@ -1,4 +1,5 @@
 import { ErpNav } from "@/components/erp-nav";
+import { GlobalSearch } from "@/components/global-search";
 
 export function ErpShell({
   title,
@@ -37,6 +38,7 @@ export function ErpShell({
                 <h1 className="erp-page-title truncate">{title}</h1>
                 {subtitle ? <p className="erp-hint mt-0.5">{subtitle}</p> : null}
               </div>
+              <GlobalSearch />
               {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
             </div>
           </header>

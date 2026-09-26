@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { CONFIRMED_STATUS_CODES } from "@/lib/order-form";
 
 /**
  * V100: bộ lọc danh sách đơn hàng dùng chung cho trang /orders và route xuất Excel danh sách,
@@ -19,6 +20,12 @@ export type OrderListQuery = {
   type?: string;
   /** Mã cũ trước V112 (all | sample | prod) — vẫn nhận để link cũ không hỏng. */
   status?: string;
+  /** Lọc theo TRẠNG THÁI (khác loại đơn): all | nhap | da_xac_nhan. Dùng cho drill-down từ dashboard. */
+  state?: string;
+  /** Lọc theo nhân viên kinh doanh (sales_employee_code). */
+  sales?: string;
+  /** Lọc theo vùng miền (region). */
+  region?: string;
   page?: string;
   /** Đơn đang chọn ở cột chi tiết (dạng chia 2 cột). */
   orderId?: string;
@@ -63,6 +70,24 @@ export function clean(value: unknown) {
   if (value === null || value === undefined) return "";
   const text = String(value).trim();
   return text === "-" || text === "—" ? "" : text;
+}
+
+/** V130: bộ lọc TRẠNG THÁI (Đơn nháp / Đã xác nhận) — tách khỏi bộ lọc LOẠI ĐƠN. */
+export const ORDER_LIST_STATE_FILTERS = [
+  { value: "all", label: "Cả 2 trạng thái" },
+  { value: "da_xac_nhan", label: "Đã xác nhận" },
+  { value: "nhap", label: "Đơn nháp" },
+] as const;
+
+export type OrderListStateFilter = (typeof ORDER_LIST_STATE_FILTERS)[number]["value"];
+
+export function normalizeOrderState(value: unknown): OrderListStateFilter {
+  const text = clean(value);
+  if (text === "nhap" || text === "da_xac_nhan") return text;
+  // Nhận cả mã trạng thái thô để link drill-down từ dashboard không hỏng.
+  if (text === "NHAP" || text === "CHO_XAC_NHAN") return "nhap";
+  if (text === "DA_XAC_NHAN" || text === "CHUYEN_SAN_XUAT") return "da_xac_nhan";
+  return "all";
 }
 
 export function parseIsoDate(value: unknown) {
@@ -171,6 +196,7 @@ export const ORDER_LIST_PRESETS = [
 export function buildOrderListWhere(query: OrderListQuery): {
   where: Prisma.SalesOrderWhereInput;
   statusFilter: OrderListTypeFilter;
+  stateFilter: OrderListStateFilter;
   keyword: string;
   page: number;
 } {
@@ -181,6 +207,10 @@ export function buildOrderListWhere(query: OrderListQuery): {
   // V112: lọc theo LOẠI ĐƠN (nhận cả tham số `status` cũ).
   const statusFilter = normalizeOrderListType(query.type ?? query.status);
   const codes = typeCodes(statusFilter);
+  // V130: lọc theo TRẠNG THÁI (nháp / đã xác nhận) — phục vụ drill-down từ dashboard.
+  const stateFilter = normalizeOrderState(query.state);
+  const salesFilter = clean(query.sales);
+  const regionFilter = clean(query.region);
   const page = Math.max(1, Math.floor(Number(clean(query.page)) || 1));
 
   const where: Prisma.SalesOrderWhereInput = {
@@ -192,6 +222,10 @@ export function buildOrderListWhere(query: OrderListQuery): {
       : {}),
     ...(customerFilter ? { receiverName: customerFilter } : {}),
     ...(codes ? { orderType: { in: codes } } : {}),
+    ...(stateFilter === "da_xac_nhan" ? { status: { in: CONFIRMED_STATUS_CODES } } : {}),
+    ...(stateFilter === "nhap" ? { status: { notIn: CONFIRMED_STATUS_CODES } } : {}),
+    ...(salesFilter ? { salesEmployeeCode: salesFilter } : {}),
+    ...(regionFilter ? { region: regionFilter } : {}),
     ...(keyword
       ? {
           OR: [
@@ -205,7 +239,7 @@ export function buildOrderListWhere(query: OrderListQuery): {
       : {}),
   };
 
-  return { where, statusFilter, keyword, page };
+  return { where, statusFilter, stateFilter, keyword, page };
 }
 
 /**
