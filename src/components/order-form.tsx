@@ -830,6 +830,11 @@ function DoorSetCard({
                   change("imageWidth")(nextWidth);
                   change("imageHeight")(nextHeight);
                 }}
+                onClear={() => {
+                  change("imagePath")("");
+                  change("imageWidth")("");
+                  change("imageHeight")("");
+                }}
               />
             </div>
             <p className="mt-1 text-[10px] leading-snug text-slate-500">Ảnh dùng cho cả bộ cửa này (gồm mọi phụ kiện / chi tiết bên dưới).</p>
@@ -1184,6 +1189,11 @@ function EditableMainRow({ item, itemIndex, onChange, onUpload, catalogItems, do
             change("imageWidth")(nextWidth);
             change("imageHeight")(nextHeight);
           }}
+          onClear={() => {
+            change("imagePath")("");
+            change("imageWidth")("");
+            change("imageHeight")("");
+          }}
         />
       </Cell>
       <CellStatic>—</CellStatic>
@@ -1289,6 +1299,11 @@ function EditableDetailRow({ row, itemIndex, detailIndex, onChange, onUpload, on
           onResize={(nextWidth, nextHeight) => {
             change("imageWidth")(nextWidth);
             change("imageHeight")(nextHeight);
+          }}
+          onClear={() => {
+            change("imagePath")("");
+            change("imageWidth")("");
+            change("imageHeight")("");
           }}
         />
       </Cell>
@@ -1764,10 +1779,20 @@ function GridPriceInput({ value, onChange }: { value: string; onChange: (value: 
 
 const IMAGE_SIZE_MIN_PX = 24;
 const IMAGE_SIZE_MAX_PX = 800;
-const IMAGE_SIZE_DEFAULT_PX = 160;
-const IMAGE_SIZE_COMPACT_PX = 96;
+/**
+ * V131.1: cỡ MẶC ĐỊNH = bề rộng cột "HÌNH ẢNH SP" khi xuất PDF (đơn vị px).
+ * PDF: cột ảnh = 15,5/273 bề rộng nội dung A4 ngang (CONTENT_W ~ 813,5 pt) ~ 46,2 pt,
+ * trừ padding 4 pt còn ~ 42,2 pt = 56 px (96 dpi). Nhờ vậy ảnh trong form hiện đúng
+ * bằng cỡ ảnh khi xuất PDF; muốn to/nhỏ hơn thì kéo hoặc bấm nút bên dưới.
+ */
+const IMAGE_SIZE_DEFAULT_PX = 56;
+const IMAGE_PRESETS = [
+  { label: "Nhỏ", px: 120 },
+  { label: "Vừa", px: 200 },
+  { label: "Lớn", px: 320 },
+] as const;
 
-/** V131: kích thước ảnh hợp lệ (px). Trả null khi để trống/ngoài khoảng → hệ thống tự co giãn. */
+/** V131: kích thước ảnh hợp lệ (px). Trả null khi để trống/ngoài khoảng -> hệ thống tự co giãn. */
 function clampImageSize(value: unknown): number | null {
   if (value === null || value === undefined || String(value).trim() === "") return null;
   const parsed = Number(value);
@@ -1777,18 +1802,13 @@ function clampImageSize(value: unknown): number | null {
   return rounded;
 }
 
-/**
- * V131: ô Ảnh SP — dán/chọn ảnh như cũ, thêm khả năng CHỈNH KÍCH THƯỚC bằng tay:
- *  - kéo tay nắm ở góc dưới-phải, hoặc gõ số px vào ô Rộng / Cao;
- *  - giữ đúng tỉ lệ ảnh (gõ Rộng tự suy ra Cao và ngược lại);
- *  - khi xuất Excel/PDF/in, ảnh dùng ĐÚNG kích thước đã đặt (nút "Tự động" để trả về chế độ vừa ô).
- */
 function ImageCell({
   path,
   width,
   height,
   onUpload,
   onResize,
+  onClear,
   compact = false,
 }: {
   path: string;
@@ -1796,17 +1816,19 @@ function ImageCell({
   height?: string;
   onUpload: (file: File) => Promise<void>;
   onResize?: (width: string, height: string) => void;
+  onClear?: () => void;
   compact?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [aspect, setAspect] = useState(5 / 3);
+  const cellRef = useRef<HTMLDivElement>(null);
 
   const safeAspect = Number.isFinite(aspect) && aspect > 0.05 ? aspect : 5 / 3;
   const manualWidth = clampImageSize(width);
   const manualHeight = clampImageSize(height);
   const manual = Boolean(manualWidth && manualHeight);
-  const shownWidth = manualWidth ?? (compact ? IMAGE_SIZE_COMPACT_PX : IMAGE_SIZE_DEFAULT_PX);
+  const shownWidth = manualWidth ?? IMAGE_SIZE_DEFAULT_PX;
   const shownHeight = manualHeight ?? Math.max(IMAGE_SIZE_MIN_PX, Math.round(shownWidth / safeAspect));
   const canResize = Boolean(path && onResize);
 
@@ -1874,6 +1896,8 @@ function ImageCell({
     setError("");
     try {
       await onUpload(file);
+      // V131.1: giữ ô ảnh đang được chọn để dán tiếp ảnh khác ngay (không phải click lại).
+      window.setTimeout(() => cellRef.current?.focus(), 0);
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Không thể tải ảnh.");
     } finally {
@@ -1881,14 +1905,40 @@ function ImageCell({
     }
   }
 
+  /** V131.1: nút "Dán ảnh" — đọc ảnh ngay từ clipboard, không cần click vào ô rồi Ctrl+V. */
+  async function pasteFromClipboard() {
+    if (busy) return;
+    if (!navigator.clipboard || typeof navigator.clipboard.read !== "function") {
+      setError("Trình duyệt không hỗ trợ đọc clipboard — hãy bấm vào ô ảnh rồi nhấn Ctrl+V.");
+      return;
+    }
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const type = item.types.find((value) => value.startsWith("image/"));
+        if (!type) continue;
+        const blob = await item.getType(type);
+        const extension = type.split("/")[1] || "png";
+        await handleImage(new File([blob], `clipboard.${extension}`, { type }), "paste");
+        return;
+      }
+      setError("Clipboard không có ảnh.");
+    } catch {
+      setError("Trình duyệt chặn đọc clipboard — hãy bấm vào ô ảnh rồi nhấn Ctrl+V.");
+    }
+  }
+
   const numberInputClass = "h-5 rounded border border-slate-300 px-1 text-right text-[9.5px] tabular-nums";
+  const smallButtonClass = "rounded border border-slate-300 px-1.5 py-0.5 text-[9.5px] hover:bg-slate-100";
 
   return (
     <div
+      ref={cellRef}
       className="flex min-h-[58px] cursor-default flex-col items-center justify-center gap-1 rounded-md px-1 py-1.5 text-center text-[10px] leading-tight outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-400"
       tabIndex={0}
-      title="Bấm vào ô rồi nhấn Ctrl+V để dán ảnh. Kéo nút góc dưới-phải để đổi kích thước ảnh."
-      aria-label="Hình ảnh sản phẩm. Bấm vào ô rồi nhấn Ctrl+V để dán ảnh, hoặc chọn Tải ảnh."
+      title="Bấm vào ô rồi nhấn Ctrl+V để dán ảnh, hoặc dùng nút Dán ảnh / Tải ảnh bên dưới."
+      aria-label="Hình ảnh sản phẩm. Bấm vào ô rồi nhấn Ctrl+V để dán ảnh, hoặc dùng nút bên dưới."
+      onClick={() => cellRef.current?.focus()}
       onPaste={(event) => {
         if (busy) return;
         const imageItem = Array.from(event.clipboardData.items).find(
@@ -1905,18 +1955,16 @@ function ImageCell({
     >
       {path ? (
         <div className="relative" style={{ width: shownWidth, height: shownHeight, maxWidth: "100%" }}>
-          <a href={path} target="_blank" rel="noreferrer" className="block h-full w-full">
-            <img
-              src={path}
-              alt="Hình sản phẩm"
-              draggable={false}
-              onLoad={(event) => {
-                const image = event.currentTarget;
-                if (image.naturalWidth > 0 && image.naturalHeight > 0) setAspect(image.naturalWidth / image.naturalHeight);
-              }}
-              className="h-full w-full rounded border border-slate-200 bg-white object-contain"
-            />
-          </a>
+          <img
+            src={path}
+            alt="Hình sản phẩm"
+            draggable={false}
+            onLoad={(event) => {
+              const image = event.currentTarget;
+              if (image.naturalWidth > 0 && image.naturalHeight > 0) setAspect(image.naturalWidth / image.naturalHeight);
+            }}
+            className="h-full w-full rounded border border-slate-200 bg-white object-contain"
+          />
           {canResize ? (
             <span
               role="slider"
@@ -1928,7 +1976,11 @@ function ImageCell({
             />
           ) : null}
         </div>
-      ) : null}
+      ) : (
+        <span className="flex items-center justify-center rounded border border-dashed border-slate-300 text-slate-400" style={{ width: IMAGE_SIZE_DEFAULT_PX, height: Math.round(IMAGE_SIZE_DEFAULT_PX / safeAspect) }}>
+          ảnh
+        </span>
+      )}
 
       {canResize ? (
         <div className="flex flex-wrap items-center justify-center gap-1 text-[9.5px] text-slate-600">
@@ -1941,7 +1993,7 @@ function ImageCell({
               min={IMAGE_SIZE_MIN_PX}
               max={IMAGE_SIZE_MAX_PX}
               value={width ?? ""}
-              placeholder={String(compact ? IMAGE_SIZE_COMPACT_PX : IMAGE_SIZE_DEFAULT_PX)}
+              placeholder={String(IMAGE_SIZE_DEFAULT_PX)}
               onChange={(event) => setWidth(event.target.value)}
             />
             px
@@ -1965,39 +2017,65 @@ function ImageCell({
 
       {canResize && !compact ? (
         <div className="flex flex-wrap items-center justify-center gap-1 text-[9.5px]">
-          <button type="button" className="rounded border border-slate-300 px-1.5 py-0.5 hover:bg-slate-100" onClick={() => setWidth("120")}>Nhỏ</button>
-          <button type="button" className="rounded border border-slate-300 px-1.5 py-0.5 hover:bg-slate-100" onClick={() => setWidth("200")}>Vừa</button>
-          <button type="button" className="rounded border border-slate-300 px-1.5 py-0.5 hover:bg-slate-100" onClick={() => setWidth("320")}>Lớn</button>
+          {IMAGE_PRESETS.map((preset) => (
+            <button key={preset.label} type="button" className={smallButtonClass} onClick={() => setWidth(String(preset.px))}>
+              {preset.label}
+            </button>
+          ))}
           <button
             type="button"
-            className={`rounded border px-1.5 py-0.5 ${manual ? "border-slate-300 hover:bg-slate-100" : "border-cyan-400 bg-cyan-100 font-semibold text-cyan-800"}`}
-            title={manual ? "Trả ảnh về kích thước tự động (vừa ô khi xuất file)" : "Đang ở chế độ tự động"}
+            className={`rounded border px-1.5 py-0.5 text-[9.5px] ${manual ? "border-slate-300 hover:bg-slate-100" : "border-cyan-400 bg-cyan-100 font-semibold text-cyan-800"}`}
+            title={manual ? `Trả ảnh về cỡ mặc định (${IMAGE_SIZE_DEFAULT_PX} px = bề rộng cột ảnh khi xuất PDF)` : "Đang ở cỡ mặc định"}
             onClick={() => onResize?.("", "")}
           >
-            Tự động
+            Mặc định
           </button>
         </div>
       ) : null}
 
-      <span className="font-semibold text-cyan-800">{busy ? "Đang tải..." : "Ctrl+V để dán"}</span>
-      <label className={`break-words font-medium text-cyan-700 hover:underline ${busy ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}>
-        {path ? "Đổi / tải ảnh" : "Tải ảnh"}
-        <input
-          className="hidden"
-          type="file"
-          accept="image/png,image/jpeg,image/webp"
-          disabled={busy}
-          onChange={async (e) => {
-            const file = e.target.files?.[0];
-            if (!file) return;
-            await handleImage(file, "file");
-            e.target.value = "";
-          }}
-        />
-      </label>
+      {/* V131.1: các nút nằm NGOÀI ô ảnh — bấm thoải mái, không mở link ảnh, không cản việc dán. */}
+      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+        {path ? (
+          <button type="button" className={smallButtonClass} disabled={busy} onClick={() => void pasteFromClipboard()}>
+            Dán ảnh
+          </button>
+        ) : null}
+        <label className={`break-words text-[9.5px] font-medium text-cyan-700 hover:underline ${busy ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}>
+          {path ? "Đổi ảnh" : "Tải ảnh"}
+          <input
+            className="hidden"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            disabled={busy}
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              await handleImage(file, "file");
+              e.target.value = "";
+            }}
+          />
+        </label>
+        {path && onClear ? (
+          <button
+            type="button"
+            className="rounded border border-red-300 px-1.5 py-0.5 text-[9.5px] font-medium text-red-700 hover:bg-red-50"
+            onClick={() => {
+              onClear();
+              cellRef.current?.focus();
+            }}
+          >
+            Xóa ảnh
+          </button>
+        ) : null}
+      </div>
+
+      {busy ? <span className="font-semibold text-cyan-800">Đang tải...</span> : null}
+      {!busy && !path ? <span className="font-semibold text-cyan-800">Ctrl+V để dán</span> : null}
       {manual ? (
         <span className="text-[9.5px] text-slate-500">Xuất file theo {manualWidth} x {manualHeight} px</span>
-      ) : null}
+      ) : (
+        <span className="text-[9.5px] text-slate-500">Cỡ mặc định {IMAGE_SIZE_DEFAULT_PX} px (bề rộng cột ảnh khi xuất PDF)</span>
+      )}
       {error ? <span className="max-w-full break-words text-[10px] text-red-600">{error}</span> : null}
     </div>
   );

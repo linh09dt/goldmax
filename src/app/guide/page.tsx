@@ -50,7 +50,7 @@ export default function GuidePage() {
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 2.</b> Thêm bộ cửa, chọn Nhóm cửa + Model và nhập theo các card Sản phẩm / Kích thước & cấu hình / Số lượng & giá.</li>
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 3.</b> Nhập kích thước, số lượng và đơn giá. KH/Lượng sẽ tự tính nếu Model/Nhóm hàng đã được gán rule trong Cấu hình tính toán; nếu không thì nhập tay.</li>
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 4.</b> Thêm chi tiết / phụ kiện / phụ phí. Mỗi dòng là một mini-card; nhập trực tiếp các cột hiển thị, không cần cuộn ngang.</li>
-            <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 5.</b> Dán ảnh bằng Ctrl+V hoặc tải ảnh sản phẩm nếu cần, sau đó kiểm tra tổng giá trị.</li>
+            <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 5.</b> Dán ảnh (Ctrl+V hoặc nút <b>Dán ảnh</b> / <b>Tải ảnh</b> bên dưới ô ảnh), chỉnh kích thước nếu cần, sau đó kiểm tra tổng giá trị.</li>
             <li className="rounded-lg border border-slate-200 bg-white p-3"><b>Bước 6.</b> Bấm <b>Lưu nháp</b> để giữ đơn ở trạng thái <b>Đơn nháp</b> (chưa có Bộ số), hoặc <b>Lưu đơn hàng</b> để chuyển đơn sang <b>Đã xác nhận</b> và hệ thống cấp Bộ số. Cả hai cách đều mở trang chi tiết đơn sau khi lưu.</li>
           </ol>
           <ActionTable rows={[
@@ -59,7 +59,8 @@ export default function GuidePage() {
             ["Nhân bản bộ", "Sao chép bộ cửa hiện tại để nhập nhanh một bộ tương tự."],
             ["+ Thêm dòng", "Thêm một mini-card chi tiết / phụ kiện / phụ phí vào bộ cửa đang chọn."],
             ["Xóa bộ", "Xóa toàn bộ bộ cửa và các dòng chi tiết thuộc bộ đó."],
-            ["Dán / Tải ảnh", "Bấm vào ô Hình ảnh SP rồi nhấn Ctrl+V để dán ảnh từ Clipboard, hoặc tải file ảnh như trước. Ảnh được lưu trên Supabase Storage."],
+            ["Dán / Tải / Xóa ảnh", "Bấm nút Dán ảnh (đọc thẳng từ Clipboard) hoặc Đổi ảnh / Tải ảnh để chọn file — các nút này nằm ngoài ô ảnh. Bấm Xóa ảnh để bỏ ảnh của dòng. Ảnh được lưu trên Supabase Storage."],
+            ["Kích thước ảnh", "Sau khi có ảnh, kéo ô vuông ở góc dưới-phải hoặc gõ số px vào ô Rộng / Cao. Mặc định lấy bằng bề rộng cột ẢNH SP khi xuất PDF; bấm Mặc định để quay lại cỡ đó."],
             ["Xóa", "Xóa một dòng chi tiết / phụ kiện / phụ phí."],
             ["Lưu nháp", "Lưu đơn ở trạng thái Đơn nháp (chưa cấp Bộ số), sau đó mở trang chi tiết đơn. Đơn đã xác nhận thì không bị hạ cấp về nháp."],
             ["Lưu đơn hàng", "Lưu đơn và chuyển sang trạng thái Đã xác nhận (hệ thống cấp Bộ số cho mọi loại đơn), sau đó mở trang chi tiết đơn."],
@@ -182,7 +183,7 @@ export default function GuidePage() {
             <Note title="Trước khi xóa" text="Kiểm tra đúng đơn hàng hoặc đúng Master Data. Các nút Xóa đều yêu cầu xác nhận." />
             <Note title="Sau khi sửa" text="Luôn bấm Lưu thay đổi / Lưu cấu hình / Lưu để dữ liệu được ghi lại." />
             <Note title="Xuất Excel" text="Nếu màn hình có bộ lọc, file xuất sẽ đi theo bộ lọc đang áp dụng." />
-            <Note title="Ảnh sản phẩm" text="Có thể bấm ô Hình ảnh SP rồi Ctrl+V để dán ảnh trực tiếp. Tải ảnh vẫn được giữ làm phương án dự phòng; ảnh được lưu trên Supabase Storage." />
+            <Note title="Ảnh sản phẩm" text="Bấm ô Hình ảnh SP rồi Ctrl+V, hoặc dùng nút Dán ảnh / Đổi ảnh / Xóa ảnh ở bên dưới ô ảnh (không còn bật link ảnh khi bấm vào ô). Kéo góc dưới-phải hoặc gõ Rộng/Cao để chỉnh kích thước; file Excel/PDF/in sẽ theo đúng kích thước đó. Ảnh lưu trên Supabase Storage." />
           </div>
         </section>
       </div>
