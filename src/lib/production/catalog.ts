@@ -119,6 +119,8 @@ export type ProductionSetRow = {
   materialReady: boolean;
   packCount: number | null;
   note: string | null;
+  /** V149 — thời điểm bộ vào module kế hoạch: mốc FIFO theo `created_at`. */
+  createdAt: Date;
 };
 
 // ---------------------------------------------------------------------------

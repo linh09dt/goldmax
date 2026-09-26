@@ -2,17 +2,18 @@ import Link from "next/link";
 import { ErpShell } from "@/components/erp-shell";
 import { ProductionConfigScreen } from "@/components/production/production-config";
 import { prisma } from "@/lib/prisma";
-import { loadReasons, loadStages, loadWorkCenters, readProductionConfig } from "@/lib/production/service";
+import { loadReasons, loadStages, loadWorkCenters, readPriorityConfig, readProductionConfig } from "@/lib/production/service";
 
 export const dynamic = "force-dynamic";
 
 /**
- * V136 — Cấu hình sản xuất: tổ & năng lực, công đoạn, lý do, chương trình máy cắt, ngày nghỉ,
- * và các con số điều khiển thuật toán xếp lịch.
+ * V136/V149 — Cấu hình sản xuất: tổ & năng lực, công đoạn, THỨ TỰ ƯU TIÊN (theo từng công đoạn),
+ * lý do, chương trình máy cắt, ngày nghỉ, và các con số điều khiển thuật toán xếp lịch.
  */
 export default async function ProductionConfigPage() {
-  const [config, workCenters, stages, reasons, programs, holidays] = await Promise.all([
+  const [config, priority, workCenters, stages, reasons, programs, holidays] = await Promise.all([
     readProductionConfig(),
+    readPriorityConfig(),
     loadWorkCenters(),
     loadStages(),
     loadReasons(),
@@ -32,6 +33,7 @@ export default async function ProductionConfigPage() {
     >
       <ProductionConfigScreen
         config={config}
+        priority={priority}
         workCenters={workCenters.map((row) => ({
           id: row.id,
           code: row.code,

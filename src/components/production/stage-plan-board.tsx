@@ -41,6 +41,9 @@ type SetRow = {
   lateVsTarget: boolean;
   workshopDue: string | null;
   lateVsDue: boolean;
+  firstStageCode: string | null;
+  firstStageScore: number;
+  firstStageRank: number;
 };
 
 type Warning = { kind: string; stageCode: string | null; setId: number | null; message: string };
@@ -49,6 +52,7 @@ type ApplyResult = { sets: number; tasks: number; statuses: number; warnings: nu
 
 type PreviewResult = {
   tasks: Array<{ setId: number; state: string }>;
+  priorityUsed: Array<{ stageCode: string; stageName: string; criteria: Array<{ code: string; weight: number }> }>;
   loads: LoadCell[];
   warnings: Warning[];
   sets: SetRow[];
@@ -110,10 +114,11 @@ export function StagePlanBoard({ today }: { today: string }) {
           text: `Xem trước: ${payload.stats.setsPlanned} bộ · ${payload.stats.tasksPlanned} công đoạn được xếp · ${payload.warnings.length} cảnh báo. Chưa ghi gì vào hệ thống.`,
         });
       } else {
-        await request("preview");
+        // KHÔNG tính lại ngay: bộ vừa ghi đã chuyển sang "Đã xếp lịch" nên sẽ không còn trong phạm vi
+        // "Chờ xếp lịch" → bảng sẽ trắng. Giữ nguyên kết quả đang xem (đúng bằng những gì vừa ghi).
         setMessage({
           tone: "ok",
-          text: `Đã ghi kế hoạch cho ${payload.sets ?? 0} bộ · ${payload.tasks ?? 0} công đoạn (${payload.statuses ?? 0} bộ chuyển sang Đã xếp lịch).`,
+          text: `Đã ghi kế hoạch cho ${payload.sets ?? 0} bộ · ${payload.tasks ?? 0} công đoạn (cập nhật ${payload.statuses ?? 0} bộ; bộ đang chờ xếp lịch đã chuyển sang Đã xếp lịch). Bảng bên dưới là đúng phần vừa ghi — đổi Phạm vi sang "Mọi bộ đang mở" nếu muốn xem lại.`,
         });
       }
     } catch (error) {
@@ -141,7 +146,9 @@ export function StagePlanBoard({ today }: { today: string }) {
     return [...result.sets]
       .sort((a, b) => {
         if (a.lateVsDue !== b.lateVsDue) return a.lateVsDue ? -1 : 1;
-        if (a.lateVsTarget !== b.lateVsTarget) return a.lateVsTarget ? -1 : 1;
+        const rankA = a.firstStageRank || Number.MAX_SAFE_INTEGER;
+        const rankB = b.firstStageRank || Number.MAX_SAFE_INTEGER;
+        if (rankA !== rankB) return rankA - rankB;
         const dueA = a.dueDate ? Date.parse(a.dueDate) : Number.POSITIVE_INFINITY;
         const dueB = b.dueDate ? Date.parse(b.dueDate) : Number.POSITIVE_INFINITY;
         return dueA - dueB;
@@ -150,6 +157,15 @@ export function StagePlanBoard({ today }: { today: string }) {
   }, [result]);
 
   const stats = result?.stats;
+
+  const priorityLine = useMemo(() => {
+    if (!result || !stageFilter) return null;
+    const used = result.priorityUsed.find((item) => item.stageCode === stageFilter);
+    if (!used || !used.criteria.length) return null;
+    return `Thứ tự ưu tiên đang áp dụng cho ${used.stageName}: ${used.criteria
+      .map((item) => `${item.code} (${item.weight})`)
+      .join(" · ")} — điểm cao xếp trước; đồng điểm thì theo ngày vào kế hoạch.`;
+  }, [result, stageFilter]);
 
   return (
     <div className="space-y-4">
@@ -273,6 +289,7 @@ export function StagePlanBoard({ today }: { today: string }) {
           {result.loads.length > 400 ? (
             <p className="erp-hint mt-2">Đang hiện 400/{result.loads.length} dòng — lọc theo công đoạn để xem phần còn lại.</p>
           ) : null}
+          {priorityLine ? <p className="erp-hint mt-2">{priorityLine}</p> : null}
         </ReportCard>
       ) : null}
 
@@ -286,6 +303,8 @@ export function StagePlanBoard({ today }: { today: string }) {
                   <th className="px-2 py-1 text-left">Đơn</th>
                   <th className="px-2 py-1 text-left">Khách</th>
                   <th className="px-2 py-1 text-left">Màu</th>
+                  <th className="px-2 py-1 text-right">Hạng</th>
+                  <th className="px-2 py-1 text-right">Điểm</th>
                   <th className="px-2 py-1 text-left">Ngày KH</th>
                   <th className="px-2 py-1 text-left">Mốc (target)</th>
                   <th className="px-2 py-1 text-left">Hạn giao</th>
@@ -299,6 +318,8 @@ export function StagePlanBoard({ today }: { today: string }) {
                     <td className="px-2 py-1">{row.orderCode ?? "—"}</td>
                     <td className="px-2 py-1">{row.customerName ?? "—"}</td>
                     <td className="px-2 py-1">{row.paintColor ?? "—"}</td>
+                    <td className="px-2 py-1 text-right">{row.firstStageRank || "—"}</td>
+                    <td className="px-2 py-1 text-right">{row.firstStageScore ? row.firstStageScore.toFixed(1) : "—"}</td>
                     <td className="px-2 py-1 whitespace-nowrap">
                       {formatDay(row.plannedStart)} → {formatDay(row.plannedEnd)}
                     </td>
@@ -309,7 +330,7 @@ export function StagePlanBoard({ today }: { today: string }) {
                 ))}
                 {!setRows.length ? (
                   <tr>
-                    <td className="px-2 py-3 text-slate-500" colSpan={8}>
+                    <td className="px-2 py-3 text-slate-500" colSpan={10}>
                       Không có bộ nào trong phạm vi đã chọn.
                     </td>
                   </tr>
@@ -329,6 +350,11 @@ export function StagePlanBoard({ today }: { today: string }) {
         Cột <strong>Mốc (target)</strong> suy từ <strong>lead time</strong> (cột &quot;Số ngày&quot;) — chỉ để biết đơn có kịp hay không.
         Bấm <em>Ghi kế hoạch</em> mới lưu vào <code>planned_start/planned_end</code>; bộ đang chờ xếp lịch sẽ chuyển sang{" "}
         <strong>Đã xếp lịch</strong>.
+      </p>
+      <p className="erp-hint">
+        <strong>Thứ tự làm:</strong> mỗi công đoạn xếp theo bộ quy tắc ưu tiên riêng (điểm ưu tiên + FIFO), khai ở{" "}
+        <strong>Cấu hình sản xuất → tab “Thứ tự ưu tiên”</strong>. Cột <strong>Hạng</strong>/<strong>Điểm</strong> cho biết bộ được xếp thứ
+        mấy và vì sao.
       </p>
       <p className="erp-hint">
         <strong>Lưu ý về năng lực:</strong> mỗi <em>công đoạn</em> đang là một nguồn năng lực riêng (đúng như Cấu hình → Công đoạn).

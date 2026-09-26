@@ -47,6 +47,12 @@ import {
   PLANNABLE_SET_STATUSES,
   type StagePlanResult,
 } from "@/lib/production/stage-plan";
+import {
+  normalizePriorityConfig,
+  PRIORITY_CONFIG_SETTING_KEY,
+  type OrderFacts,
+  type PriorityConfig,
+} from "@/lib/production/priority";
 import { defaultPriorityForOrderType } from "@/lib/production/scheduling";
 import {
   assignWorkOrderCodes,
@@ -1195,7 +1201,11 @@ async function resolveStagePlanRange(
 export async function previewStagePlan(query: StagePlanQuery): Promise<StagePlanResult> {
   const config = await readProductionConfig();
   const calendar = await loadCalendar(config);
-  const [stages, workCenters] = await Promise.all([loadActiveStages(), loadActiveWorkCenters()]);
+  const [stages, workCenters, priority] = await Promise.all([
+    loadActiveStages(),
+    loadActiveWorkCenters(),
+    readPriorityConfig(),
+  ]);
   const { from, to } = await resolveStagePlanRange(query, calendar);
 
   const scope: StagePlanScope = query.scope ?? "CHO_XEP_LICH";
@@ -1213,6 +1223,9 @@ export async function previewStagePlan(query: StagePlanQuery): Promise<StagePlan
   const tasks = sets.length
     ? await prisma.productionTask.findMany({ where: { setId: { in: sets.map((set) => set.id) } } })
     : [];
+  // V149 — chỉ tiêu mức ĐƠN cần cột thật của `sales_orders` (giá trị, cọc, chiết khấu, km…).
+  const orderIds = Array.from(new Set(sets.map((set) => Number(set.orderId)).filter((id) => Number.isInteger(id))));
+  const orders = await loadOrderFacts(orderIds);
 
   return buildStagePlan({
     sets: sets as unknown as ProductionSetRow[],
@@ -1223,6 +1236,9 @@ export async function previewStagePlan(query: StagePlanQuery): Promise<StagePlan
     config,
     from,
     to,
+    today: todayInVietnam(),
+    priority,
+    orders,
     setIds: query.setIds?.length ? query.setIds : undefined,
   });
 }
@@ -1310,4 +1326,75 @@ export async function applyStagePlan(
       warnings: preview.warnings.length,
     };
   }, ORDER_WRITE_TRANSACTION);
+}
+
+// ---------------------------------------------------------------------------
+// V149 — CẤU HÌNH THỨ TỰ ƯU TIÊN (theo TỪNG CÔNG ĐOẠN) + dữ liệu đơn để chấm điểm
+// ---------------------------------------------------------------------------
+
+/** Đọc cấu hình thứ tự ưu tiên (chưa lưu thì dùng bộ mặc định của nhà máy). */
+export async function readPriorityConfig(): Promise<PriorityConfig> {
+  const setting = await prisma.systemSetting.findUnique({
+    where: { key: PRIORITY_CONFIG_SETTING_KEY },
+    select: { value: true },
+  });
+  if (!setting?.value) return normalizePriorityConfig(null);
+  try {
+    return normalizePriorityConfig(JSON.parse(setting.value));
+  } catch {
+    return normalizePriorityConfig(null);
+  }
+}
+
+export async function savePriorityConfig(value: unknown): Promise<PriorityConfig> {
+  const normalized = normalizePriorityConfig(value);
+  await prisma.systemSetting.upsert({
+    where: { key: PRIORITY_CONFIG_SETTING_KEY },
+    create: { key: PRIORITY_CONFIG_SETTING_KEY, value: JSON.stringify(normalized) },
+    update: { value: JSON.stringify(normalized) },
+  });
+  return normalized;
+}
+
+/**
+ * Nạp các CỘT THẬT của `sales_orders` cho những đơn đang có bộ trong kế hoạch —
+ * đầu vào cho các chỉ tiêu mức đơn (giá trị, đặt cọc, chiết khấu, km, nhân viên…).
+ */
+export async function loadOrderFacts(orderIds: number[]): Promise<Map<number, OrderFacts>> {
+  if (!orderIds.length) return new Map();
+  const rows = await prisma.salesOrder.findMany({
+    where: { id: { in: orderIds } },
+    select: {
+      id: true,
+      orderDate: true,
+      orderType: true,
+      customerCode: true,
+      customerName: true,
+      salesEmployeeCode: true,
+      totalAfterDiscount: true,
+      depositAmount: true,
+      discountPercent: true,
+      deliveryKm: true,
+      region: true,
+      shippingMountainDistrict: true,
+    },
+  });
+  const map = new Map<number, OrderFacts>();
+  for (const row of rows) {
+    map.set(row.id, {
+      orderId: row.id,
+      orderDate: row.orderDate,
+      orderType: row.orderType,
+      customerCode: row.customerCode,
+      customerName: row.customerName,
+      salesEmployeeCode: row.salesEmployeeCode,
+      totalAfterDiscount: row.totalAfterDiscount === null ? null : Number(row.totalAfterDiscount),
+      depositAmount: row.depositAmount === null ? null : Number(row.depositAmount),
+      discountPercent: row.discountPercent === null ? null : Number(row.discountPercent),
+      deliveryKm: row.deliveryKm === null ? null : Number(row.deliveryKm),
+      region: row.region,
+      mountainDistrict: row.shippingMountainDistrict,
+    });
+  }
+  return map;
 }

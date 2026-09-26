@@ -8,11 +8,13 @@ import {
   WORK_CENTER_KIND_LABELS,
 } from "@/lib/production/catalog";
 import { WEEKDAY_LABELS, type ProductionConfig } from "@/lib/production/config";
+import type { PriorityConfig } from "@/lib/production/priority";
+import { PriorityConfigEditor } from "@/components/production/priority-config";
 
 /**
  * V136 — Cấu hình sản xuất: mọi con số lấy từ khảo sát đều SỬA ĐƯỢC ở đây, không hard-code.
  *
- * Tabs: Cấu hình chung · Tổ & năng lực · Công đoạn · Lý do · Chương trình máy cắt · Ngày nghỉ.
+ * Tabs: Cấu hình chung · Tổ & năng lực · Công đoạn · Thứ tự ưu tiên · Lý do · Chương trình máy cắt · Ngày nghỉ.
  */
 
 export type WorkCenterRow = {
@@ -71,6 +73,7 @@ const TABS = [
   { key: "general", label: "Cấu hình chung" },
   { key: "centers", label: "Tổ & năng lực" },
   { key: "stages", label: "Công đoạn" },
+  { key: "priority", label: "Thứ tự ưu tiên" },
   { key: "reasons", label: "Lý do" },
   { key: "programs", label: "Chương trình máy cắt" },
   { key: "holidays", label: "Ngày nghỉ" },
@@ -568,6 +571,7 @@ function GeneralConfig({ config }: { config: ProductionConfig }) {
 
 export function ProductionConfigScreen({
   config,
+  priority,
   workCenters,
   stages,
   reasons,
@@ -575,6 +579,8 @@ export function ProductionConfigScreen({
   holidays,
 }: {
   config: ProductionConfig;
+  /** V149 — cấu hình thứ tự ưu tiên (theo từng công đoạn). */
+  priority: PriorityConfig;
   workCenters: WorkCenterRow[];
   stages: StageRow[];
   reasons: ReasonRow[];
@@ -607,6 +613,13 @@ export function ProductionConfigScreen({
           hint="Năng lực để trống = không cảnh báo quá tải cho tổ đó (tổ vân chưa có số — VAN12)."
           rows={workCenters as unknown as Array<Record<string, unknown>>}
           fields={CENTER_FIELDS}
+        />
+      ) : null}
+
+      {tab === "priority" ? (
+        <PriorityConfigEditor
+          priority={priority}
+          stages={stages.map((stage) => ({ code: stage.code, name: stage.name, seq: stage.seq, active: stage.active }))}
         />
       ) : null}
 

@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { normalizeProductionConfig, validateProductionConfig } from "@/lib/production/config";
-import { loadReasons, loadStages, loadWorkCenters, readProductionConfig, saveProductionConfig } from "@/lib/production/service";
+import {
+  loadReasons,
+  loadStages,
+  loadWorkCenters,
+  readPriorityConfig,
+  readProductionConfig,
+  savePriorityConfig,
+  saveProductionConfig,
+} from "@/lib/production/service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,8 +17,8 @@ export const dynamic = "force-dynamic";
 /**
  * V136 — Đọc/ghi DANH MỤC sản xuất (dùng cho màn Cấu hình sản xuất).
  *
- * GET    /api/production/catalog            → { config, workCenters, stages, reasons, programs, holidays }
- * PUT    /api/production/catalog            → { config } lưu cấu hình
+ * GET    /api/production/catalog            → { config, priority, workCenters, stages, reasons, programs, holidays }
+ * PUT    /api/production/catalog            → { config?, priority? } lưu cấu hình (V149: thứ tự ưu tiên)
  * POST   /api/production/catalog            → { entity, ... } thêm/cập nhật 1 mục danh mục
  * DELETE /api/production/catalog?entity=&id=→ xoá 1 mục danh mục
  *
@@ -48,15 +56,16 @@ function required(value: unknown, max: number, label: string): string {
 
 export async function GET() {
   try {
-    const [config, workCenters, stages, reasons, programs, holidays] = await Promise.all([
+    const [config, priority, workCenters, stages, reasons, programs, holidays] = await Promise.all([
       readProductionConfig(),
+      readPriorityConfig(),
       loadWorkCenters(),
       loadStages(),
       loadReasons(),
       prisma.productionProgram.findMany({ orderBy: [{ model: "asc" }, { version: "desc" }] }),
       prisma.productionCalendar.findMany({ orderBy: { date: "asc" } }),
     ]);
-    return NextResponse.json({ ok: true, config, workCenters, stages, reasons, programs, holidays });
+    return NextResponse.json({ ok: true, config, priority, workCenters, stages, reasons, programs, holidays });
   } catch (error) {
     console.error("Load production catalog failed:", error);
     return NextResponse.json(
@@ -68,11 +77,17 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
-    const body = (await request.json().catch(() => ({}))) as { config?: unknown };
+    const body = (await request.json().catch(() => ({}))) as { config?: unknown; priority?: unknown };
+    // V149 — lưu riêng / lưu chung: gửi `priority` để lưu thứ tự ưu tiên, gửi `config` để lưu cấu hình chung.
+    if (body.priority !== undefined && body.config === undefined) {
+      const priority = await savePriorityConfig(body.priority);
+      return NextResponse.json({ ok: true, priority });
+    }
     const config = normalizeProductionConfig(body.config);
     validateProductionConfig(config);
     const saved = await saveProductionConfig(config);
-    return NextResponse.json({ ok: true, config: saved });
+    const priority = body.priority === undefined ? undefined : await savePriorityConfig(body.priority);
+    return NextResponse.json({ ok: true, config: saved, priority });
   } catch (error) {
     console.error("Save production config failed:", error);
     return NextResponse.json(
