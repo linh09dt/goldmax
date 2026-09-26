@@ -1,0 +1,19 @@
+V146 — PHẢI XOÁ TAY 3 ĐƯỜNG DẪN (zip không xoá được file)
+
+1) src/app/ke-hoach-san-xuat/ke-hoach/                     <- xoá CẢ THƯ MỤC (trang Kế hoạch tuần)
+2) src/app/api/production/plans/                           <- xoá CẢ THƯ MỤC (API chốt/mở kế hoạch)
+3) src/components/production/production-plan-board.tsx     <- xoá FILE (bảng chốt kế hoạch tuần)
+
+Windows CMD (chạy tại thư mục dự án):
+  rmdir /s /q src\app\ke-hoach-san-xuat\ke-hoach
+  rmdir /s /q src\app\api\production\plans
+  del src\components\production\production-plan-board.tsx
+  rmdir /s /q .next
+
+PowerShell:
+  Remove-Item -Recurse -Force src\app\ke-hoach-san-xuat\ke-hoach, src\app\api\production\plans
+  Remove-Item -Force src\components\production\production-plan-board.tsx
+  Remove-Item -Recurse -Force .next
+
+Sau đó: npx tsc --noEmit ; npm run build
+KHÔNG cần chạy SQL cho V146 (chỉ đổi code). Bảng production_plans trong DB giữ nguyên dữ liệu cũ.

@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { Fragment } from "react";
 import { ErpShell } from "@/components/erp-shell";
 import { ReportCard, ReportKpi, reportKpiGrid } from "@/components/reports/report-ui";
 import { formatDate, formatNumber } from "@/components/order-list/format";
-import { eachDay, shortDayLabel, todayInVietnam, MS_DAY } from "@/lib/production/calendar";
+import { todayInVietnam, MS_DAY } from "@/lib/production/calendar";
 import {
   canhEquivalentOf,
   componentProgress,
@@ -14,7 +13,6 @@ import {
   type ProductionTaskRow,
 } from "@/lib/production/catalog";
 import {
-  ALL_WORKSHOP,
   buildProductionSummary,
   buildStageLoad,
   buildWarnings,
@@ -34,12 +32,6 @@ export const dynamic = "force-dynamic";
  * KH29: cảnh báo quá tải tổ + bộ sắp chậm tiến độ.
  */
 
-const TONE_CELL: Record<string, string> = {
-  ok: "bg-emerald-50 text-emerald-800",
-  warn: "bg-amber-100 text-amber-900",
-  bad: "bg-red-100 text-red-800 font-semibold",
-};
-
 const STATUS_TONE: Record<string, string> = {
   CHO_XEP_LICH: "bg-slate-100 text-slate-700",
   DA_XEP_LICH: "bg-cyan-100 text-cyan-800",
@@ -50,65 +42,23 @@ const STATUS_TONE: Record<string, string> = {
   HUY: "bg-slate-200 text-slate-600",
 };
 
-type SearchParams = { team?: string; from?: string; to?: string; days?: string };
+/** V146 — số ngày tính cảnh báo quá tải (bảng tải theo tổ/ngày đã bỏ, cảnh báo vẫn dùng). */
+const LOAD_WINDOW_DAYS = 7;
 
-function parseDateInput(value: string | undefined): Date | null {
-  const text = String(value ?? "").trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
-  return new Date(`${text}T00:00:00.000Z`);
-}
-
-function toInputDate(value: Date): string {
-  return value.toISOString().slice(0, 10);
-}
-
-export default async function ProductionPlanPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const params = await searchParams;
+export default async function ProductionPlanPage() {
   const today = todayInVietnam();
-  const from = parseDateInput(params.from) ?? today;
-  const days = Math.min(21, Math.max(1, Number(params.days) || 7));
-  const to = new Date(from.getTime() + (days - 1) * MS_DAY);
-  const teamFilter = String(params.team ?? "").trim();
+  const from = today;
+  const to = new Date(from.getTime() + (LOAD_WINDOW_DAYS - 1) * MS_DAY);
 
-  const [board, unplannedCount] = await Promise.all([
-    loadProductionBoard({ from, to, includeUndated: true }),
-    countUnplannedOrderItems(),
-  ]);
+  // V146: KHÔNG lọc bộ theo khoảng ngày nữa (bảng "Tải theo tổ và ngày" đã bỏ) — bảng kế hoạch hiện MỌI bộ,
+  // còn khoảng ngày chỉ dùng để tính cảnh báo quá tải (7 ngày kể từ hôm nay).
+  const [board, unplannedCount] = await Promise.all([loadProductionBoard(), countUnplannedOrderItems()]);
 
   const { sets, tasks, workCenters, stages, config, calendar, programModels } = board;
   const loadCells = buildWorkCenterLoad({ sets, tasks, workCenters, from, to, config });
   const stageLoadCells = buildStageLoad({ sets, tasks, workCenters, stages, from, to, config });
   const warnings = buildWarnings({ sets, tasks, stages, config, calendar, loadCells, stageLoadCells, today, modelsWithProgram: programModels });
   const summary = buildProductionSummary(sets, tasks);
-
-  const dayList = eachDay(from, to);
-  const centerRows = workCenters.filter((center) => {
-    if (center.kind !== "TO") return false;
-    return teamFilter ? center.code === teamFilter : true;
-  });
-  const cellAt = (centerCode: string, day: Date) =>
-    loadCells.find((cell) => cell.workCenterCode === centerCode && cell.day.getTime() === day.getTime());
-  const workshopAt = (day: Date) => cellAt(ALL_WORKSHOP, day);
-
-  // V139.1 — dòng con theo CÔNG ĐOẠN dưới mỗi tổ (chỉ hiện công đoạn có việc trong khoảng đang xem).
-  const stageCellAt = (stageCode: string, day: Date) =>
-    stageLoadCells.find((cell) => cell.stageCode === stageCode && cell.day.getTime() === day.getTime());
-  const stageRowsForCenter = (centerCode: string) => {
-    const center = workCenters.find((row) => row.code === centerCode);
-    return stages
-      .filter((stage) => stage.workCenterCode === centerCode && stage.kind !== "CHO")
-      .filter((stage) => stageLoadCells.some((cell) => cell.stageCode === stage.code))
-      .map((stage) => {
-        const own = stage.capacityPerDay && stage.capacityPerDay > 0 ? stage.capacityPerDay : null;
-        return {
-          stageCode: stage.code,
-          stageName: stage.name,
-          capacity: own ?? center?.capacityPerDay ?? null,
-          capacityUnit: stage.capacityUnit || center?.capacityUnit || "CANH",
-          capacitySource: own ? ("CONG_DOAN" as const) : ("TO" as const),
-        };
-      });
-  };
 
   const tasksBySet = new Map<number, ProductionTaskRow[]>();
   for (const task of tasks) {
@@ -117,34 +67,20 @@ export default async function ProductionPlanPage({ searchParams }: { searchParam
     else tasksBySet.set(task.setId, [task]);
   }
 
-  const visibleSets = teamFilter
-    ? sets.filter((set) => (tasksBySet.get(set.id) ?? []).some((task) => task.workCenterCode === teamFilter))
-    : sets;
-
-  const waiting = sortSetsForPlanning(visibleSets.filter((set) => set.status === "CHO_XEP_LICH"));
+  const waiting = sortSetsForPlanning(sets.filter((set) => set.status === "CHO_XEP_LICH"));
   const running = sortSetsForPlanning(
-    visibleSets.filter((set) => set.status === "DANG_SX" || set.status === "DA_XEP_LICH" || set.status === "TAM_DUNG"),
+    sets.filter((set) => set.status === "DANG_SX" || set.status === "DA_XEP_LICH" || set.status === "TAM_DUNG"),
   );
-  const finished = sortSetsForPlanning(visibleSets.filter((set) => set.status === "HOAN_THANH"));
-
-  const filterHref = (patch: Record<string, string | undefined>) => {
-    const query = new URLSearchParams();
-    const merged = { team: teamFilter || undefined, from: toInputDate(from), days: String(days), ...patch };
-    for (const [key, value] of Object.entries(merged)) if (value) query.set(key, value);
-    return `/ke-hoach-san-xuat?${query.toString()}`;
-  };
+  const finished = sortSetsForPlanning(sets.filter((set) => set.status === "HOAN_THANH"));
 
   return (
     <ErpShell
       title="Kế hoạch sản xuất"
-      subtitle="Mỗi dòng là 1 bộ cửa. Tính tải theo CÁNH (đơn vị xưởng đang dùng), tiến độ theo từng công đoạn."
+      subtitle="Mỗi dòng là 1 bộ cửa. Mở một bộ để cập nhật tiến độ từng công đoạn."
       actions={
         <div className="flex flex-wrap items-center gap-2">
           <Link className="erp-button-secondary" href="/ke-hoach-san-xuat/nhap-do-dang">
             Nhập bộ đang sản xuất dở{unplannedCount > 0 ? ` (${formatNumber(unplannedCount)})` : ""}
-          </Link>
-          <Link className="erp-button-secondary" href="/ke-hoach-san-xuat/ke-hoach">
-            Kế hoạch tuần
           </Link>
           <Link className="erp-button-secondary" href="/ke-hoach-san-xuat/in">
             In phiếu lệnh SX
@@ -217,120 +153,6 @@ export default async function ProductionPlanPage({ searchParams }: { searchParam
               </table>
             </div>
           )}
-        </ReportCard>
-
-        <ReportCard
-          title="Tải theo tổ và ngày"
-          hint="Mỗi bộ chỉ đếm 1 lần cho mỗi tổ trong ngày, dù đi qua nhiều công đoạn của tổ đó. Dòng ↳ là từng CÔNG ĐOẠN — năng lực khai riêng theo công đoạn, để trống thì lấy theo tổ. Đỏ = vượt năng lực, vàng = trên 85%."
-          right={`${formatNumber(days)} ngày`}
-        >
-          <div className="mb-2 flex flex-wrap items-center gap-2 text-[12px]">
-            <span className="text-slate-500">Lọc tổ:</span>
-            <Link className={`rounded px-2 py-1 ${teamFilter ? "text-cyan-700 hover:underline" : "bg-slate-800 text-white"}`} href={filterHref({ team: undefined })}>
-              Tất cả
-            </Link>
-            {workCenters
-              .filter((center) => center.kind === "TO")
-              .map((center) => (
-                <Link
-                  key={center.code}
-                  className={`rounded px-2 py-1 ${teamFilter === center.code ? "bg-slate-800 text-white" : "text-cyan-700 hover:underline"}`}
-                  href={filterHref({ team: center.code })}
-                >
-                  {center.name}
-                </Link>
-              ))}
-            <span className="ml-auto flex items-center gap-3">
-              <Link className="text-cyan-700 hover:underline" href={filterHref({ from: toInputDate(new Date(from.getTime() - days * MS_DAY)) })}>
-                ← {days} ngày trước
-              </Link>
-              <Link className="text-cyan-700 hover:underline" href={filterHref({ from: toInputDate(today) })}>
-                Hôm nay
-              </Link>
-              <Link className="text-cyan-700 hover:underline" href={filterHref({ from: toInputDate(new Date(from.getTime() + days * MS_DAY)) })}>
-                {days} ngày sau →
-              </Link>
-            </span>
-          </div>
-
-          <div className="erp-scrollbar overflow-x-auto">
-            <table className="erp-table">
-              <thead>
-                <tr>
-                  <th className="min-w-[190px]">Tổ</th>
-                  {dayList.map((day) => (
-                    <th key={day.toISOString()} className="text-center">
-                      {shortDayLabel(day)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {centerRows.map((center) => (
-                  <Fragment key={center.code}>
-                    <tr>
-                      <td className="erp-td-strong">
-                        <div>{center.name}</div>
-                        <div className="text-[11px] font-normal text-slate-500">
-                          Năng lực tổ: {center.capacityPerDay ? `${formatNumber(center.capacityPerDay)} ${center.capacityUnit}/ngày` : "chưa khai"}
-                        </div>
-                      </td>
-                      {dayList.map((day) => {
-                        const cell = cellAt(center.code, day);
-                        return (
-                          <td key={day.toISOString()} className={`text-center tabular-nums ${cell ? TONE_CELL[cell.tone] : "text-slate-300"}`}>
-                            {cell ? (
-                              <div>
-                                <div>{formatNumber(cell.canh)}</div>
-                                <div className="text-[10px] opacity-70">{cell.sets} bộ</div>
-                              </div>
-                            ) : (
-                              "—"
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                    {stageRowsForCenter(center.code).map((stageRow) => (
-                      <tr key={`${center.code}-${stageRow.stageCode}`} className="bg-slate-50/70">
-                        <td className="pl-5 text-[12px] text-slate-600">
-                          <div>↳ {stageRow.stageName}</div>
-                          <div className="text-[10.5px] text-slate-500">
-                            Năng lực: {stageRow.capacity ? `${formatNumber(stageRow.capacity)} ${stageRow.capacityUnit}/ngày` : "theo tổ"}
-                            {stageRow.capacitySource === "CONG_DOAN" ? " (khai riêng)" : ""}
-                          </div>
-                        </td>
-                        {dayList.map((day) => {
-                          const cell = stageCellAt(stageRow.stageCode, day);
-                          return (
-                            <td key={day.toISOString()} className={`text-center text-[11.5px] tabular-nums ${cell ? TONE_CELL[cell.tone] : "text-slate-300"}`}>
-                              {cell ? formatNumber(cell.canh) : "—"}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </Fragment>
-                ))}
-                <tr className="border-t-2 border-slate-300">
-                  <td className="erp-td-strong">
-                    <div>Toàn xưởng</div>
-                    <div className="text-[11px] font-normal text-slate-500">
-                      Vàng &gt; {formatNumber(config.dailyWarnCanh)} · Đỏ &gt; {formatNumber(config.dailyMaxCanh)} cánh/ngày
-                    </div>
-                  </td>
-                  {dayList.map((day) => {
-                    const cell = workshopAt(day);
-                    return (
-                      <td key={day.toISOString()} className={`text-center tabular-nums ${cell ? TONE_CELL[cell.tone] : "text-slate-300"}`}>
-                        {cell ? formatNumber(cell.canh) : "—"}
-                      </td>
-                    );
-                  })}
-                </tr>
-              </tbody>
-            </table>
-          </div>
         </ReportCard>
 
         <ReportCard title="Đang sản xuất" hint="Mở một bộ để cập nhật tiến độ từng công đoạn." right={`${formatNumber(running.length)} bộ`}>
@@ -465,7 +287,8 @@ export default async function ProductionPlanPage({ searchParams }: { searchParam
           Đã trừ {config.deliveryBufferDays} ngày đệm vì hạn giao là ngày giao tới khách.
           {config.overlapDaysPerStep > 0
             ? ` Đang bật gối công đoạn ${config.overlapDaysPerStep} ngày/bước.`
-            : " Chưa bật gối công đoạn (đang cộng dồn số ngày — cách tính an toàn)."}
+            : " Chưa bật gối công đoạn (đang cộng dồn số ngày — cách tính an toàn)."}{" "}
+          Bảng kế hoạch hiện tất cả bộ; cảnh báo quá tải tính cho {LOAD_WINDOW_DAYS} ngày kể từ hôm nay.
         </p>
       </div>
     </ErpShell>

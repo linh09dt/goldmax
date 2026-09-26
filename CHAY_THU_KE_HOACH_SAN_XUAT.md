@@ -1,3 +1,7 @@
+> ⚠️ **V146 (26/09/2026):** tab **Kế hoạch tuần** và bảng **Tải theo tổ và ngày** đã BỎ.
+> Màn Kế hoạch sản xuất nay chỉ còn: số liệu → cảnh báo → bộ chờ xếp lịch → đang sản xuất → đã hoàn thành.
+> Xem `BO_KE_HOACH_TUAN_VA_BANG_TAI_V146.md`. Mọi chỗ dưới đây nhắc 2 thứ đó đều bỏ qua.
+
 # CHẠY THỬ MODULE KẾ HOẠCH SẢN XUẤT — CÁC BƯỚC
 
 *Dành cho: người lên kế hoạch · văn phòng xưởng. Mốc: 26/09/2026.*

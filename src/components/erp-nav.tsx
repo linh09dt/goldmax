@@ -47,15 +47,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
         label: "Kế hoạch sản xuất",
         icon: <IconFactory />,
         isActive: (pathname) =>
-          pathname.startsWith("/ke-hoach-san-xuat") &&
-          !pathname.startsWith("/ke-hoach-san-xuat/cau-hinh") &&
-          !pathname.startsWith("/ke-hoach-san-xuat/ke-hoach"),
-      },
-      {
-        href: "/ke-hoach-san-xuat/ke-hoach",
-        label: "Kế hoạch tuần",
-        icon: <IconCalendar />,
-        isActive: (pathname) => pathname.startsWith("/ke-hoach-san-xuat/ke-hoach"),
+          pathname.startsWith("/ke-hoach-san-xuat") && !pathname.startsWith("/ke-hoach-san-xuat/cau-hinh"),
       },
       {
         href: "/ke-hoach-san-xuat/cau-hinh",
@@ -194,16 +186,6 @@ export function ErpNav() {
         </div>
       ))}
     </nav>
-  );
-}
-
-function IconCalendar() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="3" y="5" width="18" height="16" rx="2" />
-      <path d="M3 10h18M8 3v4M16 3v4" />
-      <path d="M8 14h3M8 17h6" />
-    </svg>
   );
 }
 
