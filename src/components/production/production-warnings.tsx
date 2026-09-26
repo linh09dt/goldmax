@@ -10,6 +10,7 @@ import type { ProductionWarning } from "@/lib/production/scheduling";
 
 const KIND_LABELS: Record<ProductionWarning["kind"], string> = {
   QUA_TAI_TO: "Quá tải",
+  QUA_TAI_CONG_DOAN: "Quá tải công đoạn",
   SAP_TRE: "Sắp trễ",
   CHUA_DU_THONG_TIN: "Thiếu thông tin",
   CHUA_CO_CHUONG_TRINH: "Chờ chương trình",

@@ -22,7 +22,7 @@
  */
 
 import { addWorkingDays, isWorkingDay, startOfDayUtc, type WorkingCalendar } from "@/lib/production/calendar";
-import { canhEquivalentOf, type ProductionSetRow, type ProductionTaskRow, type ProductionWorkCenterRow } from "@/lib/production/catalog";
+import { canhEquivalentOf, type ProductionSetRow, type ProductionStageRow, type ProductionTaskRow, type ProductionWorkCenterRow } from "@/lib/production/catalog";
 import type { ProductionConfig } from "@/lib/production/config";
 import { sortSetsForPlanning } from "@/lib/production/scheduling";
 
@@ -64,15 +64,20 @@ function atOrAfterWorking(value: Date, calendar: WorkingCalendar): Date {
 export function autoSchedule(options: {
   sets: ScheduleSetInput[];
   workCenters: ProductionWorkCenterRow[];
+  /** Danh mục công đoạn — để đọc năng lực khai riêng theo công đoạn (V139.1). */
+  stages: ProductionStageRow[];
   /** Giữ trong chữ ký để đợt sau dùng cho ràng buộc gom lô màu sơn / đổi khuôn (chưa ép ở đây). */
   config: ProductionConfig;
   calendar: WorkingCalendar;
   startDate: Date;
 }): ScheduleResult {
-  const { sets, workCenters, calendar, startDate } = options;
+  const { sets, workCenters, stages, calendar, startDate } = options;
   const capacityByCenter = new Map(workCenters.map((center) => [center.code, center.capacityPerDay ?? null]));
-  // Tải đã dùng theo (tổ | ngày) — đơn vị CÁNH.
+  // Năng lực khai RIÊNG cho công đoạn (để trống = kế thừa tổ) — V139.1.
+  const capacityByStage = new Map(stages.map((stage) => [stage.code, stage.capacityPerDay ?? null]));
+  // Tải đã dùng theo (tổ | ngày) và (công đoạn | ngày) — đơn vị CÁNH.
   const used = new Map<string, number>();
+  const usedStage = new Map<string, number>();
 
   const ordered = sortSetsForPlanning(sets);
   const scheduledTasks: ScheduledTask[] = [];
@@ -120,23 +125,50 @@ export function autoSchedule(options: {
       const centerCodes = Array.from(
         new Set(group.map((task) => task.workCenterCode).filter((code): code is string => Boolean(code))),
       );
+      // Công đoạn có năng lực khai RIÊNG → thêm ràng buộc theo công đoạn (V139.1).
+      const stageCodes = Array.from(
+        new Set(
+          group
+            .map((task) => task.stageCode)
+            .filter((code) => {
+              const capacity = capacityByStage.get(code) ?? null;
+              return capacity !== null && capacity > 0;
+            }),
+        ),
+      );
 
-      // Ngày sớm nhất mà MỌI tổ của bước này còn đủ năng lực cho bộ.
+      // Bộ solo lớn hơn năng lực 1 ngày thì vẫn phải nhận (không thể chờ vô hạn) — sẽ thành cảnh báo quá tải.
+      const fits = (map: Map<string, number>, key: string, capacity: number) => {
+        const already = map.get(key) ?? 0;
+        return already === 0 || already + canh <= capacity;
+      };
+
+      // Ngày sớm nhất mà MỌI tổ + MỌI công đoạn của bước này còn đủ năng lực cho bộ.
       let placed = cursor;
-      for (const centerCode of centerCodes) {
-        const capacity = capacityByCenter.get(centerCode) ?? null;
-        if (capacity === null || capacity <= 0) continue;
-        let day = cursor;
-        let guard = 0;
-        while (guard < 400) {
-          const key = `${centerCode}|${dayKey(day)}`;
-          const already = used.get(key) ?? 0;
-          // Bộ solo lớn hơn năng lực 1 ngày thì vẫn phải nhận (không thể chờ vô hạn) — sẽ thành cảnh báo quá tải.
-          if (already === 0 || already + canh <= capacity) break;
-          day = nextWorking(day, calendar);
-          guard += 1;
+      let guard = 0;
+      while (guard < 400) {
+        const key = dayKey(placed);
+        let ok = true;
+        for (const centerCode of centerCodes) {
+          const capacity = capacityByCenter.get(centerCode) ?? null;
+          if (capacity === null || capacity <= 0) continue;
+          if (!fits(used, `${centerCode}|${key}`, capacity)) {
+            ok = false;
+            break;
+          }
         }
-        if (day.getTime() > placed.getTime()) placed = day;
+        if (ok) {
+          for (const stageCode of stageCodes) {
+            const capacity = capacityByStage.get(stageCode)!;
+            if (!fits(usedStage, `${stageCode}|${key}`, capacity)) {
+              ok = false;
+              break;
+            }
+          }
+        }
+        if (ok) break;
+        placed = nextWorking(placed, calendar);
+        guard += 1;
       }
 
       for (const task of group) scheduledTasks.push({ id: task.id, plannedStart: placed });
@@ -147,6 +179,13 @@ export function autoSchedule(options: {
         const key = `${centerCode}|${dayKey(placed)}`;
         const nextUsed = (used.get(key) ?? 0) + canh;
         used.set(key, nextUsed);
+        if (nextUsed > capacity) overloadCells += 1;
+      }
+      for (const stageCode of stageCodes) {
+        const capacity = capacityByStage.get(stageCode)!;
+        const key = `${stageCode}|${dayKey(placed)}`;
+        const nextUsed = (usedStage.get(key) ?? 0) + canh;
+        usedStage.set(key, nextUsed);
         if (nextUsed > capacity) overloadCells += 1;
       }
 

@@ -226,11 +226,102 @@ function toneFor(canh: number, capacity: number | null, config: ProductionConfig
 }
 
 // ---------------------------------------------------------------------------
+// 3b) Tải theo CÔNG ĐOẠN (V139.1 — nhà máy muốn năng lực tách theo công đoạn)
+// ---------------------------------------------------------------------------
+
+export type StageLoadCell = {
+  workCenterCode: string;
+  stageCode: string;
+  stageName: string;
+  seq: number;
+  day: Date;
+  /** Số cánh quy đổi xếp vào công đoạn trong ngày (mỗi bộ đếm 1 lần). */
+  canh: number;
+  sets: number;
+  capacity: number | null;
+  capacityUnit: string;
+  /** Năng lực này khai ở CÔNG ĐOẠN hay kế thừa từ TỔ. */
+  capacitySource: "CONG_DOAN" | "TO" | "CHUA_KHAI";
+  ratio: number | null;
+  tone: "ok" | "warn" | "bad";
+};
+
+export type BuildStageLoadOptions = {
+  sets: ProductionSetRow[];
+  tasks: ProductionTaskRow[];
+  workCenters: ProductionWorkCenterRow[];
+  stages: ProductionStageRow[];
+  from: Date;
+  to: Date;
+  config: ProductionConfig;
+};
+
+/**
+ * Tải mỗi CÔNG ĐOẠN mỗi ngày. Năng lực dùng theo thứ tự:
+ *   1. `production_stages.capacity_per_day` (khai riêng cho công đoạn — V139.1)
+ *   2. `production_work_centers.capacity_per_day` (năng lực tổ)
+ *   3. không khai → chỉ so với ngưỡng toàn xưởng.
+ * Bỏ công đoạn CHỜ và công đoạn BO_QUA. Một bộ chỉ đếm 1 lần cho mỗi công đoạn/ngày.
+ */
+export function buildStageLoad({ sets, tasks, workCenters, stages, from, to, config }: BuildStageLoadOptions): StageLoadCell[] {
+  const setById = new Map(sets.map((set) => [set.id, set]));
+  const centerByCode = new Map(workCenters.map((center) => [center.code, center]));
+  const stageByCode = new Map(stages.map((stage) => [stage.code, stage]));
+  const fromDay = startOfDayUtc(from).getTime();
+  const toDay = startOfDayUtc(to).getTime();
+
+  const bucket = new Map<string, { day: Date; stageCode: string; setIds: Set<number>; canh: number }>();
+  for (const task of tasks) {
+    if (task.status === "BO_QUA" || task.stageKind === "CHO") continue;
+    if (!task.plannedStart) continue;
+    const day = startOfDayUtc(task.plannedStart);
+    if (day.getTime() < fromDay || day.getTime() > toDay) continue;
+    const set = setById.get(task.setId);
+    if (!set) continue;
+
+    const key = `${task.stageCode}|${dateKeyUtc(day)}`;
+    const current = bucket.get(key) ?? { day, stageCode: task.stageCode, setIds: new Set<number>(), canh: 0 };
+    if (current.setIds.has(set.id)) continue;
+    current.setIds.add(set.id);
+    current.canh += canhEquivalentOf(set);
+    bucket.set(key, current);
+  }
+
+  const cells: StageLoadCell[] = [];
+  for (const entry of bucket.values()) {
+    const stage = stageByCode.get(entry.stageCode);
+    const center = stage?.workCenterCode ? centerByCode.get(stage.workCenterCode) : undefined;
+    const stageCapacity = stage?.capacityPerDay && stage.capacityPerDay > 0 ? stage.capacityPerDay : null;
+    const centerCapacity = center?.capacityPerDay && center.capacityPerDay > 0 ? center.capacityPerDay : null;
+    const capacity = stageCapacity ?? centerCapacity;
+    const capacitySource: StageLoadCell["capacitySource"] = stageCapacity ? "CONG_DOAN" : centerCapacity ? "TO" : "CHUA_KHAI";
+    cells.push({
+      workCenterCode: stage?.workCenterCode ?? "",
+      stageCode: entry.stageCode,
+      stageName: stage?.name ?? entry.stageCode,
+      seq: stage?.seq ?? 0,
+      day: entry.day,
+      canh: entry.canh,
+      sets: entry.setIds.size,
+      capacity,
+      capacityUnit: stage?.capacityUnit ?? center?.capacityUnit ?? "CANH",
+      capacitySource,
+      ratio: capacity && capacity > 0 ? entry.canh / capacity : null,
+      tone: toneFor(entry.canh, capacity, config),
+    });
+  }
+
+  return cells.sort(
+    (a, b) => a.day.getTime() - b.day.getTime() || a.seq - b.seq || a.stageCode.localeCompare(b.stageCode),
+  );
+}
+
+// ---------------------------------------------------------------------------
 // 4) Cảnh báo (KH29 — chỉ 2 loại nhà máy cần, cộng vài cảnh báo phụ có sẵn dữ liệu)
 // ---------------------------------------------------------------------------
 
 export type ProductionWarning = {
-  kind: "QUA_TAI_TO" | "SAP_TRE" | "CHUA_DU_THONG_TIN" | "CHUA_CO_CHUONG_TRINH" | "MAY_DUNG";
+  kind: "QUA_TAI_TO" | "QUA_TAI_CONG_DOAN" | "SAP_TRE" | "CHUA_DU_THONG_TIN" | "CHUA_CO_CHUONG_TRINH" | "MAY_DUNG";
   level: "warn" | "bad";
   title: string;
   detail: string;
@@ -245,6 +336,8 @@ export type BuildWarningsOptions = {
   config: ProductionConfig;
   calendar: WorkingCalendar;
   loadCells: LoadCell[];
+  /** V139.1 — tải theo công đoạn (chỉ để cảnh báo công đoạn có năng lực khai riêng bị vượt). */
+  stageLoadCells?: StageLoadCell[];
   today: Date;
   /** Model đã có chương trình máy cắt. */
   modelsWithProgram: Set<string>;
@@ -253,7 +346,7 @@ export type BuildWarningsOptions = {
 };
 
 export function buildWarnings(options: BuildWarningsOptions): ProductionWarning[] {
-  const { sets, tasks, stages, config, calendar, loadCells, today, modelsWithProgram, openDowntimes = [] } = options;
+  const { sets, tasks, stages, config, calendar, loadCells, stageLoadCells = [], today, modelsWithProgram, openDowntimes = [] } = options;
   const todayStart = startOfDayUtc(today);
   const warnings: ProductionWarning[] = [];
 
@@ -272,6 +365,20 @@ export function buildWarnings(options: BuildWarningsOptions): ProductionWarning[
         ? `Toàn xưởng quá tải ngày ${formatDay(cell.day)}`
         : `Tổ ${cell.workCenterName} quá tải ngày ${formatDay(cell.day)}`,
       detail: `${Math.round(cell.canh)} cánh / năng lực ${capacityText} (${cell.sets} bộ)`,
+    });
+  }
+
+  // --- 4.1b Quá tải CÔNG ĐOẠN (V139.1: công đoạn có năng lực khai riêng) ---
+  const stageOverloads = stageLoadCells
+    .filter((cell) => cell.tone !== "ok" && cell.capacitySource === "CONG_DOAN")
+    .sort((a, b) => (b.ratio ?? 0) - (a.ratio ?? 0))
+    .slice(0, 10);
+  for (const cell of stageOverloads) {
+    warnings.push({
+      kind: "QUA_TAI_CONG_DOAN",
+      level: cell.tone === "bad" ? "bad" : "warn",
+      title: `Công đoạn ${cell.stageName} quá tải ngày ${formatDay(cell.day)}`,
+      detail: `${Math.round(cell.canh)} cánh / năng lực công đoạn ${Math.round(cell.capacity!)} ${cell.capacityUnit} (${cell.sets} bộ)`,
     });
   }
 

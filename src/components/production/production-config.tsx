@@ -309,6 +309,8 @@ const STAGE_FIELDS: FieldSpec[] = [
   { key: "scopeParts", label: "Bộ phận", placeholder: "KHUNG,CANH,PHAO", width: "140px" },
   { key: "workCenterCode", label: "Tổ", width: "100px" },
   { key: "leadTimeHours", label: "Giờ", type: "number", width: "65px" },
+  { key: "capacityPerDay", label: "Năng lực/ngày", type: "number", width: "105px" },
+  { key: "capacityUnit", label: "ĐV", width: "60px" },
   { key: "setupMinutes", label: "Setup (phút)", type: "number", width: "90px" },
   { key: "batchKey", label: "Gom lô theo", placeholder: "MAU_SON", width: "105px" },
   { key: "batchMinQty", label: "Lô tối thiểu", type: "number", width: "90px" },

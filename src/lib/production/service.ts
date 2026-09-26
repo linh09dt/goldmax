@@ -735,7 +735,11 @@ export type AutoScheduleSummary = {
  */
 export async function applyAutoSchedule(options: { from?: Date; rescheduleAll?: boolean } = {}): Promise<AutoScheduleSummary> {
   const config = await readProductionConfig();
-  const [workCenters, calendar] = await Promise.all([loadActiveWorkCenters(), loadCalendar(config)]);
+  const [workCenters, calendar, stages] = await Promise.all([
+    loadActiveWorkCenters(),
+    loadCalendar(config),
+    loadActiveStages(),
+  ]);
 
   const sets = await prisma.productionSet.findMany({
     where: {
@@ -751,6 +755,7 @@ export async function applyAutoSchedule(options: { from?: Date; rescheduleAll?: 
   const result = autoSchedule({
     sets: sets as unknown as Array<ProductionSetRow & { tasks: ProductionTaskRow[] }>,
     workCenters,
+    stages,
     config,
     calendar,
     startDate: options.from ? startOfDayUtc(options.from) : startOfDayUtc(new Date()),

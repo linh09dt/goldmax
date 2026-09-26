@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Fragment } from "react";
 import { ErpShell } from "@/components/erp-shell";
 import { ReportCard, ReportKpi, reportKpiGrid } from "@/components/reports/report-ui";
 import { formatDate, formatNumber } from "@/components/order-list/format";
@@ -15,6 +16,7 @@ import {
 import {
   ALL_WORKSHOP,
   buildProductionSummary,
+  buildStageLoad,
   buildWarnings,
   buildWorkCenterLoad,
   missingInfoForPlanning,
@@ -76,7 +78,8 @@ export default async function ProductionPlanPage({ searchParams }: { searchParam
 
   const { sets, tasks, workCenters, stages, config, calendar, programModels } = board;
   const loadCells = buildWorkCenterLoad({ sets, tasks, workCenters, from, to, config });
-  const warnings = buildWarnings({ sets, tasks, stages, config, calendar, loadCells, today, modelsWithProgram: programModels });
+  const stageLoadCells = buildStageLoad({ sets, tasks, workCenters, stages, from, to, config });
+  const warnings = buildWarnings({ sets, tasks, stages, config, calendar, loadCells, stageLoadCells, today, modelsWithProgram: programModels });
   const summary = buildProductionSummary(sets, tasks);
 
   const dayList = eachDay(from, to);
@@ -87,6 +90,26 @@ export default async function ProductionPlanPage({ searchParams }: { searchParam
   const cellAt = (centerCode: string, day: Date) =>
     loadCells.find((cell) => cell.workCenterCode === centerCode && cell.day.getTime() === day.getTime());
   const workshopAt = (day: Date) => cellAt(ALL_WORKSHOP, day);
+
+  // V139.1 — dòng con theo CÔNG ĐOẠN dưới mỗi tổ (chỉ hiện công đoạn có việc trong khoảng đang xem).
+  const stageCellAt = (stageCode: string, day: Date) =>
+    stageLoadCells.find((cell) => cell.stageCode === stageCode && cell.day.getTime() === day.getTime());
+  const stageRowsForCenter = (centerCode: string) => {
+    const center = workCenters.find((row) => row.code === centerCode);
+    return stages
+      .filter((stage) => stage.workCenterCode === centerCode && stage.kind !== "CHO")
+      .filter((stage) => stageLoadCells.some((cell) => cell.stageCode === stage.code))
+      .map((stage) => {
+        const own = stage.capacityPerDay && stage.capacityPerDay > 0 ? stage.capacityPerDay : null;
+        return {
+          stageCode: stage.code,
+          stageName: stage.name,
+          capacity: own ?? center?.capacityPerDay ?? null,
+          capacityUnit: stage.capacityUnit || center?.capacityUnit || "CANH",
+          capacitySource: own ? ("CONG_DOAN" as const) : ("TO" as const),
+        };
+      });
+  };
 
   const tasksBySet = new Map<number, ProductionTaskRow[]>();
   for (const task of tasks) {
@@ -200,7 +223,7 @@ export default async function ProductionPlanPage({ searchParams }: { searchParam
 
         <ReportCard
           title="Tải theo tổ và ngày"
-          hint="Mỗi bộ chỉ đếm 1 lần cho mỗi tổ trong ngày, dù đi qua nhiều công đoạn của tổ đó. Đỏ = vượt năng lực, vàng = trên 85%."
+          hint="Mỗi bộ chỉ đếm 1 lần cho mỗi tổ trong ngày, dù đi qua nhiều công đoạn của tổ đó. Dòng ↳ là từng CÔNG ĐOẠN — năng lực khai riêng theo công đoạn, để trống thì lấy theo tổ. Đỏ = vượt năng lực, vàng = trên 85%."
           right={`${formatNumber(days)} ngày`}
         >
           <div className="mb-2 flex flex-wrap items-center gap-2 text-[12px]">
@@ -246,29 +269,50 @@ export default async function ProductionPlanPage({ searchParams }: { searchParam
               </thead>
               <tbody>
                 {centerRows.map((center) => (
-                  <tr key={center.code}>
-                    <td className="erp-td-strong">
-                      <div>{center.name}</div>
-                      <div className="text-[11px] font-normal text-slate-500">
-                        Năng lực: {center.capacityPerDay ? `${formatNumber(center.capacityPerDay)} ${center.capacityUnit}/ngày` : "chưa khai"}
-                      </div>
-                    </td>
-                    {dayList.map((day) => {
-                      const cell = cellAt(center.code, day);
-                      return (
-                        <td key={day.toISOString()} className={`text-center tabular-nums ${cell ? TONE_CELL[cell.tone] : "text-slate-300"}`}>
-                          {cell ? (
-                            <div>
-                              <div>{formatNumber(cell.canh)}</div>
-                              <div className="text-[10px] opacity-70">{cell.sets} bộ</div>
-                            </div>
-                          ) : (
-                            "—"
-                          )}
+                  <Fragment key={center.code}>
+                    <tr>
+                      <td className="erp-td-strong">
+                        <div>{center.name}</div>
+                        <div className="text-[11px] font-normal text-slate-500">
+                          Năng lực tổ: {center.capacityPerDay ? `${formatNumber(center.capacityPerDay)} ${center.capacityUnit}/ngày` : "chưa khai"}
+                        </div>
+                      </td>
+                      {dayList.map((day) => {
+                        const cell = cellAt(center.code, day);
+                        return (
+                          <td key={day.toISOString()} className={`text-center tabular-nums ${cell ? TONE_CELL[cell.tone] : "text-slate-300"}`}>
+                            {cell ? (
+                              <div>
+                                <div>{formatNumber(cell.canh)}</div>
+                                <div className="text-[10px] opacity-70">{cell.sets} bộ</div>
+                              </div>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                    {stageRowsForCenter(center.code).map((stageRow) => (
+                      <tr key={`${center.code}-${stageRow.stageCode}`} className="bg-slate-50/70">
+                        <td className="pl-5 text-[12px] text-slate-600">
+                          <div>↳ {stageRow.stageName}</div>
+                          <div className="text-[10.5px] text-slate-500">
+                            Năng lực: {stageRow.capacity ? `${formatNumber(stageRow.capacity)} ${stageRow.capacityUnit}/ngày` : "theo tổ"}
+                            {stageRow.capacitySource === "CONG_DOAN" ? " (khai riêng)" : ""}
+                          </div>
                         </td>
-                      );
-                    })}
-                  </tr>
+                        {dayList.map((day) => {
+                          const cell = stageCellAt(stageRow.stageCode, day);
+                          return (
+                            <td key={day.toISOString()} className={`text-center text-[11.5px] tabular-nums ${cell ? TONE_CELL[cell.tone] : "text-slate-300"}`}>
+                              {cell ? formatNumber(cell.canh) : "—"}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </Fragment>
                 ))}
                 <tr className="border-t-2 border-slate-300">
                   <td className="erp-td-strong">
