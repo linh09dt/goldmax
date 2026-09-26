@@ -239,16 +239,17 @@ export default async function Home({ searchParams }: { searchParams: Promise<Das
     >
       <div className="space-y-3">
         {/* Bộ lọc dùng chung cho cả trang */}
-        <section className="erp-card p-2.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex flex-wrap items-center gap-1">
+        <section className="erp-card flex flex-nowrap items-end gap-2 px-2.5 py-2">
+          {/* V130.1: 1 DÒNG — vùng ô lọc cuộn ngang, nút ghim bên phải luôn hiển thị. */}
+          <div className="erp-scrollbar flex min-w-0 flex-1 flex-nowrap items-end gap-2 overflow-x-auto pb-0.5">
+            <div className="flex shrink-0 items-center gap-1">
               {RANGE_PRESETS.map((presetItem) => {
                 const active = rangeKey === presetItem.value;
                 return (
                   <Link
                     key={presetItem.value}
                     href={`/${queryString(query, { range: presetItem.value, from: "", to: "" })}`}
-                    className={`inline-flex h-7 items-center rounded-md border px-2.5 text-[11.5px] font-semibold transition ${
+                    className={`inline-flex h-8 items-center whitespace-nowrap rounded-md border px-2.5 text-[11.5px] font-semibold transition ${
                       active ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
                     }`}
                   >
@@ -257,33 +258,35 @@ export default async function Home({ searchParams }: { searchParams: Promise<Das
                 );
               })}
             </div>
-            <form className="flex flex-wrap items-center gap-2" action="/" method="get">
+            <form id="dashboard-filter" className="flex min-w-max flex-nowrap items-end gap-2" action="/" method="get">
               <input type="hidden" name="range" value={rangeKey === "all" ? "all" : "custom"} />
-              <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Từ</label>
-              <input className={selectClass} style={{ width: 132 }} type="date" name="from" defaultValue={from} />
-              <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Đến</label>
-              <input className={selectClass} style={{ width: 132 }} type="date" name="to" defaultValue={to} />
-              <select className={selectClass} style={{ width: 170 }} name="dealer" defaultValue={clean(query.dealer)}>
+              <label className="shrink-0 self-center whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-slate-500">Từ</label>
+              <input className={selectClass} style={{ width: 118 }} type="date" name="from" defaultValue={from} />
+              <label className="shrink-0 self-center whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-slate-500">Đến</label>
+              <input className={selectClass} style={{ width: 118 }} type="date" name="to" defaultValue={to} />
+              <select className={selectClass} style={{ width: 160 }} name="dealer" defaultValue={clean(query.dealer)}>
                 <option value="">Tất cả đại lý</option>
                 {dealerOptions.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
-              <select className={selectClass} style={{ width: 140 }} name="type" defaultValue={typeFilter}>
+              <select className={selectClass} style={{ width: 132 }} name="type" defaultValue={typeFilter}>
                 <option value="">Tất cả loại đơn</option>
                 {ORDER_TYPE_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
-              <select className={selectClass} style={{ width: 130 }} name="status" defaultValue={statusFilter}>
+              <select className={selectClass} style={{ width: 124 }} name="status" defaultValue={statusFilter}>
                 <option value="">Cả 2 trạng thái</option>
                 <option value="DA_XAC_NHAN">Đã xác nhận</option>
                 <option value="NHAP">Đơn nháp</option>
               </select>
-              <button className="erp-button h-8 px-3 text-[11.5px]" type="submit">Lọc</button>
-              <Link className="erp-button-secondary h-8 px-3 text-[11.5px]" href="/">Xoá lọc</Link>
-              <Link className="erp-button-secondary h-8 px-3 text-[11.5px]" href={ordersHref}>Mở trong Quản lý đơn hàng</Link>
             </form>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <button className="erp-button h-8 whitespace-nowrap px-3 text-[11.5px]" type="submit" form="dashboard-filter">Lọc</button>
+            <Link className="erp-button-secondary flex h-8 items-center whitespace-nowrap px-3 text-[11.5px]" href="/">Xoá lọc</Link>
+            <Link className="erp-button-secondary flex h-8 items-center whitespace-nowrap px-3 text-[11.5px]" href={ordersHref}>Mở trong Quản lý đơn hàng</Link>
           </div>
         </section>
 

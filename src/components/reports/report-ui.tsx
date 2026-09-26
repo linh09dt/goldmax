@@ -7,6 +7,9 @@ import type { FilterOption } from "@/lib/report-data";
 /**
  * V130 — Thành phần trình bày dùng chung cho nhóm trang BÁO CÁO.
  * Chỉ nhận số liệu đã tính sẵn (thuần hiển thị), không truy vấn DB.
+ *
+ * V130.1: thanh lọc của MỌI trang báo cáo được gom về ĐÚNG 1 DÒNG
+ * (flex-nowrap + cuộn ngang khi màn hình hẹp) — gồm cả nút Lọc / Xoá lọc / Xuất Excel.
  */
 
 export type KpiTone = "neutral" | "good" | "warn" | "bad";
@@ -104,20 +107,21 @@ export function ReportFilterBar({
   action: string;
 }) {
   const show = (key: FieldKey) => fields.includes(key);
-  const selectClass = "erp-input h-9";
+  const inputClass = "erp-input h-9";
+  const labelClass = "block whitespace-nowrap text-[10px] font-bold uppercase tracking-wide text-slate-500";
 
   return (
-    <form method="GET" action={action} className="erp-card px-3 py-3">
-      <div className="grid grid-cols-1 items-end gap-x-3 gap-y-2.5 sm:grid-cols-2 xl:grid-cols-12">
+    <form method="GET" action={action} className="erp-card flex flex-nowrap items-end gap-2 px-3 py-2.5">
+      <div className="erp-scrollbar flex min-w-0 flex-1 flex-nowrap items-end gap-2 overflow-x-auto pb-0.5">
         {show("range") ? (
-          <div className="xl:col-span-12 flex flex-wrap items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1">
             {ORDER_LIST_PRESETS.map((preset) => {
               const active = query.range === preset.value;
               return (
                 <Link
                   key={preset.value}
                   href={`${action}${buildOrderListQueryString({ ...query, range: preset.value, from: "", to: "" })}`}
-                  className={`inline-flex h-7 items-center rounded-md border px-2.5 text-[11.5px] font-semibold transition ${
+                  className={`inline-flex h-9 items-center whitespace-nowrap rounded-md border px-2.5 text-[11.5px] font-semibold transition ${
                     active ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
                   }`}
                 >
@@ -125,34 +129,33 @@ export function ReportFilterBar({
                 </Link>
               );
             })}
-            {query.range && query.from ? <span className="text-[10.5px] text-slate-500">Đang lọc: {query.from} → {query.to}</span> : null}
           </div>
         ) : null}
 
         {show("fromto") ? (
           <>
-            <label className="xl:col-span-2">
-              <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Từ ngày</span>
-              <input className={`${selectClass} mt-1`} type="date" name="from" defaultValue={query.from ?? ""} />
+            <label className="shrink-0">
+              <span className={labelClass}>Từ ngày</span>
+              <input className={`${inputClass} mt-1`} style={{ width: 118 }} type="date" name="from" defaultValue={query.from ?? ""} />
             </label>
-            <label className="xl:col-span-2">
-              <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Đến ngày</span>
-              <input className={`${selectClass} mt-1`} type="date" name="to" defaultValue={query.to ?? ""} />
+            <label className="shrink-0">
+              <span className={labelClass}>Đến ngày</span>
+              <input className={`${inputClass} mt-1`} style={{ width: 118 }} type="date" name="to" defaultValue={query.to ?? ""} />
             </label>
           </>
         ) : null}
 
         {show("q") ? (
-          <label className="xl:col-span-3">
-            <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Tìm nhanh</span>
-            <input className={`${selectClass} mt-1`} type="search" name="q" defaultValue={query.q ?? ""} placeholder="Mã đơn, khách hàng, SĐT…" />
+          <label className="shrink-0">
+            <span className={labelClass}>Tìm nhanh</span>
+            <input className={`${inputClass} mt-1`} style={{ width: 170 }} type="search" name="q" defaultValue={query.q ?? ""} placeholder="Mã đơn, khách hàng, SĐT…" />
           </label>
         ) : null}
 
         {show("dealer") ? (
-          <label className="xl:col-span-3">
-            <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Đại lý</span>
-            <select className={`${selectClass} mt-1`} name="dealer" defaultValue={query.dealer ?? ""}>
+          <label className="shrink-0">
+            <span className={labelClass}>Đại lý</span>
+            <select className={`${inputClass} mt-1`} style={{ width: 165 }} name="dealer" defaultValue={query.dealer ?? ""}>
               <option value="">Tất cả đại lý</option>
               {options.dealers.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
@@ -162,9 +165,9 @@ export function ReportFilterBar({
         ) : null}
 
         {show("sales") ? (
-          <label className="xl:col-span-2">
-            <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Nhân viên Sales</span>
-            <select className={`${selectClass} mt-1`} name="sales" defaultValue={query.sales ?? ""}>
+          <label className="shrink-0">
+            <span className={labelClass}>Nhân viên Sales</span>
+            <select className={`${inputClass} mt-1`} style={{ width: 115 }} name="sales" defaultValue={query.sales ?? ""}>
               <option value="">Tất cả NVKD</option>
               {options.sales.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
@@ -174,9 +177,9 @@ export function ReportFilterBar({
         ) : null}
 
         {show("region") ? (
-          <label className="xl:col-span-2">
-            <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Vùng miền</span>
-            <select className={`${selectClass} mt-1`} name="region" defaultValue={query.region ?? ""}>
+          <label className="shrink-0">
+            <span className={labelClass}>Vùng miền</span>
+            <select className={`${inputClass} mt-1`} style={{ width: 120 }} name="region" defaultValue={query.region ?? ""}>
               <option value="">Tất cả vùng</option>
               {options.regions.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
@@ -186,9 +189,9 @@ export function ReportFilterBar({
         ) : null}
 
         {show("type") ? (
-          <label className="xl:col-span-2">
-            <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Loại đơn</span>
-            <select className={`${selectClass} mt-1`} name="type" defaultValue={query.type ?? ""}>
+          <label className="shrink-0">
+            <span className={labelClass}>Loại đơn</span>
+            <select className={`${inputClass} mt-1`} style={{ width: 130 }} name="type" defaultValue={query.type ?? ""}>
               <option value="">Tất cả loại đơn</option>
               {ORDER_TYPE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
@@ -198,9 +201,9 @@ export function ReportFilterBar({
         ) : null}
 
         {show("state") ? (
-          <label className="xl:col-span-2">
-            <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Trạng thái</span>
-            <select className={`${selectClass} mt-1`} name="state" defaultValue={query.state ?? ""}>
+          <label className="shrink-0">
+            <span className={labelClass}>Trạng thái</span>
+            <select className={`${inputClass} mt-1`} style={{ width: 130 }} name="state" defaultValue={query.state ?? ""}>
               {ORDER_LIST_STATE_FILTERS.map((option) => (
                 <option key={option.value} value={option.value === "all" ? "" : option.value}>{option.label}</option>
               ))}
@@ -208,18 +211,18 @@ export function ReportFilterBar({
           </label>
         ) : null}
 
-        <div className="flex flex-wrap items-center gap-2 sm:col-span-2 xl:col-span-6 xl:justify-end">
-          <button type="submit" className="erp-button h-9 px-3.5 text-[12px]">Lọc</button>
-          <Link className="erp-button-secondary flex h-9 items-center px-3.5 text-[12px]" href={action}>Xoá lọc</Link>
-          {exportHref ? (
-            <a
-              className="inline-flex h-9 items-center rounded-lg border border-emerald-700 bg-emerald-600 px-3.5 text-[12px] font-semibold text-white transition hover:bg-emerald-500"
-              href={exportHref}
-            >
-              ⤓ Xuất Excel
-            </a>
-          ) : null}
-        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <button type="submit" className="erp-button h-9 whitespace-nowrap px-3.5 text-[12px]">Lọc</button>
+        <Link className="erp-button-secondary flex h-9 items-center whitespace-nowrap px-3.5 text-[12px]" href={action}>Xoá lọc</Link>
+        {exportHref ? (
+          <a
+            className="inline-flex h-9 items-center whitespace-nowrap rounded-lg border border-emerald-700 bg-emerald-600 px-3.5 text-[12px] font-semibold text-white transition hover:bg-emerald-500"
+            href={exportHref}
+          >
+            ⤓ Xuất Excel
+          </a>
+        ) : null}
       </div>
     </form>
   );

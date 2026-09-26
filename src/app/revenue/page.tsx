@@ -190,46 +190,47 @@ export default async function RevenuePage({
   return (
     <ErpShell title="Theo dõi doanh thu">
       {/* V106: thanh lọc xếp theo lưới 12 cột, cùng kiểu với tab Quản lý đơn hàng. */}
-      <form method="GET" className="erp-card mt-5 px-3 py-3">
-        <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2 xl:grid-cols-12">
-          <FilterField className="xl:col-span-2" label="Ngày">
-            <input className="erp-input mt-1 h-9" type="date" name="date" defaultValue={clean(query.date)} />
+      <form method="GET" className="erp-card mt-5 flex flex-nowrap items-end gap-2 px-3 py-2.5">
+        {/* V130.1: bộ lọc gọn trên ĐÚNG 1 DÒNG; nút Lọc / Xoá lọc / Xuất Excel được ghim bên phải, luôn hiển thị. */}
+        <div className="erp-scrollbar flex min-w-0 flex-1 flex-nowrap items-end gap-2 overflow-x-auto pb-0.5">
+          <FilterField className="shrink-0" label="Ngày">
+            <input className="erp-input mt-1 h-9" style={{ width: 118 }} type="date" name="date" defaultValue={clean(query.date)} />
           </FilterField>
-          <FilterField className="xl:col-span-2" label="Tháng">
-            <input className="erp-input mt-1 h-9" type="month" name="month" defaultValue={clean(query.month)} />
+          <FilterField className="shrink-0" label="Tháng">
+            <input className="erp-input mt-1 h-9" style={{ width: 110 }} type="month" name="month" defaultValue={clean(query.month)} />
           </FilterField>
-          <FilterField className="xl:col-span-2" label="Năm">
-            <input className="erp-input mt-1 h-9" type="number" name="year" min={2000} max={2100} inputMode="numeric" defaultValue={clean(query.year)} />
+          <FilterField className="shrink-0" label="Năm">
+            <input className="erp-input mt-1 h-9" style={{ width: 72 }} type="number" name="year" min={2000} max={2100} inputMode="numeric" defaultValue={clean(query.year)} />
           </FilterField>
-          <FilterField className="xl:col-span-3" label="Từ ngày">
-            <input className="erp-input mt-1 h-9" type="date" name="from" defaultValue={clean(query.from)} />
+          <FilterField className="shrink-0" label="Từ ngày">
+            <input className="erp-input mt-1 h-9" style={{ width: 118 }} type="date" name="from" defaultValue={clean(query.from)} />
           </FilterField>
-          <FilterField className="xl:col-span-3" label="Đến ngày">
-            <input className="erp-input mt-1 h-9" type="date" name="to" defaultValue={clean(query.to)} />
+          <FilterField className="shrink-0" label="Đến ngày">
+            <input className="erp-input mt-1 h-9" style={{ width: 118 }} type="date" name="to" defaultValue={clean(query.to)} />
           </FilterField>
-          <FilterField className="xl:col-span-3" label="Đại lý">
-            <select className="erp-input mt-1 h-9" name="dealer" defaultValue={clean(query.dealer)}>
+          <FilterField className="shrink-0" label="Đại lý">
+            <select className="erp-input mt-1 h-9" style={{ width: 160 }} name="dealer" defaultValue={clean(query.dealer)}>
               <option value="">Tất cả đại lý</option>
               {dealers.map((dealer) => (
                 <option key={dealer.value} value={dealer.value}>{dealer.label}</option>
               ))}
             </select>
           </FilterField>
-          <FilterField className="xl:col-span-3" label="Khách hàng">
-            <select className="erp-input mt-1 h-9" name="customer" defaultValue={customerFilter}>
+          <FilterField className="shrink-0" label="Khách hàng">
+            <select className="erp-input mt-1 h-9" style={{ width: 160 }} name="customer" defaultValue={customerFilter}>
               <option value="">Tất cả khách hàng</option>
               {customers.map((customer) => (
                 <option key={customer} value={customer}>{customer}</option>
               ))}
             </select>
           </FilterField>
-          <div className="flex flex-wrap items-center gap-2 self-end sm:col-span-2 xl:col-span-6 xl:justify-end">
-            <button type="submit" className="erp-button h-9 px-3.5 text-[12px]">Lọc</button>
-            <Link className="erp-button-secondary flex h-9 items-center px-3.5 text-[12px]" href="/revenue">Xoá lọc</Link>
-            <a className="inline-flex h-9 items-center rounded-lg border border-emerald-700 bg-emerald-600 px-3.5 text-[12px] font-semibold text-white transition hover:bg-emerald-500" href={buildRevenueExportHref(query)}>
-              ⤓ Xuất Excel doanh thu
-            </a>
-          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <button type="submit" className="erp-button h-9 whitespace-nowrap px-3.5 text-[12px]">Lọc</button>
+          <Link className="erp-button-secondary flex h-9 items-center whitespace-nowrap px-3.5 text-[12px]" href="/revenue">Xoá lọc</Link>
+          <a className="inline-flex h-9 items-center whitespace-nowrap rounded-lg border border-emerald-700 bg-emerald-600 px-3.5 text-[12px] font-semibold text-white transition hover:bg-emerald-500" href={buildRevenueExportHref(query)}>
+            ⤓ Xuất Excel
+          </a>
         </div>
       </form>
 
@@ -438,8 +439,8 @@ function RevenueOrderRows({
 
 function FilterField({ label, className = "", children }: { label: string; className?: string; children: React.ReactNode }) {
   return (
-    <label className={`min-w-0 ${className}`}>
-      <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</span>
+    <label className={className}>
+      <span className="block whitespace-nowrap text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</span>
       {children}
     </label>
   );
