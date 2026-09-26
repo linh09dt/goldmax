@@ -88,9 +88,40 @@ export type ProductImagePlacement = {
   tl: { nativeCol: number; nativeColOff: number; nativeRow: number; nativeRowOff: number };
 };
 
+/** V131: giới hạn kích thước ảnh chỉnh tay (px) — khớp với validate ở server. */
+export const MANUAL_IMAGE_MIN_PX = 24;
+export const MANUAL_IMAGE_MAX_PX = 800;
+
+function manualPx(value: unknown): number | null {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return null;
+  const rounded = Math.round(number);
+  if (rounded < MANUAL_IMAGE_MIN_PX || rounded > MANUAL_IMAGE_MAX_PX) return null;
+  return rounded;
+}
+
+/**
+ * V131: bề rộng cột ảnh (đơn vị ký tự của ExcelJS) đủ chứa ảnh chỉnh tay lớn nhất.
+ * Trả về bề rộng mặc định nếu mọi ảnh đều dùng chế độ tự động.
+ */
+export function imageColumnWidthFor(manualWidthsPx: Array<number | null | undefined>, defaultWidth: number, maxPx = 420) {
+  const widest = manualWidthsPx.reduce<number>((max, value) => {
+    const size = manualPx(value);
+    return size && size > max ? size : max;
+  }, 0);
+  if (!widest) return defaultWidth;
+  const capped = Math.min(widest, maxPx);
+  // Nghịch đảo của columnWidthToPx (px = width * 7 + 5).
+  const chars = Math.ceil((capped + 8 - 5) / 7);
+  return Math.max(defaultWidth, chars);
+}
+
 /**
  * Tính chỗ đặt ảnh sản phẩm trong ô (cột ảnh đã merge theo bộ cửa).
  * `aspect` = chiều rộng / chiều cao thật của ảnh (không đọc được thì dùng 5/3).
+ *
+ * V131: nếu `manualWidth`/`manualHeight` được truyền (người dùng đã chỉnh tay) thì dùng
+ * ĐÚNG kích thước đó thay vì tự co giãn vừa ô — chỉ nới chiều cao dòng đầu cho đủ chứa.
  */
 export function fitProductImageInCell(options: {
   ws: Worksheet;
@@ -101,12 +132,41 @@ export function fitProductImageInCell(options: {
   aspect: number;
   paddingPx?: number;
   maxFirstRowHeightPx?: number;
+  manualWidth?: number | null;
+  manualHeight?: number | null;
 }): ProductImagePlacement {
   const padding = options.paddingPx ?? 4;
-  const maxFirstRowPx = options.maxFirstRowHeightPx ?? 90;
   const aspect = Number.isFinite(options.aspect) && options.aspect > 0.05 ? options.aspect : 5 / 3;
-
   const columnPx = columnWidthToPx(options.columnWidth);
+  const manualWidth = manualPx(options.manualWidth);
+  const manualHeight = manualPx(options.manualHeight);
+
+  if (manualWidth && manualHeight) {
+    const width = manualWidth;
+    const height = manualHeight;
+    const blockPx = growFirstRowToFit(
+      options.ws,
+      options.firstRow,
+      options.lastRow,
+      height + padding * 2,
+      Math.max(options.maxFirstRowHeightPx ?? 90, height + padding * 2),
+    );
+    const offsetX = Math.max(0, (columnPx - width) / 2);
+    const offsetY = Math.max(0, (blockPx - height) / 2);
+    const anchor = rowAnchorAt(options.ws, options.firstRow, options.lastRow, offsetY);
+    return {
+      width,
+      height,
+      tl: {
+        nativeCol: options.columnIndex,
+        nativeColOff: Math.round(offsetX * EMU_PER_PX),
+        nativeRow: anchor.row - 1,
+        nativeRowOff: Math.round(anchor.offsetPx * EMU_PER_PX),
+      },
+    };
+  }
+
+  const maxFirstRowPx = options.maxFirstRowHeightPx ?? 90;
   const availableWidth = Math.max(24, columnPx - padding * 2);
 
   // 1) Nới dòng đầu nếu khối chưa đủ cao cho ảnh rộng hết ô.

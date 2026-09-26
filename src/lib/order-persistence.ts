@@ -27,6 +27,9 @@ export type NormalizedOrderLine = {
   amount: number | null;
   note: string | null;
   imagePath: string | null;
+  /** V131: kích thước ảnh SP do người dùng chỉnh tay (px). null = tự động vừa ô. */
+  imageWidth: number | null;
+  imageHeight: number | null;
   modelCheck: string | null;
   priceCheck: string | null;
 };
@@ -242,9 +245,22 @@ function normalizeLine(row: UnknownRecord): NormalizedOrderLine {
     amount: nonNegativeNumber(row.amount),
     note: optionalText(row.note),
     imagePath: optionalText(row.imagePath),
+    imageWidth: imageSizeOrNull(row.imageWidth),
+    imageHeight: imageSizeOrNull(row.imageHeight),
     modelCheck: optionalText(row.modelCheck),
     priceCheck: optionalText(row.priceCheck),
   };
+}
+
+/** V131: kích thước ảnh chỉ nhận trong khoảng hợp lý (px) để file xuất không bị vỡ bố cục. */
+export const IMAGE_SIZE_MIN_PX = 24;
+export const IMAGE_SIZE_MAX_PX = 800;
+
+function imageSizeOrNull(value: unknown) {
+  const parsed = integerOrNull(value);
+  if (parsed === null) return null;
+  if (parsed < IMAGE_SIZE_MIN_PX || parsed > IMAGE_SIZE_MAX_PX) return null;
+  return parsed;
 }
 
 function resolvedAmount(line: NormalizedOrderLine) {

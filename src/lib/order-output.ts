@@ -98,6 +98,37 @@ export function cleanText(value: unknown): string | null {
   return text;
 }
 
+/**
+ * V131: dòng đang cung cấp ảnh cho cả bộ cửa — ưu tiên dòng cửa (ảnh của bộ),
+ * chưa có thì dòng chi tiết/phụ kiện đầu tiên có ảnh (đúng quy tắc chọn ảnh của V109).
+ */
+export function groupImageSourceRow(group: OutputGroup): OutputLine | null {
+  if (cleanText(group.imagePath)) {
+    const main = group.rows.find((entry) => entry.main) ?? group.rows[0];
+    if (main) return main.row;
+  }
+  const withImage = group.rows.find((entry) => cleanText(entry.row.imagePath));
+  return withImage ? withImage.row : null;
+}
+
+/** 24–800 px: khớp với giới hạn ở `order-persistence.ts` và `excel-image-cell.ts`. */
+function manualImagePx(value: unknown): number | null {
+  const parsed = toNumber(value);
+  if (parsed === null) return null;
+  const rounded = Math.round(parsed);
+  if (rounded < 24 || rounded > 800) return null;
+  return rounded;
+}
+
+/** V131: kích thước ảnh do người dùng chỉnh tay cho một bộ cửa; null = để hệ thống tự co giãn. */
+export function groupManualImageSize(group: OutputGroup): { width: number; height: number } | null {
+  const row = groupImageSourceRow(group);
+  if (!row) return null;
+  const width = manualImagePx(row.imageWidth);
+  const height = manualImagePx(row.imageHeight);
+  return width && height ? { width, height } : null;
+}
+
 function clampPercent(value: number) {
   return Math.min(100, Math.max(0, value));
 }

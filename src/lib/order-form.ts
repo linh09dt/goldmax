@@ -135,6 +135,12 @@ export type OrderLineForm = {
   amount: string;
   note: string;
   imagePath: string;
+  /**
+   * V131: kích thước ảnh SP do người dùng chỉnh tay (px, dạng chuỗi cho input).
+   * Để trống = chế độ tự động (ảnh vừa ô khi xuất file).
+   */
+  imageWidth?: string;
+  imageHeight?: string;
   modelCheck: string;
   priceCheck: string;
   /**

@@ -553,17 +553,63 @@ def _prefetch_product_images(groups: list[dict[str, Any]]) -> dict[str, bytes | 
     return cache
 
 
-def _product_image_max_width_mm() -> float:
+def _product_image_max_width_mm(col_width_pt: float | None = None) -> float:
     """V110b: bề rộng tối đa của ảnh SP trong PDF, tính từ bề rộng cột "HÌNH ẢNH SP".
 
     Trước đây ảnh bị vẽ cứng 11 mm trong khi cột rộng ~16 mm => ảnh chỉ chiếm ~2/3 ô
     nên nhìn rất nhỏ. Nay lấy đúng bề rộng cột trừ padding trái/phải 2pt của bảng.
+    V131: nhận bề rộng cột thật (đã nới nếu người dùng đặt ảnh lớn hơn ô mặc định).
     """
-    col_width = _order_col_widths()[-1]
+    col_width = col_width_pt if col_width_pt else _order_col_widths()[-1]
     return max(8.0, (col_width - 4) / mm)
 
 
-def _image_flowable(url: str, cache: dict[str, bytes | None]) -> Any:
+# V131: kích thước ảnh do người dùng chỉnh tay (px) → point của ReportLab (1 px = 25,4/96 mm).
+PX_TO_MM = 25.4 / 96.0
+IMAGE_SIZE_MIN_PX = 24
+IMAGE_SIZE_MAX_PX = 800
+MAX_IMAGE_COL_RATIO = 0.34
+
+
+def _manual_px(value: Any) -> int | None:
+    try:
+        number = int(round(float(value)))
+    except (TypeError, ValueError):
+        return None
+    if number < IMAGE_SIZE_MIN_PX or number > IMAGE_SIZE_MAX_PX:
+        return None
+    return number
+
+
+def _group_image_source_row(group: dict[str, Any]) -> dict[str, Any] | None:
+    """V131: dòng cung cấp ảnh cho bộ cửa — ưu tiên dòng cửa, rồi phụ kiện đầu tiên có ảnh."""
+    if clean(group.get("imagePath")):
+        main = next((entry for entry in group.get("rows") or [] if entry.get("main")), None)
+        if main is None and group.get("rows"):
+            main = group["rows"][0]
+        return main.get("row") if main else None
+    with_image = next((entry for entry in group.get("rows") or [] if clean(entry["row"].get("imagePath"))), None)
+    return with_image["row"] if with_image else None
+
+
+def _manual_image_box_pt(group: dict[str, Any]) -> tuple[float, float] | None:
+    """V131: kích thước ảnh người dùng đặt cho bộ cửa, đổi sang point. None = tự động vừa ô."""
+    row = _group_image_source_row(group)
+    if not row:
+        return None
+    width_px = _manual_px(row.get("imageWidth"))
+    height_px = _manual_px(row.get("imageHeight"))
+    if not width_px or not height_px:
+        return None
+    return (width_px * PX_TO_MM * mm, height_px * PX_TO_MM * mm)
+
+
+def _image_flowable(
+    url: str,
+    cache: dict[str, bytes | None],
+    box_pt: tuple[float, float] | None = None,
+    col_width_pt: float | None = None,
+) -> Any:
     if not url:
         return para("", "center")
 
@@ -575,8 +621,16 @@ def _image_flowable(url: str, cache: dict[str, bytes | None]) -> Any:
         return para("", "center")
     try:
         # V110b: ảnh rộng hết ô HÌNH ẢNH SP (proportional giữ đúng tỉ lệ, không bóp méo).
-        max_w = _product_image_max_width_mm() * mm
-        img = Image(io.BytesIO(data), width=max_w, height=max_w, kind="proportional")
+        max_w = _product_image_max_width_mm(col_width_pt) * mm
+        if box_pt:
+            # V131: dùng đúng kích thước người dùng đặt; co lại theo tỉ lệ nếu vượt bề rộng cột.
+            width, height = box_pt
+            if width > max_w and width > 0:
+                ratio = max_w / width
+                width, height = max_w, height * ratio
+            img = Image(io.BytesIO(data), width=width, height=height, kind="proportional")
+        else:
+            img = Image(io.BytesIO(data), width=max_w, height=max_w, kind="proportional")
         img.hAlign = "CENTER"
         return img
     except Exception:
@@ -879,6 +933,7 @@ def _item_note_flowable(note: str, main: bool, set_no: str = "") -> Paragraph:
 def _order_table_body(
     groups: list[dict[str, Any]],
     image_cache: dict[str, bytes | None],
+    image_col_width_pt: float | None = None,
 ) -> tuple[list[str], list[list[Any]], list[list[Any]], dict[str, Any]]:
     """V72: dựng dữ liệu bảng (2 hàng header + hàng hàng hóa/ghi chú) kèm chỉ số để style.
 
@@ -911,6 +966,8 @@ def _order_table_body(
 
     for group in groups:
         group_start = len(body_rows)
+        # V131: kích thước ảnh người dùng đặt cho bộ cửa (None = tự động vừa ô).
+        group_image_box_pt = _manual_image_box_pt(group)
         pending_notes: list[tuple[str, bool]] = []
         # V109: 1 ô ẢNH SP cho cả bộ cửa — ảnh in ở dòng đầu của bộ rồi SPAN xuống hết
         # các dòng hàng của bộ (dòng sau để trống, không in ảnh riêng).
@@ -944,7 +1001,7 @@ def _order_table_body(
                 para(decimal4(row.get("pricingQuantity")), "num_bold" if main else "detail_right"),
                 para(money(row.get("unitPrice")), "num_bold" if main else "detail_right"),
                 para(money(line_amount(row)), "num_bold" if main else "detail_right"),
-                _image_flowable(image_url, image_cache) if image_url else para("", "center"),
+                _image_flowable(image_url, image_cache, group_image_box_pt, image_col_width_pt) if image_url else para("", "center"),
             ]
             body_rows.append(row_values)
             if main:
@@ -983,7 +1040,7 @@ def _order_table_body(
     return header_top, header_rows, body_rows, meta
 
 
-def _order_col_widths() -> list[float]:
+def _order_col_widths(image_col_pt: float | None = None) -> list[float]:
     # Giữ tỷ lệ cột hiện tại nhưng scale đúng CONTENT_W để tận dụng gần hết A4 landscape.
     # Nhờ vậy tăng font vẫn không làm bảng tràn khỏi lề trái/phải.
     # V66: bỏ cột ghi chú (39mm) → chia lại cho các cột còn lại, tổng giữ 273 để bảng vẫn vừa CONTENT_W.
@@ -991,8 +1048,23 @@ def _order_col_widths() -> list[float]:
     # HƯỚNG / PHÀO / MÀU SƠN / KHUÔN / KT CỬA / KT THÔNG THỦY (kể cả ô CAO–RỘNG) luôn nằm gọn 1 dòng;
     # HÌNH ẢNH SP, ĐƠN GIÁ, THÀNH TIỀN, KHỐI LƯỢNG thu hẹp (cho phép xuống dòng).
     base_widths_mm = [7.5, 11, 34, 23.5, 17.5, 13, 10.5, 15.5, 10.5, 10.5, 12.5, 12.5, 13.5, 6, 8, 15, 17, 18.5, 15.5]
-    base_total = sum(base_widths_mm)
-    return [CONTENT_W * (w / base_total) for w in base_widths_mm]
+    widths = list(base_widths_mm)
+    # V131: nếu người dùng đặt ảnh lớn hơn cột ẢNH SP mặc định thì nới cột đó,
+    # lấy bề rộng từ các cột còn lại (co theo tỉ lệ) để bảng vẫn vừa CONTENT_W.
+    # `image_col_pt` tính bằng point (cùng đơn vị với giá trị trả về) nên phải quy về
+    # cùng thang với `base_widths_mm` trước khi so sánh.
+    if image_col_pt and sum(base_widths_mm) > 0:
+        scale = CONTENT_W / sum(base_widths_mm)
+        desired_base = image_col_pt / scale
+        if desired_base > widths[-1]:
+            extra = desired_base - widths[-1]
+            widths[-1] = desired_base
+            others_total = sum(widths[:-1])
+            factor = max(0.5, (others_total - extra) / others_total) if others_total else 1.0
+            for index in range(len(widths) - 1):
+                widths[index] *= factor
+    base_total = sum(widths)
+    return [CONTENT_W * (w / base_total) for w in widths]
 
 
 def _order_table(
@@ -1091,9 +1163,15 @@ def _data_tables(
 
     Đo chiều cao hàng thật (cùng colWidths + style) rồi xếp từng bộ vào trang:
     bộ nào không đủ chỗ ở cuối trang sẽ được đẩy trọn sang trang sau.
+    V131: nếu người dùng đặt ảnh lớn hơn cột ẢNH SP mặc định thì nới cột (trần 34% bề rộng).
     """
-    header_top, header_rows, body_rows, meta = _order_table_body(groups, image_cache)
-    col_widths = _order_col_widths()
+    manual_widths = [(_manual_image_box_pt(group) or (0.0, 0.0))[0] for group in groups]
+    max_manual_pt = max(manual_widths) if manual_widths else 0.0
+    image_col_width = _order_col_widths()[-1]
+    if max_manual_pt > 0:
+        image_col_width = min(CONTENT_W * MAX_IMAGE_COL_RATIO, max(max_manual_pt + 6, image_col_width))
+    header_top, header_rows, body_rows, meta = _order_table_body(groups, image_cache, image_col_width)
+    col_widths = _order_col_widths(image_col_width)
     probe = _order_table(header_top, header_rows, body_rows, meta, list(range(len(body_rows))), col_widths)
     probe.wrap(CONTENT_W, 10 ** 9)
     heights = [float(h or 0) for h in probe._rowHeights]

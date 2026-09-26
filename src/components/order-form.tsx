@@ -821,7 +821,16 @@ function DoorSetCard({
               đầu tiên (nếu có) để hiển thị ở bảng chi tiết và bản in. */}
           <CardField label="Hình ảnh SP (cả bộ cửa)">
             <div className="rounded-md border border-slate-200 bg-white">
-              <ImageCell path={item.imagePath} onUpload={(file) => onUpload(file, itemIndex)} />
+              <ImageCell
+                path={item.imagePath}
+                width={item.imageWidth}
+                height={item.imageHeight}
+                onUpload={(file) => onUpload(file, itemIndex)}
+                onResize={(nextWidth, nextHeight) => {
+                  change("imageWidth")(nextWidth);
+                  change("imageHeight")(nextHeight);
+                }}
+              />
             </div>
             <p className="mt-1 text-[10px] leading-snug text-slate-500">Ảnh dùng cho cả bộ cửa này (gồm mọi phụ kiện / chi tiết bên dưới).</p>
           </CardField>
@@ -1164,7 +1173,19 @@ function EditableMainRow({ item, itemIndex, onChange, onUpload, catalogItems, do
       <Cell><GridPriceInput value={value("unitPrice")} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, value("productCode"))} /></Cell>
       <CellStatic>{formatMoney(lineAmount(item))}</CellStatic>
       <Cell><GridInput value={value("note")} onChange={change("note")} /></Cell>
-      <Cell><ImageCell path={item.imagePath} onUpload={(file) => onUpload(file, itemIndex)} /></Cell>
+      <Cell>
+        <ImageCell
+          compact
+          path={item.imagePath}
+          width={item.imageWidth}
+          height={item.imageHeight}
+          onUpload={(file) => onUpload(file, itemIndex)}
+          onResize={(nextWidth, nextHeight) => {
+            change("imageWidth")(nextWidth);
+            change("imageHeight")(nextHeight);
+          }}
+        />
+      </Cell>
       <CellStatic>—</CellStatic>
     </tr>
   );
@@ -1258,7 +1279,19 @@ function EditableDetailRow({ row, itemIndex, detailIndex, onChange, onUpload, on
       <Cell><GridPriceInput value={row.unitPrice} onChange={change("unitPrice")} catalog={findCatalog(catalogItems, row.productCode)} /></Cell>
       <CellStatic>{formatMoney(lineAmount(row))}</CellStatic>
       <Cell><GridInput value={row.note} onChange={change("note")} /></Cell>
-      <Cell><ImageCell path={row.imagePath} onUpload={(file) => onUpload(file, itemIndex, detailIndex)} /></Cell>
+      <Cell>
+        <ImageCell
+          compact
+          path={row.imagePath}
+          width={row.imageWidth}
+          height={row.imageHeight}
+          onUpload={(file) => onUpload(file, itemIndex, detailIndex)}
+          onResize={(nextWidth, nextHeight) => {
+            change("imageWidth")(nextWidth);
+            change("imageHeight")(nextHeight);
+          }}
+        />
+      </Cell>
       <CellStatic><button className="text-red-600 hover:underline" type="button" onClick={() => onRemove(itemIndex, detailIndex)}>Xóa</button></CellStatic>
     </tr>
   );
@@ -1729,9 +1762,102 @@ function GridPriceInput({ value, onChange }: { value: string; onChange: (value: 
   return <input className="h-8 w-full min-w-0 border-0 bg-transparent px-2 text-right text-[11px] font-semibold tabular-nums text-sky-900 outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-300" type="number" step="1" value={value} onChange={(e) => onChange(e.target.value)} />;
 }
 
-function ImageCell({ path, onUpload }: { path: string; onUpload: (file: File) => Promise<void> }) {
+const IMAGE_SIZE_MIN_PX = 24;
+const IMAGE_SIZE_MAX_PX = 800;
+const IMAGE_SIZE_DEFAULT_PX = 160;
+const IMAGE_SIZE_COMPACT_PX = 96;
+
+/** V131: kích thước ảnh hợp lệ (px). Trả null khi để trống/ngoài khoảng → hệ thống tự co giãn. */
+function clampImageSize(value: unknown): number | null {
+  if (value === null || value === undefined || String(value).trim() === "") return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  const rounded = Math.round(parsed);
+  if (rounded < IMAGE_SIZE_MIN_PX || rounded > IMAGE_SIZE_MAX_PX) return null;
+  return rounded;
+}
+
+/**
+ * V131: ô Ảnh SP — dán/chọn ảnh như cũ, thêm khả năng CHỈNH KÍCH THƯỚC bằng tay:
+ *  - kéo tay nắm ở góc dưới-phải, hoặc gõ số px vào ô Rộng / Cao;
+ *  - giữ đúng tỉ lệ ảnh (gõ Rộng tự suy ra Cao và ngược lại);
+ *  - khi xuất Excel/PDF/in, ảnh dùng ĐÚNG kích thước đã đặt (nút "Tự động" để trả về chế độ vừa ô).
+ */
+function ImageCell({
+  path,
+  width,
+  height,
+  onUpload,
+  onResize,
+  compact = false,
+}: {
+  path: string;
+  width?: string;
+  height?: string;
+  onUpload: (file: File) => Promise<void>;
+  onResize?: (width: string, height: string) => void;
+  compact?: boolean;
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [aspect, setAspect] = useState(5 / 3);
+
+  const safeAspect = Number.isFinite(aspect) && aspect > 0.05 ? aspect : 5 / 3;
+  const manualWidth = clampImageSize(width);
+  const manualHeight = clampImageSize(height);
+  const manual = Boolean(manualWidth && manualHeight);
+  const shownWidth = manualWidth ?? (compact ? IMAGE_SIZE_COMPACT_PX : IMAGE_SIZE_DEFAULT_PX);
+  const shownHeight = manualHeight ?? Math.max(IMAGE_SIZE_MIN_PX, Math.round(shownWidth / safeAspect));
+  const canResize = Boolean(path && onResize);
+
+  function clampPx(value: number) {
+    return Math.max(IMAGE_SIZE_MIN_PX, Math.min(IMAGE_SIZE_MAX_PX, Math.round(value)));
+  }
+
+  function setWidth(next: string) {
+    if (!onResize) return;
+    if (next.trim() === "") {
+      onResize("", "");
+      return;
+    }
+    const parsed = clampImageSize(next);
+    if (!parsed) {
+      onResize(next, "");
+      return;
+    }
+    onResize(String(parsed), String(clampPx(parsed / safeAspect)));
+  }
+
+  function setHeight(next: string) {
+    if (!onResize) return;
+    if (next.trim() === "") {
+      onResize("", "");
+      return;
+    }
+    const parsed = clampImageSize(next);
+    if (!parsed) {
+      onResize("", next);
+      return;
+    }
+    onResize(String(clampPx(parsed * safeAspect)), String(parsed));
+  }
+
+  function startResize(event: React.PointerEvent<HTMLSpanElement>) {
+    if (!canResize) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    const startWidth = shownWidth;
+    const move = (moveEvent: PointerEvent) => {
+      setWidth(String(startWidth + (moveEvent.clientX - startX)));
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
 
   async function handleImage(file: File, source: "file" | "paste") {
     if (!file.type.startsWith("image/")) {
@@ -1755,11 +1881,13 @@ function ImageCell({ path, onUpload }: { path: string; onUpload: (file: File) =>
     }
   }
 
+  const numberInputClass = "h-5 rounded border border-slate-300 px-1 text-right text-[9.5px] tabular-nums";
+
   return (
     <div
       className="flex min-h-[58px] cursor-default flex-col items-center justify-center gap-1 rounded-md px-1 py-1.5 text-center text-[10px] leading-tight outline-none transition-colors focus:bg-cyan-50 focus:ring-1 focus:ring-inset focus:ring-cyan-400"
       tabIndex={0}
-      title="Bấm vào ô rồi nhấn Ctrl+V để dán ảnh"
+      title="Bấm vào ô rồi nhấn Ctrl+V để dán ảnh. Kéo nút góc dưới-phải để đổi kích thước ảnh."
       aria-label="Hình ảnh sản phẩm. Bấm vào ô rồi nhấn Ctrl+V để dán ảnh, hoặc chọn Tải ảnh."
       onPaste={(event) => {
         if (busy) return;
@@ -1776,10 +1904,81 @@ function ImageCell({ path, onUpload }: { path: string; onUpload: (file: File) =>
       }}
     >
       {path ? (
-        <a href={path} target="_blank" rel="noreferrer" className="inline-flex">
-          <img src={path} alt="Hình sản phẩm" className="h-14 w-16 rounded border border-slate-200 bg-white object-contain" />
-        </a>
+        <div className="relative" style={{ width: shownWidth, height: shownHeight, maxWidth: "100%" }}>
+          <a href={path} target="_blank" rel="noreferrer" className="block h-full w-full">
+            <img
+              src={path}
+              alt="Hình sản phẩm"
+              draggable={false}
+              onLoad={(event) => {
+                const image = event.currentTarget;
+                if (image.naturalWidth > 0 && image.naturalHeight > 0) setAspect(image.naturalWidth / image.naturalHeight);
+              }}
+              className="h-full w-full rounded border border-slate-200 bg-white object-contain"
+            />
+          </a>
+          {canResize ? (
+            <span
+              role="slider"
+              aria-label="Kéo để đổi kích thước ảnh"
+              tabIndex={-1}
+              title="Kéo để đổi kích thước ảnh"
+              onPointerDown={startResize}
+              className="absolute -bottom-1.5 -right-1.5 h-3.5 w-3.5 cursor-nwse-resize rounded-sm border border-white bg-cyan-600 shadow"
+            />
+          ) : null}
+        </div>
       ) : null}
+
+      {canResize ? (
+        <div className="flex flex-wrap items-center justify-center gap-1 text-[9.5px] text-slate-600">
+          <label className="inline-flex items-center gap-0.5">
+            Rộng
+            <input
+              className={numberInputClass}
+              style={{ width: 42 }}
+              type="number"
+              min={IMAGE_SIZE_MIN_PX}
+              max={IMAGE_SIZE_MAX_PX}
+              value={width ?? ""}
+              placeholder={String(compact ? IMAGE_SIZE_COMPACT_PX : IMAGE_SIZE_DEFAULT_PX)}
+              onChange={(event) => setWidth(event.target.value)}
+            />
+            px
+          </label>
+          <label className="inline-flex items-center gap-0.5">
+            Cao
+            <input
+              className={numberInputClass}
+              style={{ width: 42 }}
+              type="number"
+              min={IMAGE_SIZE_MIN_PX}
+              max={IMAGE_SIZE_MAX_PX}
+              value={height ?? ""}
+              placeholder={String(shownHeight)}
+              onChange={(event) => setHeight(event.target.value)}
+            />
+            px
+          </label>
+        </div>
+      ) : null}
+
+      {canResize && !compact ? (
+        <div className="flex flex-wrap items-center justify-center gap-1 text-[9.5px]">
+          <button type="button" className="rounded border border-slate-300 px-1.5 py-0.5 hover:bg-slate-100" onClick={() => setWidth("120")}>Nhỏ</button>
+          <button type="button" className="rounded border border-slate-300 px-1.5 py-0.5 hover:bg-slate-100" onClick={() => setWidth("200")}>Vừa</button>
+          <button type="button" className="rounded border border-slate-300 px-1.5 py-0.5 hover:bg-slate-100" onClick={() => setWidth("320")}>Lớn</button>
+          <button
+            type="button"
+            className={`rounded border px-1.5 py-0.5 ${manual ? "border-slate-300 hover:bg-slate-100" : "border-cyan-400 bg-cyan-100 font-semibold text-cyan-800"}`}
+            title={manual ? "Trả ảnh về kích thước tự động (vừa ô khi xuất file)" : "Đang ở chế độ tự động"}
+            onClick={() => onResize?.("", "")}
+          >
+            Tự động
+          </button>
+        </div>
+      ) : null}
+
       <span className="font-semibold text-cyan-800">{busy ? "Đang tải..." : "Ctrl+V để dán"}</span>
       <label className={`break-words font-medium text-cyan-700 hover:underline ${busy ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}>
         {path ? "Đổi / tải ảnh" : "Tải ảnh"}
@@ -1796,6 +1995,9 @@ function ImageCell({ path, onUpload }: { path: string; onUpload: (file: File) =>
           }}
         />
       </label>
+      {manual ? (
+        <span className="text-[9.5px] text-slate-500">Xuất file theo {manualWidth} x {manualHeight} px</span>
+      ) : null}
       {error ? <span className="max-w-full break-words text-[10px] text-red-600">{error}</span> : null}
     </div>
   );

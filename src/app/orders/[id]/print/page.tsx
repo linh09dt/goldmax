@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { resolveOrderItemDetails } from "@/lib/order-detail";
 import type { OutputGroup } from "@/lib/order-output";
-import { buildOutputGroups, calculateOutputTotals, cleanText, outputLineAmount } from "@/lib/order-output";
+import { buildOutputGroups, calculateOutputTotals, cleanText, groupManualImageSize, outputLineAmount } from "@/lib/order-output";
 import { OrderPrintActions } from "@/components/order-print-actions";
 
 export const dynamic = "force-dynamic";
@@ -92,6 +92,8 @@ export default async function PrintOrderPage({
             {groups.map((group) => {
               // V109: 1 ô ảnh cho cả bộ cửa — merge từ dòng đầu tới hết dòng phụ kiện.
               const groupImage = groupImagePath(group);
+              // V131: ảnh in ra theo đúng kích thước người dùng đã chỉnh (nếu có).
+              const groupImageSize = groupManualImageSize(group);
               return group.rows.map((entry, index) => (
               <tr key={`${group.lineNo}-${index}`} className={entry.main ? "main-row" : "detail-row"}>
                 <td>{entry.firstInGroup ? group.lineNo : ""}</td>
@@ -110,7 +112,7 @@ export default async function PrintOrderPage({
                 <td className="note">{cleanText(entry.row.note) || ""}</td>
                 {index === 0 ? (
                   <td className="product-image" rowSpan={group.rows.length}>
-                    {groupImage ? <img src={groupImage} alt={`Bộ ${group.setNo || group.lineNo}`} /> : ""}
+                    {groupImage ? <img src={groupImage} alt={`Bộ ${group.setNo || group.lineNo}`} style={groupImageSize ? { width: groupImageSize.width, height: groupImageSize.height, maxWidth: "none", maxHeight: "none" } : undefined} /> : ""}
                   </td>
                 ) : null}
               </tr>

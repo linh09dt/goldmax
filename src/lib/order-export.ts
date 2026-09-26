@@ -3,9 +3,9 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 import { resolveOrderItemDetails } from "@/lib/order-detail";
 import type { OutputGroup } from "@/lib/order-output";
-import { buildOutputGroups, calculateOutputTotals, cleanText, outputLineAmount, toNumber } from "@/lib/order-output";
+import { buildOutputGroups, calculateOutputTotals, cleanText, groupManualImageSize, outputLineAmount, toNumber } from "@/lib/order-output";
 import { logoBox, readImageSize } from "@/lib/png-size";
-import { addProductImage, fitProductImageInCell } from "@/lib/excel-image-cell";
+import { addProductImage, fitProductImageInCell, imageColumnWidthFor } from "@/lib/excel-image-cell";
 
 const BORDER = { style: "thin" as const, color: { argb: "FF000000" } };
 const ALL_BORDERS = { top: BORDER, left: BORDER, bottom: BORDER, right: BORDER };
@@ -75,6 +75,14 @@ export async function buildOrderExcel(order: ExportableOrder, exportNote = ""): 
   writeTableHeader(ws);
 
   const groups = buildOutputGroups(order.items as any, resolveOrderItemDetails as any);
+  // V131: nới cột ẢNH SP nếu người dùng đã đặt kích thước ảnh lớn hơn ô mặc định.
+  const imageColumnWidth = imageColumnWidthFor(
+    groups.map((group) => groupManualImageSize(group)?.width ?? null),
+    COLUMN_WIDTHS[IMAGE_COLUMN_INDEX],
+  );
+  if (imageColumnWidth !== COLUMN_WIDTHS[IMAGE_COLUMN_INDEX]) {
+    ws.getColumn(IMAGE_COLUMN_INDEX + 1).width = imageColumnWidth;
+  }
   const totals = calculateOutputTotals(groups, order);
 
   let rowNo = 8;
@@ -86,7 +94,7 @@ export async function buildOrderExcel(order: ExportableOrder, exportNote = ""): 
       ws.getRow(rowNo).height = entry.main ? 28 : 25;
       rowNo += 1;
     }
-    await writeGroupImageV1(ws, workbook, firstItemRow, rowNo - 1, group);
+    await writeGroupImageV1(ws, workbook, firstItemRow, rowNo - 1, group, imageColumnWidth);
   }
 
   if (!groups.length) {
@@ -361,6 +369,7 @@ async function writeGroupImageV1(
   firstRow: number,
   lastRow: number,
   group: OutputGroup,
+  imageColumnWidth: number,
 ) {
   if (lastRow > firstRow) ws.mergeCells(`T${firstRow}:T${lastRow}`);
   const cell = ws.getCell(`T${firstRow}`);
@@ -379,13 +388,17 @@ async function writeGroupImageV1(
     if (!extension) return;
     const imageBuffer = Buffer.from(await response.arrayBuffer());
     const size = readImageSize(imageBuffer);
+    // V131: ưu tiên kích thước người dùng đặt; chưa đặt thì tự co giãn vừa ô như trước.
+    const manual = groupManualImageSize(group);
     const placement = fitProductImageInCell({
       ws,
       firstRow,
       lastRow,
       columnIndex: IMAGE_COLUMN_INDEX,
-      columnWidth: COLUMN_WIDTHS[IMAGE_COLUMN_INDEX],
+      columnWidth: imageColumnWidth,
       aspect: size && size.height > 0 ? size.width / size.height : FALLBACK_IMAGE_ASPECT,
+      manualWidth: manual?.width ?? null,
+      manualHeight: manual?.height ?? null,
     });
     const imageId = workbook.addImage({ buffer: imageBuffer as any, extension });
     addProductImage(ws, imageId, placement);

@@ -100,6 +100,9 @@ model SalesOrderItem {
   amount           Decimal?               @db.Decimal(18, 2)
   note             String?                @db.Text
   imagePath        String?                @map("image_path") @db.Text
+  /** V131: kích thước hiển thị ảnh SP do người dùng chỉnh tay (px). NULL = tự động vừa ô. */
+  imageWidth       Int?                   @map("image_width")
+  imageHeight      Int?                   @map("image_height")
   modelCheck       String?                @map("model_check") @db.VarChar(120)
   priceCheck       String?                @map("price_check") @db.VarChar(120)
   sourceRow        Int?                   @map("source_row")
@@ -147,6 +150,9 @@ model SalesOrderItemDetail {
   amount           Decimal?       @db.Decimal(18, 2)
   note             String?        @db.Text
   imagePath        String?        @map("image_path") @db.Text
+  /** V131: kích thước hiển thị ảnh SP do người dùng chỉnh tay (px). NULL = tự động vừa ô. */
+  imageWidth       Int?           @map("image_width")
+  imageHeight      Int?           @map("image_height")
   modelCheck       String?        @map("model_check") @db.VarChar(120)
   priceCheck       String?        @map("price_check") @db.VarChar(120)
   sourceRow        Int?           @map("source_row")

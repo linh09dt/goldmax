@@ -49,6 +49,7 @@ def _camel(row: dict) -> dict:
         "panel_info": "panelInfo", "trim_bars_per_set": "trimBarsPerSet", "trim_type": "trimType",
         "lock_model": "lockModel", "window_bars": "windowBars", "leaves_per_set": "leavesPerSet",
         "pricing_quantity": "pricingQuantity", "unit_price": "unitPrice", "image_path": "imagePath",
+        "image_width": "imageWidth", "image_height": "imageHeight",
         "row_order": "rowOrder", "detail_type": "detailType", "question_text": "questionText", "sort_order": "sortOrder",
     }
     return {mapping.get(k, k): _json_value(v) for k, v in row.items()}
@@ -77,7 +78,7 @@ def load_order(order_id: int) -> dict:
                    opening_direction, trim_direction, paint_color, height_mm, width_mm,
                    frame_mm, clear_height_mm, clear_width_mm, panel_info, trim_bars_per_set,
                    trim_type, lock_model, window_bars, leaves_per_set, quantity, unit,
-                   pricing_quantity, unit_price, amount, note, image_path
+                   pricing_quantity, unit_price, amount, note, image_path, image_width, image_height
             FROM sales_order_items WHERE order_id = %s ORDER BY line_no ASC
         """, (order_id,)).fetchall()
 
@@ -90,7 +91,7 @@ def load_order(order_id: int) -> dict:
                        height_mm, width_mm, frame_mm, clear_height_mm, clear_width_mm,
                        panel_info, trim_bars_per_set, trim_type, lock_model, window_bars,
                        leaves_per_set, quantity, unit, pricing_quantity, unit_price, amount,
-                       note, image_path
+                       note, image_path, image_width, image_height
                 FROM sales_order_item_details
                 WHERE order_item_id = ANY(%s)
                 ORDER BY order_item_id ASC, row_order ASC
