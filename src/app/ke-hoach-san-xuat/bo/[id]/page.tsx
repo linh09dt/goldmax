@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ErpShell } from "@/components/erp-shell";
 import { ReportCard, ReportKpi, reportKpiGrid } from "@/components/reports/report-ui";
 import { SetProgressForm, type ProgressTask } from "@/components/production/set-progress-form";
+import { StartProductionForm } from "@/components/production/start-production-form";
 import { ProductionWarnings } from "@/components/production/production-warnings";
 import { formatDate, formatNumber } from "@/components/order-list/format";
 import {
@@ -19,9 +20,9 @@ import {
   type ProductionSetRow,
   type ProductionTaskRow,
 } from "@/lib/production/catalog";
-import { hoursToWorkingDays, subtractWorkingDays, todayInVietnam } from "@/lib/production/calendar";
+import { hoursToWorkingDays, subtractWorkingDays, todayInVietnam, workingDaysBetween } from "@/lib/production/calendar";
 import { buildWarnings, buildWorkCenterLoad, missingInfoForPlanning, setLeadHoursFromTasks } from "@/lib/production/scheduling";
-import { loadActiveWorkCenters, loadSetDetail } from "@/lib/production/service";
+import { loadActiveWorkCenters, loadSetDetail, parseIsoDateStrict, previewSetStart, type StartPreview } from "@/lib/production/service";
 
 export const dynamic = "force-dynamic";
 
@@ -29,8 +30,15 @@ export const dynamic = "force-dynamic";
  * V136 — Chi tiết 1 BỘ CỬA: timeline 13 công đoạn + ô cập nhật tiến độ.
  * Đây là màn nhập chính của văn phòng xưởng (KH21/KH23).
  */
-export default async function ProductionSetPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ProductionSetPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ ngay?: string }>;
+}) {
   const { id } = await params;
+  const query = await searchParams;
   const setId = Number(id);
   if (!Number.isInteger(setId) || setId <= 0) notFound();
 
@@ -59,7 +67,14 @@ export default async function ProductionSetPage({ params }: { params: Promise<{ 
     loadCells: buildWorkCenterLoad({ sets: [setRow], tasks, workCenters, from: todayInVietnam(), to: todayInVietnam(), config }),
     today: todayInVietnam(),
     modelsWithProgram: programModels,
-  }).filter((warning) => warning.kind === "SAP_TRE" || warning.kind === "CHUA_DU_THONG_TIN" || warning.kind === "CHUA_CO_CHUONG_TRINH");
+  }).filter(
+    (warning) =>
+      warning.kind === "SAP_TRE" ||
+      warning.kind === "CHUA_DU_THONG_TIN" ||
+      warning.kind === "CHUA_CO_CHUONG_TRINH" ||
+      warning.kind === "CHAM_CONG_DOAN" ||
+      warning.kind === "KHONG_KIP",
+  );
 
   // V142 — mã lệnh sản xuất: lệnh cha (bộ), 3 lệnh con và mã của từng công đoạn.
   const codeByTaskId = new Map<number, string>();
@@ -68,6 +83,22 @@ export default async function ProductionSetPage({ params }: { params: Promise<{ 
     if (order.taskId !== null) codeByTaskId.set(order.taskId, order.code);
     else codeByKind.set(order.kind, order.code);
   }
+
+  // V144 — chưa vào sản xuất thì cho xem trước MỐC theo ngày bắt đầu (?ngay=YYYY-MM-DD).
+  // "Đã vào sản xuất" xét CẢ `started_at` LẪN trạng thái (bộ có thể thành DANG_SX do công đoạn đầu
+  // được đặt tay trong form tiến độ, khi đó chưa có `started_at`).
+  const started =
+    setRow.startedAt !== null || setRow.status === "DANG_SX" || setRow.status === "HOAN_THANH" || setRow.status === "DA_GIAO";
+  const todayVn = todayInVietnam().toISOString().slice(0, 10);
+  const requestedStart = parseIsoDateStrict(query.ngay) ?? new Date(`${todayVn}T00:00:00.000Z`);
+  const preview: StartPreview | null = started ? null : await previewSetStart(setId, requestedStart);
+  const workshopDueOfSet = setRow.dueDate
+    ? subtractWorkingDays(setRow.dueDate, config.deliveryBufferDays, calendar)
+    : null;
+  const storedLateDays =
+    setRow.targetEnd && workshopDueOfSet && setRow.targetEnd.getTime() > workshopDueOfSet.getTime()
+      ? workingDaysBetween(workshopDueOfSet, setRow.targetEnd, calendar)
+      : null;
 
   // V136.1 — trạng thái khoá của từng công đoạn (gate đủ bộ).
   const lockRows = tasks.map((task) => ({ stageCode: task.stageCode, scope: task.scope, status: task.status }));
@@ -100,6 +131,9 @@ export default async function ProductionSetPage({ params }: { params: Promise<{ 
       qtyDone: task.qtyDone,
       // V142 — mã lệnh sản xuất của công đoạn (in trên phiếu, đối chiếu ở xưởng).
       workOrderCode: codeByTaskId.get(task.id) ?? null,
+      // V144 — mốc (target) hệ thống tự suy từ ngày bắt đầu sản xuất.
+      targetStart: task.targetStart ? new Date(task.targetStart).toISOString().slice(0, 10) : null,
+      targetEnd: task.targetEnd ? new Date(task.targetEnd).toISOString().slice(0, 10) : null,
       // V141 — ngày kế hoạch của công đoạn để gán bằng tay trong form.
       plannedStart: task.plannedStart ? new Date(task.plannedStart).toISOString().slice(0, 10) : null,
       actualStart: task.actualStart ? new Date(task.actualStart).toISOString() : null,
@@ -158,6 +192,75 @@ export default async function ProductionSetPage({ params }: { params: Promise<{ 
         </section>
 
         <ProductionWarnings warnings={warnings} />
+
+        <ReportCard
+          title="Kế hoạch sản xuất của bộ"
+          hint="V144 — nhập MỘT mốc ngày bắt đầu; hệ thống tự suy mốc (target) của mọi công đoạn theo thứ tự bước + số giờ."
+        >
+          <StartProductionForm setId={setRow.id} defaultDate={String(query.ngay ?? todayVn)} started={started} />
+          {started ? (
+            <p className="px-3 pb-3 text-[12.5px] text-slate-700">
+              Đã đưa vào sản xuất từ <strong>{formatDate(setRow.startedAt)}</strong> · dự kiến xong{" "}
+              <strong>{formatDate(setRow.targetEnd)}</strong>
+              {storedLateDays !== null ? (
+                <span className="font-semibold text-red-700">
+                  {" "}· KHÔNG KỊP: muộn {Math.max(1, storedLateDays)} ngày so với hạn xưởng {formatDate(workshopDueOfSet)}
+                </span>
+              ) : workshopDueOfSet ? (
+                <span className="text-emerald-700"> · kịp hạn xưởng {formatDate(workshopDueOfSet)}</span>
+              ) : null}
+            </p>
+          ) : preview ? (
+            <div className="space-y-2 px-3 pb-3">
+              <p
+                className={`rounded-lg px-3 py-2 text-[12.5px] ${
+                  preview.lateDays !== null ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"
+                }`}
+              >
+                Dự kiến xong <strong>{formatDate(preview.end)}</strong> · {preview.totalDays} ngày làm việc
+                {preview.workshopDue
+                  ? preview.lateDays !== null
+                    ? ` · KHÔNG KỊP: muộn ${Math.max(1, preview.lateDays)} ngày so với hạn xưởng ${formatDate(preview.workshopDue)}`
+                    : ` · kịp hạn xưởng ${formatDate(preview.workshopDue)}`
+                  : " · đơn chưa có hạn giao"}
+                {preview.movedToWorkingDay
+                  ? ` · ${formatDate(preview.requestedStart)} là ngày nghỉ nên dời sang ${formatDate(preview.start)}`
+                  : ""}
+              </p>
+              <div className="erp-scrollbar overflow-x-auto">
+                <table className="erp-table">
+                  <thead>
+                    <tr>
+                      <th className="text-right">Bước</th>
+                      <th>Công đoạn của bước (chạy song song, cùng ngày)</th>
+                      <th className="text-right">Giờ</th>
+                      <th className="text-right">Số ngày</th>
+                      <th>Mốc bắt đầu → xong</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.steps.map((step) => (
+                      <tr key={step.seq}>
+                        <td className="erp-td-num">{step.seq}</td>
+                        <td>{step.codes.map((code) => stageByCode.get(code)?.name ?? code).join(" · ")}</td>
+                        <td className="erp-td-num">{step.hours}</td>
+                        <td className="erp-td-num">{step.days}</td>
+                        <td className="whitespace-nowrap">
+                          {formatDate(new Date(`${step.start}T00:00:00.000Z`))}
+                          {step.end !== step.start ? ` → ${formatDate(new Date(`${step.end}T00:00:00.000Z`))}` : ""}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <p className="erp-hint px-3 pb-3">
+              Bộ chưa có công đoạn nào (danh mục công đoạn đang trống) — không suy được mốc.
+            </p>
+          )}
+        </ReportCard>
 
         <ReportCard
           title="Lệnh sản xuất cha – con"
@@ -231,6 +334,7 @@ export default async function ProductionSetPage({ params }: { params: Promise<{ 
               }))}
             plannedStart={setRow.plannedStart ? setRow.plannedStart.toISOString().slice(0, 10) : null}
             plannedEnd={setRow.plannedEnd ? setRow.plannedEnd.toISOString().slice(0, 10) : null}
+            todayVn={todayVn}
             byName={null}
           />
           {skipped.length ? (
@@ -303,6 +407,7 @@ export default async function ProductionSetPage({ params }: { params: Promise<{ 
                   <th>Bộ phận</th>
                   <th>Tổ</th>
                   <th className="text-right">Thời lượng</th>
+                  <th className="whitespace-nowrap">Mốc (target)</th>
                   <th className="text-right">SL dự kiến</th>
                   <th>Ghi chú danh mục</th>
                 </tr>
@@ -318,6 +423,24 @@ export default async function ProductionSetPage({ params }: { params: Promise<{ 
                       <td>{SCOPE_LABELS[task.scope] ?? task.scope}</td>
                       <td className="text-[12px] text-slate-600">{task.workCenterCode ? centerByCode.get(task.workCenterCode)?.name ?? task.workCenterCode : "—"}</td>
                       <td className="erp-td-num">{stage?.leadTimeHours ? `${stage.leadTimeHours} giờ` : "—"}</td>
+                      <td className="whitespace-nowrap text-[11.5px]">
+                        {task.targetStart ? (
+                          <>
+                            {formatDate(task.targetStart)}
+                            {task.targetEnd && task.targetEnd.getTime() !== task.targetStart.getTime()
+                              ? ` → ${formatDate(task.targetEnd)}`
+                              : ""}
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                        {task.targetEnd &&
+                        task.status !== "XONG" &&
+                        task.status !== "BO_QUA" &&
+                        task.targetEnd.toISOString().slice(0, 10) < todayVn ? (
+                          <span className="ml-1 font-semibold text-red-700">chậm</span>
+                        ) : null}
+                      </td>
                       <td className="erp-td-num">{task.qtyExpected ?? "—"}</td>
                       <td className="max-w-[420px] text-[11.5px] text-slate-500">{stage?.note ?? ""}</td>
                     </tr>

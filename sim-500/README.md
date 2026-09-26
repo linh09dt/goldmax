@@ -1,35 +1,35 @@
 # SIM-500 — BỘ DỮ LIỆU MÔ PHỎNG 500 ĐƠN (MODULE LÊN KẾ HOẠCH SẢN XUẤT)
 
-Ngày tạo: **26/09/2026** · Seed `20260926` · Dùng cho thử tải và xem **BACKLOG / WIP / ĐANG DỞ / TRỄ / ĐÃ GIAO**.
+Ngày tạo: **26/09/2026** · Seed `20260926` · **BỘ DỮ LIỆU BACKLOG SẠCH** — để **tập làm kế hoạch từ đầu**:
+cả 500 đơn đã xác nhận, **chưa bộ nào được xếp lịch, chưa bộ nào đang sản xuất, không có làm lại**.
 
 ## 1. Nội dung
 
 | Hạng mục | Số lượng |
 |---|---|
 | Đơn hàng | **500** (chia 10 file × 50 đơn) |
-| Dòng bộ cửa (mỗi dòng = 1 Bộ số) | 1053 (tối đa 5 dòng/đơn) |
-| Dòng thuộc đơn đã xác nhận (vào kế hoạch) | 1006 |
-| **Bộ trong kế hoạch** (`production_sets`) | **1006** — mỗi dòng đúng 1 bộ |
-| Tổng số bộ theo số lượng | **2075** (mỗi dòng ≤ 10 bộ) |
-| Lệnh con Cánh/Khung/Phào | 3018 (3 lệnh/bộ) |
-| Công đoạn (`production_tasks`) | 1006 × 24 (tuỳ danh mục cũ/mới, luôn 24 dòng/bộ) |
+| Dòng bộ cửa (mỗi dòng = 1 Bộ số) | 1056 (tối đa 5 dòng/đơn) |
+| Dòng thuộc đơn đã xác nhận (vào kế hoạch) | 1056 |
+| **Bộ trong kế hoạch** (`production_sets`) | **1056** — mỗi dòng đúng 1 bộ |
+| Tổng số bộ theo số lượng | **2280** (mỗi dòng ≤ 10 bộ) |
+| Lệnh con Cánh/Khung/Phào | 3168 (3 lệnh/bộ) |
+| Công đoạn (`production_tasks`) | 1056 × 24 (tuỳ danh mục cũ/mới, luôn 24 dòng/bộ) |
 | Câu hỏi xác nhận | 3000 |
 
-- **Ngày đặt hàng:** 10/08/2026 → 05/10/2026 · **Ngày giao:** luôn **≥ 15 ngày** sau ngày đặt (15–45 ngày).
-- **Loại đơn:** SAN_XUAT 346 · MAU 106 · LAM_LAI 48.
-- **Đơn nháp (`status='NHAP'`):** 20 đơn (~4%) — **không có Bộ số, không có bộ trong kế hoạch** (đúng như app).
+- **Ngày đặt hàng:** 01/10/2026 → 10/11/2026 — **trong tháng 10–11/2026**.
+- **Ngày giao khách:** **trong tháng 10–11/2026**, muộn nhất **30/11/2026**, và luôn **≥ 15 ngày** sau ngày đặt.
+- **Loại đơn:** SAN_XUAT 329 · MAU 126 · LAM_LAI 45.
+- **Đơn nháp:** 0 — đã tắt, cả 500 đơn đều `DA_XAC_NHAN` nên **đưa vào kế hoạch được ngay**.
 
-## 2. Phân bố trạng thái bộ cửa (theo độ cũ của đơn so với 26/09/2026)
+## 2. Trạng thái — **TẤT CẢ LÀ BACKLOG**
 
-| Scenario | Trạng thái bộ | Số bộ |
-|---|---|---|
-| BACKLOG | CHO_XEP_LICH (chờ xếp lịch) | 221 |
-| SCHEDULED | DA_XEP_LICH | 181 |
-| WIP | DANG_SX | 302 |
-| PAUSED | TAM_DUNG (có `reason_code`) | 50 |
-| DONE | HOAN_THANH | 91 |
-| DELIVERED | DA_GIAO (OTD ≈ 70%) | 141 |
-| CANCELLED | HUY | 20 |
+| Trạng thái bộ | Số bộ | Ngày kế hoạch | Tiến độ |
+|---|---|---|---|
+| **CHO_XEP_LICH** (chờ xếp lịch) | 1056 | *chưa gán* | 0% |
+
+Mọi công đoạn ở **CHUA_LAM**: `qty_done` = NULL, `planned_start/planned_end` = NULL, `actual_*` = NULL,
+`assignee` NULL, `is_rework` = false, `reason_code` NULL. Đây là **điểm xuất phát sạch** để bạn tự gán ngày
+(xếp lịch bằng tay — V141), rồi theo dõi bảng tải / cảnh báo / báo cáo tự cập nhật theo.
 
 ## 3. Đặc điểm kỹ thuật
 
@@ -44,11 +44,11 @@ Ngày tạo: **26/09/2026** · Seed `20260926` · Dùng cho thử tải và xem 
   - `scope_mode='PARTS'` → tách theo `string_to_array(scope_parts, ',')`;
   - `scope_mode='PART'` → 1 scope; `'BO'`/`'MODEL'` → scope `'BO'`.
   - `qty_expected`: CANH = số cánh × số bộ · KHUNG = số bộ · PHAO = số phào × số bộ · BO = số bộ.
-  - Trạng thái suy theo `seq`: `seq <= done_seq` → XONG; bước đang làm → DANG_LAM (hoặc TAM_DUNG nếu bộ tạm dừng);
-    còn lại CHUA_LAM. Bộ BACKLOG/HUY/DA_XEP_LICH → tất cả CHUA_LAM; HOAN_THANH/DA_GIAO → tất cả XONG.
-  - `planned_start/planned_end` = ngày kế hoạch của bước (bộ + offset bước, **không rơi vào Chủ nhật**).
-  - ~3% công đoạn XONG có `is_rework=true` + `reason_code` nhóm `LOI`; task TAM_DUNG có lý do nhóm tạm dừng;
-    `assignee` là tên tổ trưởng; `updated_by='Mô phỏng'`.
+  - Trạng thái: bộ dữ liệu này chạy ở chế độ `state='NONE'` ⇒ **mọi công đoạn CHUA_LAM**, **không có ngày kế hoạch**
+    (máy vẫn giữ nhánh sinh tiến độ cho các chế độ khác nếu sau này cần bộ dữ liệu có WIP/đã giao).
+- **Không sinh lệnh sản xuất (V142).** Sau khi nạp đủ 10 file, chạy MỘT LẦN
+  `migrate-production-v142-lenh-cong-doan.sql` (mục 2→3→4) để mọi bộ có đủ lệnh cha + 3 lệnh con + 1 lệnh/công đoạn;
+  câu 5 của file đó kiểm tra và báo lỗi nếu thiếu.
   - `percent_done` của bộ = XONG / (số công đoạn không `BO_QUA` và không phải kind `'CHO'`).
 - Chạy được cho **cả danh mục CŨ** (CAT/CHAN/HAN/VAN, `scope_mode='PARTS'`) **lẫn danh mục MỚI** sau V139
   (CAT_CANH…, `scope_mode='PART'`).
@@ -72,6 +72,10 @@ không session state ⇒ dán cả file vào SQL Editor (Supabase / pooler) hay 
 ```bash
 psql "<CHUỖI KẾT NỐI>" -f sim-500/sim-500-CLEANUP.sql
 ```
+
+> ⚠️ **Đã nạp bộ SIM-500 CŨ** (bản trước: đơn 08–10/2026, có bộ đang sản xuất / đã giao / làm lại)?
+> Chạy **`sim-500/sim-500-CLEANUP-ban-cu.sql`** trước để gỡ sạch, rồi mới nạp 10 file dưới đây —
+> nếu không bạn sẽ có **2 bộ dữ liệu chồng nhau** (mã đơn khác nhau nên không ghi đè).
 Xoá **đúng 500 mã đơn mô phỏng** (cascade công đoạn / lệnh con / bộ / bộ cửa / hàng kèm / câu hỏi).
 Bộ đếm `ORDER_SET_NUMBER_COUNTER` giữ nguyên — muốn trả về giá trị cũ thì tự `UPDATE`.
 

@@ -35,6 +35,18 @@ export function buildCalendar(
   };
 }
 
+/**
+ * Đọc ngày dạng `YYYY-MM-DD` CHO CHẶT: sai định dạng, ngày không tồn tại (31/02) hoặc tháng 13 → null.
+ * (Regex một mình cho qua "2026-13-45" → `new Date` ra Invalid Date → sập trang lúc render.)
+ */
+export function parseIsoDateStrict(value: string | null | undefined): Date | null {
+  const text = String(value ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
+  const date = new Date(`${text}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString().slice(0, 10) === text ? date : null;
+}
+
 export function isWorkingDay(value: Date, calendar: WorkingCalendar): boolean {
   const day = startOfDayUtc(value);
   if (!calendar.workingDays.includes(day.getUTCDay())) return false;

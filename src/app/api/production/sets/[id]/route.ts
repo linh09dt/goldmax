@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { markSetDelivered, rebuildTasksForSet, updateSetProgress, type ComponentPatch, type TaskPatch } from "@/lib/production/service";
+import { markSetDelivered, parseIsoDateStrict, rebuildTasksForSet, startProductionForSet, updateSetProgress, type ComponentPatch, type TaskPatch } from "@/lib/production/service";
 import { TASK_STATUS_OPTIONS, type TaskStatus } from "@/lib/production/catalog";
 
 export const runtime = "nodejs";
@@ -85,6 +85,33 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const byName = text(body.byName, 120);
       await markSetDelivered(setId, text(body.deliveredDate, 40), byName);
       return NextResponse.json({ ok: true });
+    }
+
+    // V144 — ĐƯA VÀO SẢN XUẤT: 1 mốc ngày bắt đầu → tự suy target cho mọi công đoạn.
+    if (action === "start") {
+      const startDate = parseIsoDateStrict(text(body.startDate, 40));
+      if (!startDate) {
+        return NextResponse.json(
+          { ok: false, error: "Ngày bắt đầu sản xuất không hợp lệ (cần dạng YYYY-MM-DD và phải có thật trong lịch)." },
+          { status: 400 },
+        );
+      }
+      try {
+        const result = await startProductionForSet(setId, startDate, text(body.byName, 120));
+        return NextResponse.json({
+          ok: true,
+          start: result.start.toISOString().slice(0, 10),
+          end: result.end.toISOString().slice(0, 10),
+          totalDays: result.totalDays,
+          tasks: result.tasks,
+          startedSeq: result.startedSeq,
+        });
+      } catch (error) {
+        return NextResponse.json(
+          { ok: false, error: error instanceof Error ? error.message : "Không đưa được bộ vào sản xuất." },
+          { status: 400 },
+        );
+      }
     }
 
     if (action !== "update") {

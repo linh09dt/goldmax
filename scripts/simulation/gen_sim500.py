@@ -24,12 +24,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gen  # noqa: E402  — danh mục THẬT + build_order/make_dealers/dims (KHÔNG chép lại)
 
 # ── Tham số bộ dữ liệu ───────────────────────────────────────────────────────
-TODAY = date(2026, 9, 26)          # mốc "hôm nay" để tính độ cũ / tiến độ
-DATE_FROM = date(2026, 8, 10)      # ngày đặt sớm nhất
-DATE_TO = date(2026, 10, 5)        # ngày đặt muộn nhất
+TODAY = date(2026, 9, 26)          # mốc "hôm nay"
+# V142b — BỘ DỮ LIỆU "BACKLOG SẠCH": đơn đặt trong tháng 10–11, giao trong tháng 10–11,
+# TẤT CẢ bộ ở CHỜ XẾP LỊCH (chưa gán ngày, chưa sản xuất, không làm lại).
+DATE_FROM = date(2026, 10, 1)      # ngày đặt sớm nhất
+DATE_TO = date(2026, 11, 10)       # ngày đặt muộn nhất (để còn ≥ 15 ngày trước 30/11)
+DELIVERY_TO = date(2026, 11, 30)   # ngày giao muộn nhất
 N_ORDERS = 500
 PER_FILE = 50                      # 10 file × 50 đơn
-DRAFT_RATE = 0.04                  # ~4% đơn nháp (không Bộ số, không vào kế hoạch)
+DRAFT_RATE = 0.0                   # 0% đơn nháp — cả 500 đơn đều đưa vào kế hoạch được
 
 # Số dòng bộ cửa mỗi đơn (tối đa 5)
 LINES = [1, 2, 3, 4, 5]
@@ -42,10 +45,12 @@ QTY_W = [52, 22, 12, 5, 3.5, 2.0, 1.2, 0.9, 0.6, 0.6]
 # Thứ tự bước (seq) — GIỐNG NHAU ở cả danh mục cũ & mới (16 bước).
 SEQS = [10, 20, 25, 30, 40, 50, 60, 70, 75, 80, 85, 90, 95, 100, 110, 120]
 
-# Trạng thái bộ mục tiêu (tổng thể)
+# V142b — Trạng thái bộ: 100% BACKLOG (chờ xếp lịch) để tập làm kế hoạch từ đầu.
+# Muốn quay lại bộ dữ liệu "có WIP/đã giao/trễ" thì đặt lại tỉ lệ như cũ:
+#   {"DELIVERED": 0.14, "DONE": 0.09, "WIP": 0.30, "PAUSED": 0.05,
+#    "SCHEDULED": 0.18, "CANCELLED": 0.02, "BACKLOG": 0.22}
 SCEN_TARGET = {  # scenario -> tỉ lệ
-    "DELIVERED": 0.14, "DONE": 0.09, "WIP": 0.30, "PAUSED": 0.05,
-    "SCHEDULED": 0.18, "CANCELLED": 0.02, "BACKLOG": 0.22,
+    "BACKLOG": 1.0,
 }
 
 SET_STATUS = {
@@ -199,7 +204,10 @@ def generate(seed):
     orders = []
     for i in range(N_ORDERS):
         od = DATE_FROM + timedelta(days=rng.randint(0, span))
-        due = od + timedelta(days=rng.randint(15, 45))          # ≥ 15 ngày, 15–45
+        # Ngày giao: RẢI ĐỀU trong khoảng cho phép [od+15 ngày, min(od+45 ngày, 30/11)]
+        # — KHÔNG cộng rồi chặn trần, vì làm vậy mọi đơn muộn sẽ dồn hết vào 30/11.
+        gap_lo, gap_hi = 15, min(45, (DELIVERY_TO - od).days)
+        due = od + timedelta(days=rng.randint(gap_lo, max(gap_lo, gap_hi)))
         day_count[od] = day_count.get(od, 0) + 1
         day_seq = day_count[od]
 
@@ -269,11 +277,11 @@ def _assign_scenarios(rng, orders):
     n = len(lines)
     counts = {k: int(round(v * n)) for k, v in SCEN_TARGET.items()}
     counts["BACKLOG"] += n - sum(counts.values())        # dồn phần dư vào backlog
-    # từ CŨ nhất → MỚI nhất, mức độ hoàn thành giảm dần
-    ordered = (["DELIVERED"] * counts["DELIVERED"] + ["DONE"] * counts["DONE"]
-               + ["WIP"] * counts["WIP"] + ["CANCELLED"] * counts["CANCELLED"]
-               + ["PAUSED"] * counts["PAUSED"] + ["SCHEDULED"] * counts["SCHEDULED"]
-               + ["BACKLOG"] * counts["BACKLOG"])
+    # từ CŨ nhất → MỚI nhất, mức độ hoàn thành giảm dần (dùng .get để chạy được cả khi
+    # SCEN_TARGET chỉ có 1 loại — vd bộ dữ liệu BACKLOG SẠCH)
+    ordered = []
+    for name in ("DELIVERED", "DONE", "WIP", "CANCELLED", "PAUSED", "SCHEDULED", "BACKLOG"):
+        ordered.extend([name] * counts.get(name, 0))
     lines.sort(key=lambda x: x[0])                # cũ (u nhỏ) trước
     for (_, o, it), scen in zip(lines, ordered):
         o["sets"].append(dict(item=it, scen=scen))
@@ -467,7 +475,7 @@ INSERT INTO production_tasks (set_id, order_item_id, stage_code, scope, stage_ki
   updated_by, created_at, updated_at)
 SELECT s.id, i.id, ps.code, sc.scope, ps.kind, ps.seq, ps.work_center_code,
        t.status, t.qty_expected,
-       CASE WHEN t.status = 'XONG' THEN t.qty_expected ELSE 0 END,
+       CASE WHEN t.status = 'XONG' THEN t.qty_expected ELSE NULL END,
        pd.plan_date, pd.plan_date,
        CASE WHEN t.status IN ('XONG','DANG_LAM','TAM_DUNG') AND pd.plan_date IS NOT NULL
             THEN pd.plan_date + make_interval(hours => 7 + t.h1 % 2, mins => (t.h2 % 4) * 15) END,
@@ -721,7 +729,8 @@ def main():
     drafts = sum(1 for o in orders if o["status"] == "NHAP")
     readme = f"""# SIM-500 — BỘ DỮ LIỆU MÔ PHỎNG 500 ĐƠN (MODULE LÊN KẾ HOẠCH SẢN XUẤT)
 
-Ngày tạo: **26/09/2026** · Seed `20260926` · Dùng cho thử tải và xem **BACKLOG / WIP / ĐANG DỞ / TRỄ / ĐÃ GIAO**.
+Ngày tạo: **26/09/2026** · Seed `20260926` · **BỘ DỮ LIỆU BACKLOG SẠCH** — để **tập làm kế hoạch từ đầu**:
+cả 500 đơn đã xác nhận, **chưa bộ nào được xếp lịch, chưa bộ nào đang sản xuất, không có làm lại**.
 
 ## 1. Nội dung
 
@@ -736,21 +745,20 @@ Ngày tạo: **26/09/2026** · Seed `20260926` · Dùng cho thử tải và xem 
 | Công đoạn (`production_tasks`) | {n_sets} × 24 (tuỳ danh mục cũ/mới, luôn 24 dòng/bộ) |
 | Câu hỏi xác nhận | {len(orders) * 6} |
 
-- **Ngày đặt hàng:** 10/08/2026 → 05/10/2026 · **Ngày giao:** luôn **≥ 15 ngày** sau ngày đặt (15–45 ngày).
+- **Ngày đặt hàng:** {DATE_FROM:%d/%m/%Y} → {DATE_TO:%d/%m/%Y} — **trong tháng 10–11/2026**.
+- **Ngày giao khách:** **trong tháng 10–11/2026**, muộn nhất **30/11/2026**, và luôn **≥ 15 ngày** sau ngày đặt.
 - **Loại đơn:** SAN_XUAT {otypes.get('SAN_XUAT', 0)} · MAU {otypes.get('MAU', 0)} · LAM_LAI {otypes.get('LAM_LAI', 0)}.
-- **Đơn nháp (`status='NHAP'`):** {drafts} đơn (~{drafts/5:.0f}%) — **không có Bộ số, không có bộ trong kế hoạch** (đúng như app).
+- **Đơn nháp:** {drafts} — đã tắt, cả 500 đơn đều `DA_XAC_NHAN` nên **đưa vào kế hoạch được ngay**.
 
-## 2. Phân bố trạng thái bộ cửa (theo độ cũ của đơn so với 26/09/2026)
+## 2. Trạng thái — **TẤT CẢ LÀ BACKLOG**
 
-| Scenario | Trạng thái bộ | Số bộ |
-|---|---|---|
-| BACKLOG | CHO_XEP_LICH (chờ xếp lịch) | {scen.get('BACKLOG', 0)} |
-| SCHEDULED | DA_XEP_LICH | {scen.get('SCHEDULED', 0)} |
-| WIP | DANG_SX | {scen.get('WIP', 0)} |
-| PAUSED | TAM_DUNG (có `reason_code`) | {scen.get('PAUSED', 0)} |
-| DONE | HOAN_THANH | {scen.get('DONE', 0)} |
-| DELIVERED | DA_GIAO (OTD ≈ 70%) | {scen.get('DELIVERED', 0)} |
-| CANCELLED | HUY | {scen.get('CANCELLED', 0)} |
+| Trạng thái bộ | Số bộ | Ngày kế hoạch | Tiến độ |
+|---|---|---|---|
+| **CHO_XEP_LICH** (chờ xếp lịch) | {scen.get('BACKLOG', 0)} | *chưa gán* | 0% |
+
+Mọi công đoạn ở **CHUA_LAM**: `qty_done` = NULL, `planned_start/planned_end` = NULL, `actual_*` = NULL,
+`assignee` NULL, `is_rework` = false, `reason_code` NULL. Đây là **điểm xuất phát sạch** để bạn tự gán ngày
+(xếp lịch bằng tay — V141), rồi theo dõi bảng tải / cảnh báo / báo cáo tự cập nhật theo.
 
 ## 3. Đặc điểm kỹ thuật
 
@@ -765,11 +773,11 @@ Ngày tạo: **26/09/2026** · Seed `20260926` · Dùng cho thử tải và xem 
   - `scope_mode='PARTS'` → tách theo `string_to_array(scope_parts, ',')`;
   - `scope_mode='PART'` → 1 scope; `'BO'`/`'MODEL'` → scope `'BO'`.
   - `qty_expected`: CANH = số cánh × số bộ · KHUNG = số bộ · PHAO = số phào × số bộ · BO = số bộ.
-  - Trạng thái suy theo `seq`: `seq <= done_seq` → XONG; bước đang làm → DANG_LAM (hoặc TAM_DUNG nếu bộ tạm dừng);
-    còn lại CHUA_LAM. Bộ BACKLOG/HUY/DA_XEP_LICH → tất cả CHUA_LAM; HOAN_THANH/DA_GIAO → tất cả XONG.
-  - `planned_start/planned_end` = ngày kế hoạch của bước (bộ + offset bước, **không rơi vào Chủ nhật**).
-  - ~3% công đoạn XONG có `is_rework=true` + `reason_code` nhóm `LOI`; task TAM_DUNG có lý do nhóm tạm dừng;
-    `assignee` là tên tổ trưởng; `updated_by='Mô phỏng'`.
+  - Trạng thái: bộ dữ liệu này chạy ở chế độ `state='NONE'` ⇒ **mọi công đoạn CHUA_LAM**, **không có ngày kế hoạch**
+    (máy vẫn giữ nhánh sinh tiến độ cho các chế độ khác nếu sau này cần bộ dữ liệu có WIP/đã giao).
+- **Không sinh lệnh sản xuất (V142).** Sau khi nạp đủ 10 file, chạy MỘT LẦN
+  `migrate-production-v142-lenh-cong-doan.sql` (mục 2→3→4) để mọi bộ có đủ lệnh cha + 3 lệnh con + 1 lệnh/công đoạn;
+  câu 5 của file đó kiểm tra và báo lỗi nếu thiếu.
   - `percent_done` của bộ = XONG / (số công đoạn không `BO_QUA` và không phải kind `'CHO'`).
 - Chạy được cho **cả danh mục CŨ** (CAT/CHAN/HAN/VAN, `scope_mode='PARTS'`) **lẫn danh mục MỚI** sau V139
   (CAT_CANH…, `scope_mode='PART'`).
@@ -793,6 +801,10 @@ không session state ⇒ dán cả file vào SQL Editor (Supabase / pooler) hay 
 ```bash
 psql "<CHUỖI KẾT NỐI>" -f sim-500/sim-500-CLEANUP.sql
 ```
+
+> ⚠️ **Đã nạp bộ SIM-500 CŨ** (bản trước: đơn 08–10/2026, có bộ đang sản xuất / đã giao / làm lại)?
+> Chạy **`sim-500/sim-500-CLEANUP-ban-cu.sql`** trước để gỡ sạch, rồi mới nạp 10 file dưới đây —
+> nếu không bạn sẽ có **2 bộ dữ liệu chồng nhau** (mã đơn khác nhau nên không ghi đè).
 Xoá **đúng 500 mã đơn mô phỏng** (cascade công đoạn / lệnh con / bộ / bộ cửa / hàng kèm / câu hỏi).
 Bộ đếm `ORDER_SET_NUMBER_COUNTER` giữ nguyên — muốn trả về giá trị cũ thì tự `UPDATE`.
 

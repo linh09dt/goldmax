@@ -20,7 +20,7 @@ SELECT (SELECT count(*) FROM sales_orders)                       AS don,
        (SELECT count(*) FROM production_sets)                    AS bo,
        (SELECT count(*) FROM production_component_orders)         AS lenh_con,
        (SELECT count(*) FROM production_tasks)                    AS cong_doan;
--- SIM-500 đầy đủ: don = 500 · bo = 1006 · lenh_con = 3018 · cong_doan = 24144
+-- SIM-500 (bộ BACKLOG SẠCH): don = 500 · bo = 1056 · lenh_con = 3168 · cong_doan = 25344
 ```
 
 **0.2. Vào cấu hình một lượt** — menu trái → *Kế hoạch sản xuất → Cấu hình sản xuất*:
@@ -41,12 +41,16 @@ Menu trái → **Kế hoạch sản xuất**. Bạn sẽ thấy:
 
 | Chỉ số trên màn | Giá trị kỳ vọng (SIM-500) |
 |---|---|
-| Bộ trong kế hoạch | **1.006** |
-| Chờ xếp lịch (BACKLOG) | **221** |
-| Đang sản xuất (WIP) | **302** |
-| Hoàn thành / đã giao | **91 / 141** |
-| Tạm dừng | **50** |
+| Bộ trong kế hoạch | **1.056** |
+| Chờ xếp lịch (BACKLOG) | **1.056** (tất cả) |
+| Đang sản xuất (WIP) | **0** |
+| Hoàn thành / đã giao | **0 / 0** |
+| Tạm dừng | **0** |
 | Chưa nhập vào kế hoạch | **0** (vì SIM-500 đã tạo bộ) |
+
+> **V142b — bộ sim mới là BACKLOG SẠCH:** cả 1.056 bộ ở *Chờ xếp lịch*, 0% tiến độ, chưa có ngày kế hoạch,
+> chưa có sản lượng, không làm lại. Công đoạn: 25.344 dòng, tất cả **Chưa làm**.
+> Ngày đặt: 01/10 → 10/11/2026 · Ngày giao: 16/10 → 30/11/2026 (luôn ≥ 15 ngày sau ngày đặt).
 
 Cuộn xuống xem **bảng "Tải theo tổ và ngày"** — đỏ = vượt năng lực, vàng > 85%;
 mỗi tổ có **dòng con `↳ <công đoạn>`** (năng lực riêng từng công đoạn).
@@ -66,7 +70,7 @@ mỗi tổ có **dòng con `↳ <công đoạn>`** (năng lực riêng từng c�
 | 7 | **Đánh dấu đã giao** | Nút **"Đánh dấu đã giao"** + ngày | Bộ → *Đã giao*, dùng tính OTD |
 | 8 | **Kế hoạch tuần** | *Kế hoạch sản xuất → Kế hoạch tuần* → chọn tuần → **"Tạo / gom bộ vào kế hoạch"** → nhập tên giám đốc → **"Chốt kế hoạch"** | Thẻ kế hoạch `KH-<yyyymmdd>-<yyyymmdd>` |
 | 9 | **In cho xưởng** | *Kế hoạch sản xuất → "In phiếu lệnh SX"* → chọn ngày + tổ | **Phiếu lệnh A4** (mỗi bộ/tổ 1 trang) và **Danh sách việc theo ngày** để dán xưởng. Bấm **In / Lưu PDF** |
-| 10 | **Xem báo cáo** | *Báo cáo → Sản xuất (OTD)* | OTD **≈ 70,2%** · năng suất & tải theo tổ · thời gian thực tế vs định mức từng công đoạn · tỷ lệ làm lại **≈ 2,9%** · lý do trễ · tồn thành phẩm |
+| 10 | **Xem báo cáo** | *Báo cáo → Sản xuất (OTD)* | Bộ dữ liệu backlog chưa có gì để tính OTD — báo cáo sẽ trống cho tới khi bạn gán ngày và cập nhật tiến độ |
 
 > **Bộ mô phỏng không tạo `production_plans`** ⇒ nếu màn *Kế hoạch tuần* đang trống thì bấm **"Tạo / gom bộ vào kế hoạch"** là có.
 

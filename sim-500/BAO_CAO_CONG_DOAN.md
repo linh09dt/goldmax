@@ -1,92 +1,100 @@
-# SIM-500 — BÁO CÁO CÔNG ĐOẠN (WIP · ĐANG DỞ · BACKLOG)
+# SIM-500 — BÁO CÁO BỘ DỮ LIỆU ĐỂ LẬP KẾ HOẠCH (BACKLOG SẠCH)
 
-Sinh tự động từ 10 file `sim-500/don-*.sql` (500 đơn). Danh mục công đoạn V139 (12 công đoạn tách phần).
-Mốc tham chiếu "hôm nay": **26/09/2026**.
+Sinh tự động từ 10 file `sim-500/don-*.sql` (500 đơn). Danh mục công đoạn V139 (tách phần).
+**Điểm xuất phát: 1.056/1.056 bộ ở trạng thái CHỜ XẾP LỊCH — chưa gán ngày, chưa sản xuất**
+(bộ có ngày kế hoạch: 0 · công đoạn không phải "Chưa làm": 0).
 
-## 1. Bộ cửa theo trạng thái — thấy BACKLOG / WIP / ĐANG DỞ
+## 1. Tổng quan
 
-| Trạng thái bộ | Số bộ | Tỷ lệ | Ý nghĩa khi xem |
-|---|---:|---:|---|
-| Đang sản xuất (WIP) | 302 | 30.0% | **WIP / ĐANG DỞ** — đang ở các công đoạn khác nhau |
-| Chờ xếp lịch (BACKLOG) | 221 | 22.0% | **BACKLOG** — có lệnh, chưa xếp lịch |
-| Đã xếp lịch | 181 | 18.0% | Đã có ngày kế hoạch, chưa làm |
-| Đã giao | 141 | 14.0% |  |
-| Hoàn thành (chưa giao) | 91 | 9.0% |  |
-| Tạm dừng | 50 | 5.0% |  |
-| Đã huỷ | 20 | 2.0% |  |
-| **Tổng** | **1.006** | 100% | |
-
-## 2. Công đoạn theo trạng thái — WIP nằm ở công đoạn nào
-
-| Bước | Công đoạn | Tổ | Tổng việc | Chưa làm | Đang làm | Xong | Tạm dừng | Làm lại | Giờ TB/thực tế |
-|---:|---|---|---:|---:|---:|---:|---:|---:|---:|
-| 10 | Thiết kế (bản vẽ CAD) | KY_THUAT | 1.006 | 422 | 0 | 584 | 0 | 21 | 8.48 |
-| 20 | Bồi Lares — nạp chương trình máy cắt (CAM) | KY_THUAT | 1.006 | 422 | 22 | 559 | 3 | 17 | 8.46 |
-| 25 | Chờ sau Bồi Lares mới cắt được | — | 1.006 | 447 | 20 | 535 | 4 | 14 | 8.48 |
-| 30 | Cắt cánh | TO_MAY | 1.006 | 471 | 23 | 508 | 4 | 11 | 8.48 |
-| 30 | Cắt khung | TO_MAY | 1.006 | 471 | 23 | 508 | 4 | 17 | 8.49 |
-| 30 | Cắt phào | TO_MAY | 1.006 | 471 | 23 | 508 | 4 | 19 | 8.45 |
-| 40 | Chấn cánh | TO_MAY | 1.006 | 498 | 12 | 495 | 1 | 17 | 8.43 |
-| 40 | Chấn khung | TO_MAY | 1.006 | 498 | 12 | 495 | 1 | 14 | 8.42 |
-| 40 | Chấn phào | TO_MAY | 1.006 | 498 | 12 | 495 | 1 | 16 | 8.49 |
-| 50 | Hàn cánh | TO_HAN | 1.006 | 511 | 18 | 473 | 4 | 13 | 8.39 |
-| 50 | Hàn khung | TO_HAN | 1.006 | 511 | 18 | 473 | 4 | 10 | 8.44 |
-| 50 | Hàn phào | TO_HAN | 1.006 | 511 | 18 | 473 | 4 | 10 | 8.53 |
-| 60 | Ép cánh (sau khi hàn cánh) | TO_HAN | 1.006 | 533 | 17 | 451 | 5 | 13 | 8.39 |
-| 70 | Test cơ khí (QC — lắp ghép kiểm tra trước sơn) | TO_HAN | 1.006 | 555 | 19 | 427 | 5 | 8 | 8.41 |
-| 75 | Chờ sơn (sau test cơ khí) | — | 1.006 | 579 | 22 | 403 | 2 | 11 | 8.34 |
-| 80 | Sơn (cả bộ 1 lượt — GATE: đủ 3 phần đã test) | TO_SON | 1.006 | 603 | 26 | 376 | 1 | 14 | 8.50 |
-| 85 | Chờ khô / nguội sau sơn | — | 1.006 | 630 | 12 | 358 | 6 | 11 | 8.41 |
-| 90 | Vân cánh | TO_VAN | 1.006 | 648 | 23 | 333 | 2 | 10 | 8.42 |
-| 90 | Vân khung | TO_VAN | 1.006 | 648 | 23 | 333 | 2 | 11 | 8.48 |
-| 90 | Vân phào | TO_VAN | 1.006 | 648 | 23 | 333 | 2 | 9 | 8.37 |
-| 95 | Chờ sau vân trước khi lắp kính / đóng gói | — | 1.006 | 673 | 21 | 307 | 5 | 12 | 8.40 |
-| 100 | Lắp kính + phụ kiện | TO_DONG_GOI | 1.006 | 699 | 17 | 286 | 4 | 7 | 8.56 |
-| 110 | Vệ sinh + đóng gói (mốc HOÀN THÀNH SẢN XUẤT) | TO_DONG_GOI | 1.006 | 720 | 27 | 258 | 1 | 7 | 8.48 |
-| 120 | Kho / giao hàng (đã giao khách) | KHO | 1.006 | 748 | 23 | 232 | 3 | 5 | 8.52 |
-
-## 3. Trạng thái công đoạn (toàn bộ)
-
-| Trạng thái | Số công đoạn |
+| Hạng mục | Số lượng |
 |---|---:|
-| Chưa làm | 13.415 |
-| Xong | 10.203 |
-| Đang làm | 454 |
-| Tạm dừng | 72 |
+| Đơn hàng | **500** (10 file × 50 đơn) |
+| Dòng bộ cửa (= số bộ trong kế hoạch) | **1.056** |
+| Bộ theo số lượng (cộng `quantity`) | 2.280 |
+| **Tổng cánh quy đổi** (dùng tính tải) | **4.527** |
+| Lệnh con Cánh/Khung/Phào | 3.168 (3/bộ) |
+| Công đoạn phải làm | **25.344** (24/bộ) |
+| Ngày đặt | 2026-10-01 → 2026-11-10 |
+| Ngày giao khách | 2026-10-17 → 2026-11-30 |
 
-## 4. Đang dở nằm ở công đoạn nào (DANG_LAM + TAM_DUNG)
+Loại đơn: SAN_XUAT 329 · MAU 126 · LAM_LAI 45.
+Đơn vào kế hoạch theo tháng: 10/2026: 355 đơn · 11/2026: 145 đơn.
 
-| Công đoạn | Số việc đang dở |
-|---|---:|
-| Bồi Lares — nạp chương trình máy cắt (CAM) | 25 |
-| Chấn cánh | 13 |
-| Chấn khung | 13 |
-| Chấn phào | 13 |
-| Chờ khô / nguội sau sơn | 18 |
-| Chờ sau Bồi Lares mới cắt được | 24 |
-| Chờ sau vân trước khi lắp kính / đóng gói | 26 |
-| Chờ sơn (sau test cơ khí) | 24 |
-| Cắt cánh | 27 |
-| Cắt khung | 27 |
-| Cắt phào | 27 |
-| Hàn cánh | 22 |
-| Hàn khung | 22 |
-| Hàn phào | 22 |
-| Kho / giao hàng (đã giao khách) | 26 |
-| Lắp kính + phụ kiện | 21 |
-| Sơn (cả bộ 1 lượt — GATE: đủ 3 phần đã test) | 27 |
-| Test cơ khí (QC — lắp ghép kiểm tra trước sơn) | 24 |
-| Vân cánh | 25 |
-| Vân khung | 25 |
-| Vân phào | 25 |
-| Vệ sinh + đóng gói (mốc HOÀN THÀNH SẢN XUẤT) | 28 |
-| Ép cánh (sau khi hàn cánh) | 22 |
+## 2. Hạn giao theo THÁNG — biết tháng nào phải làm
 
-## 5. Mốc thời gian
+| Tháng giao | Số bộ | Cánh quy đổi |
+|---|---:|---:|
+| 10/2026 | 87 | 398 |
+| 11/2026 | 969 | 4.129 |
 
-- Ngày kế hoạch: **2026-08-01 → 2026-11-04**
-- Bộ có **kế hoạch xong MUỘN hơn hạn giao**: **419 / 1.006** (41.7%) → xưởng đang **quá tải**, app sẽ báo cảnh báo đỏ.
-- **OTD (giao đúng hạn)**: 99/141 = **70.2%** (khớp thực trạng nhà máy trễ nhiều).
+## 3. Hạn giao theo TUẦN (tuần bắt đầu từ Thứ 2) — tuần nào CĂNG nhất
 
-> Xem trên app: **Kế hoạch sản xuất** (bảng tải theo tổ + dòng con theo công đoạn, cảnh báo quá tải),
-> **Báo cáo → Sản xuất (OTD)** (OTD · năng suất tổ · thời gian từng công đoạn · làm lại · lý do trễ · tồn kho).
+| Tuần (từ ngày) | Số bộ | Cánh quy đổi | Bộ có >1 bộ/lượt |
+|---|---:|---:|---:|
+| 02/11 | 144 | 650 | 72 |
+| 09/11 | 189 | 914 | 101 |
+| 12/10 | 9 | 61 | 6 |
+| 16/11 | 246 | 919 | 113 |
+| 19/10 | 18 | 87 | 8 |
+| 23/11 | 333 | 1.391 | 163 |
+| 26/10 | 70 | 296 | 35 |
+| 30/11 | 47 | 209 | 26 |
+
+> Cột **cánh quy đổi** so với năng lực ngày của xưởng (Cấu hình sản xuất → ngưỡng vàng/đỏ, mặc định 70/80 cánh/ngày)
+> để thấy tuần nào cần dàn đều. Bảng *Tải theo tổ và ngày* trong app sẽ hiện ô vàng/đỏ khi bạn gán ngày.
+
+## 4. 10 NGÀY GIAO nhiều bộ nhất — ngày nào dễ vỡ kế hoạch
+
+| Ngày giao | Số bộ | Cánh quy đổi |
+|---|---:|---:|
+| 2026-11-27 | 88 | 384 |
+| 2026-11-23 | 51 | 227 |
+| 2026-11-30 | 47 | 209 |
+| 2026-11-16 | 44 | 165 |
+| 2026-11-29 | 44 | 192 |
+| 2026-11-26 | 43 | 160 |
+| 2026-11-24 | 41 | 188 |
+| 2026-11-19 | 40 | 171 |
+| 2026-11-12 | 38 | 181 |
+| 2026-11-22 | 38 | 99 |
+
+## 5. Chủng loại (theo model) — 12 model nhiều nhất
+
+| Model | Số bộ | Cánh quy đổi |
+|---|---:|---:|
+| GM1-Đ-CK-1TK | 97 | 228 |
+| GM2-Đ-HPK-VK-2TK | 80 | 346 |
+| GM2-Đ-HPK-VK-3TK | 47 | 174 |
+| CS2-L-H10-1TK | 38 | 164 |
+| GM1-H1-1NC | 35 | 93 |
+| CS2-L-H10-2TK | 32 | 164 |
+| CS2-Đ-H10-1TK | 32 | 120 |
+| GM1-H1-1TK | 32 | 75 |
+| GM4-L-H3-HPK-3NC | 31 | 232 |
+| CS2-Đ-H10-2TK | 30 | 146 |
+| GM1-H3-1TK | 30 | 62 |
+| GM2-Đ-HPK-VK-2NC | 30 | 130 |
+
+## 6. Khối lượng công đoạn theo TỔ — làm hết thì mỗi tổ bao nhiêu việc
+
+| Tổ | Số việc (công đoạn) | Số bộ liên quan |
+|---|---:|---:|
+| TO_MAY | 6.336 | 1.056 |
+| TO_HAN | 5.280 | 1.056 |
+| (chưa gán) | 4.224 | 1.056 |
+| TO_VAN | 3.168 | 1.056 |
+| TO_DONG_GOI | 2.112 | 1.056 |
+| KY_THUAT | 2.112 | 1.056 |
+| KHO | 1.056 | 1.056 |
+| TO_SON | 1.056 | 1.056 |
+
+## 7. Cách dùng bộ dữ liệu này
+
+1. Nạp 10 file `sim-500/don-*.sql` (đúng thứ tự) — hoặc chạy `migrate-production-v142-lenh-cong-doan.sql`
+   sau khi nạp để sinh **lệnh sản xuất** cho từng công đoạn (V142).
+2. Vào **Kế hoạch sản xuất** → danh sách *Bộ chờ xếp lịch* (đủ 1.056 bộ).
+3. Mở từng bộ → gán **Ngày KH** cho các công đoạn (xếp tay — V141), ưu tiên theo cột **Ngày giao** ở mục 3–4.
+4. Xem **Tải theo tổ và ngày** để biết ngày nào quá tải, và **In phiếu lệnh SX / Danh sách việc theo ngày** để phát xưởng.
+
+> Ghi chú: bộ dữ liệu này **cố ý KHÔNG có** bộ đang sản xuất / đã giao / làm lại — để bạn tập làm kế hoạch từ đầu.
+> Muốn bộ dữ liệu có WIP–đã giao–trễ như bản trước thì đặt lại `SCEN_TARGET` trong `scripts/simulation/gen_sim500.py`.

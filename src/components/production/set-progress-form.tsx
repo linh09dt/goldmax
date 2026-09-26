@@ -35,6 +35,9 @@ export type ProgressTask = {
   note: string | null;
   /** V142 — mã lệnh sản xuất của công đoạn (chỉ để xem, không sửa ở đây). */
   workOrderCode: string | null;
+  /** V144 — MỐC (target) hệ thống tự suy từ ngày bắt đầu sản xuất (chỉ để xem). */
+  targetStart: string | null;
+  targetEnd: string | null;
   /** V136.1 — lý do đang bị khoá (chưa xong công đoạn bắt buộc). Null = được phép chạy. */
   lockedReason: string | null;
 };
@@ -84,6 +87,7 @@ export function SetProgressForm({
   components = [],
   plannedStart,
   plannedEnd,
+  todayVn,
   byName: initialByName,
 }: {
   setId: number;
@@ -92,6 +96,8 @@ export function SetProgressForm({
   components?: ComponentOrderInput[];
   plannedStart: string | null;
   plannedEnd: string | null;
+  /** V144 — "hôm nay" theo giờ Việt Nam (server truyền xuống) để đánh dấu "chậm" cho đúng ngày. */
+  todayVn: string;
   byName: string | null;
 }) {
   const router = useRouter();
@@ -271,6 +277,7 @@ export function SetProgressForm({
             <tr>
               <th className="min-w-[200px]">Công đoạn</th>
               <th className="min-w-[150px]">Mã lệnh</th>
+              <th className="min-w-[145px]">Mốc (target)</th>
               <th>Bộ phận</th>
               <th>Tổ phụ trách</th>
               <th className="text-right">SL</th>
@@ -301,6 +308,21 @@ export function SetProgressForm({
                     ) : null}
                   </td>
                   <td className="whitespace-nowrap text-[11px] font-medium tabular-nums text-slate-500">{task.workOrderCode ?? "—"}</td>
+                  <td className="whitespace-nowrap text-[11.5px]">
+                    {task.targetStart ? (
+                      <>
+                        {task.targetStart.slice(8, 10)}/{task.targetStart.slice(5, 7)}
+                        {task.targetEnd && task.targetEnd !== task.targetStart
+                          ? ` → ${task.targetEnd.slice(8, 10)}/${task.targetEnd.slice(5, 7)}`
+                          : ""}
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                    {task.targetEnd && task.status !== "XONG" && task.status !== "BO_QUA" && task.targetEnd < todayVn ? (
+                      <span className="ml-1 font-semibold text-red-700">chậm</span>
+                    ) : null}
+                  </td>
                   <td>{task.scopeLabel}</td>
                   <td className="text-[12px] text-slate-600">{task.workCenterName || "—"}</td>
                   <td className="erp-td-num">{task.qtyExpected ?? "—"}</td>

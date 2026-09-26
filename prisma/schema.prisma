@@ -516,6 +516,9 @@ model ProductionSet {
   percentDone       Int       @default(0) @map("percent_done")
   plannedStart      DateTime? @map("planned_start") @db.Date
   plannedEnd        DateTime? @map("planned_end") @db.Date
+  /// V144 — ngày ĐƯA VÀO SẢN XUẤT (bấm nút ở bộ cửa) và ngày xong DỰ KIẾN của cả bộ.
+  startedAt         DateTime? @map("started_at") @db.Date
+  targetEnd         DateTime? @map("target_end") @db.Date
   actualCompletedAt DateTime? @map("actual_completed_at")
   actualDeliveredAt DateTime? @map("actual_delivered_at")
   programReady      Boolean   @default(false) @map("program_ready")
@@ -534,6 +537,7 @@ model ProductionSet {
   @@index([planId])
   @@index([setNo])
   @@index([orderId])
+  @@index([targetEnd])
   @@map("production_sets")
 }
 
@@ -578,6 +582,10 @@ model ProductionTask {
   qtyDone         Float?    @map("qty_done")
   plannedStart    DateTime? @map("planned_start") @db.Date
   plannedEnd      DateTime? @map("planned_end") @db.Date
+  /// V144 — MỐC (target) do hệ thống TỰ SUY từ ngày bắt đầu sản xuất + số giờ của bước.
+  /// Khác `planned_*` (sau này là "ngày kế hoạch sản xuất" theo điều độ/lô gộp).
+  targetStart     DateTime? @map("target_start") @db.Date
+  targetEnd       DateTime? @map("target_end") @db.Date
   actualStart     DateTime? @map("actual_start")
   actualEnd       DateTime? @map("actual_end")
   assignee        String?   @db.VarChar(120)
@@ -597,6 +605,7 @@ model ProductionTask {
   @@index([workCenterCode, plannedStart])
   @@index([status])
   @@index([plannedStart])
+  @@index([targetEnd])
   @@map("production_tasks")
 }
 

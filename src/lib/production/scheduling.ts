@@ -321,7 +321,15 @@ export function buildStageLoad({ sets, tasks, workCenters, stages, from, to, con
 // ---------------------------------------------------------------------------
 
 export type ProductionWarning = {
-  kind: "QUA_TAI_TO" | "QUA_TAI_CONG_DOAN" | "SAP_TRE" | "CHUA_DU_THONG_TIN" | "CHUA_CO_CHUONG_TRINH" | "MAY_DUNG";
+  kind:
+    | "QUA_TAI_TO"
+    | "QUA_TAI_CONG_DOAN"
+    | "SAP_TRE"
+    | "CHAM_CONG_DOAN"
+    | "KHONG_KIP"
+    | "CHUA_DU_THONG_TIN"
+    | "CHUA_CO_CHUONG_TRINH"
+    | "MAY_DUNG";
   level: "warn" | "bad";
   title: string;
   detail: string;
@@ -348,6 +356,7 @@ export type BuildWarningsOptions = {
 export function buildWarnings(options: BuildWarningsOptions): ProductionWarning[] {
   const { sets, tasks, stages, config, calendar, loadCells, stageLoadCells = [], today, modelsWithProgram, openDowntimes = [] } = options;
   const todayStart = startOfDayUtc(today);
+  const stageByCode = new Map(stages.map((stage) => [stage.code, stage]));
   const warnings: ProductionWarning[] = [];
 
   // --- 4.1 Quá tải tổ (KH29) ---
@@ -436,7 +445,7 @@ export function buildWarnings(options: BuildWarningsOptions): ProductionWarning[
       }
     }
 
-    if (workshopDue && set.plannedEnd && startOfDayUtc(set.plannedEnd).getTime() > workshopDue.getTime()) {
+    if (workshopDue && set.plannedEnd && !set.startedAt && startOfDayUtc(set.plannedEnd).getTime() > workshopDue.getTime()) {
       warnings.push({
         kind: "SAP_TRE",
         level: "bad",
@@ -446,6 +455,54 @@ export function buildWarnings(options: BuildWarningsOptions): ProductionWarning[
         href: `/ke-hoach-san-xuat/bo/${set.id}`,
       });
     }
+  }
+
+  // --- 4.2b V144: KHÔNG KỊP (bộ đã vào sản xuất, dự kiến xong sau hạn xưởng) ---
+  for (const set of sets) {
+    const startedAt = set.startedAt;
+    const targetEnd = set.targetEnd;
+    const dueDate = set.dueDate;
+    if (!startedAt || !targetEnd || !dueDate) continue;
+    if (set.status === "HOAN_THANH" || set.status === "DA_GIAO" || set.status === "HUY") continue;
+    const workshopDue = subtractWorkingDays(dueDate, config.deliveryBufferDays, calendar);
+    if (startOfDayUtc(targetEnd).getTime() > startOfDayUtc(workshopDue).getTime()) {
+      const late = Math.max(1, workingDaysBetween(workshopDue, targetEnd, calendar));
+      warnings.push({
+        kind: "KHONG_KIP",
+        level: "bad",
+        title: `Bộ ${labelOf(set)} KHÔNG KỊP — dự kiến xong ${formatDay(targetEnd)}`,
+        detail: `Hạn xưởng phải xong ${formatDay(workshopDue)} (hạn giao ${formatDay(dueDate)} − ${config.deliveryBufferDays} ngày đệm) · muộn ${late} ngày làm việc · bắt đầu từ ${formatDay(startedAt)}`,
+        setId: set.id,
+        href: `/ke-hoach-san-xuat/bo/${set.id}`,
+      });
+    }
+  }
+
+  // --- 4.2c V144: CHẬM — công đoạn đã quá MỐC (target) mà chưa xong ---
+  for (const set of sets) {
+    if (set.status === "HOAN_THANH" || set.status === "DA_GIAO" || set.status === "HUY") continue;
+    const setTasks = tasksBySet.get(set.id) ?? [];
+    const lateTasks = setTasks.filter(
+      (task): task is typeof task & { targetEnd: Date } =>
+        task.targetEnd !== null &&
+        task.status !== "XONG" &&
+        task.status !== "BO_QUA" &&
+        startOfDayUtc(task.targetEnd).getTime() < todayStart.getTime(),
+    );
+    if (!lateTasks.length) continue;
+    const worst = lateTasks.reduce((min, task) =>
+      startOfDayUtc(task.targetEnd).getTime() < startOfDayUtc(min.targetEnd).getTime() ? task : min,
+    );
+    const worstStage = stageByCode.get(worst.stageCode)?.name ?? worst.stageCode;
+    const late = Math.max(1, workingDaysBetween(worst.targetEnd, todayStart, calendar));
+    warnings.push({
+      kind: "CHAM_CONG_DOAN",
+      level: "bad",
+      title: `Bộ ${labelOf(set)} CHẬM ${lateTasks.length} công đoạn quá mốc`,
+      detail: `Chậm nhất: ${worstStage} — mốc xong ${formatDay(worst.targetEnd)} (chậm ${late} ngày làm việc) · mốc cả bộ ${set.targetEnd ? formatDay(set.targetEnd) : "—"}`,
+      setId: set.id,
+      href: `/ke-hoach-san-xuat/bo/${set.id}`,
+    });
   }
 
   // --- 4.3 Bộ chưa đủ thông tin để xếp lịch (B3/KH5) ---

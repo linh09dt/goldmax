@@ -175,6 +175,13 @@ export function validateProductionConfig(config: ProductionConfig) {
   if (config.hoursPerShift * config.shiftsPerDay < 1) {
     throw new Error("Số giờ làm việc mỗi ngày phải lớn hơn 0.");
   }
+  // V144 — gối công đoạn nhỏ hơn 1 ngày làm việc thì không lùi được ngày nào (mốc tính theo NGÀY).
+  const perDay = config.hoursPerShift * config.shiftsPerDay;
+  if (config.overlapHoursPerStep > 0 && config.overlapHoursPerStep < perDay) {
+    throw new Error(
+      `Gối công đoạn phải là 0 hoặc ≥ ${perDay} giờ (1 ngày làm việc = ${config.shiftsPerDay} ca × ${config.hoursPerShift} giờ) — nhỏ hơn thì không lùi được ngày nào.`,
+    );
+  }
   const templateError = validateWorkOrderCodeTemplate(config.workOrderCodeTemplate ?? "");
   if (templateError) throw new Error(templateError);
 }

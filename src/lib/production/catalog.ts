@@ -70,6 +70,9 @@ export type ProductionTaskRow = {
   qtyDone: number | null;
   plannedStart: Date | null;
   plannedEnd: Date | null;
+  /** V144 — mốc do hệ thống tự suy từ ngày bắt đầu sản xuất (khác `planned*` = ngày kế hoạch/điều độ). */
+  targetStart: Date | null;
+  targetEnd: Date | null;
   actualStart: Date | null;
   actualEnd: Date | null;
   assignee: string | null;
@@ -107,6 +110,9 @@ export type ProductionSetRow = {
   percentDone: number;
   plannedStart: Date | null;
   plannedEnd: Date | null;
+  /** V144 — ngày đưa vào sản xuất + ngày xong dự kiến của cả bộ. */
+  startedAt: Date | null;
+  targetEnd: Date | null;
   actualCompletedAt: Date | null;
   actualDeliveredAt: Date | null;
   programReady: boolean;

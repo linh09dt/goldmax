@@ -11,7 +11,16 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ORDER_WRITE_TRANSACTION } from "@/lib/db-transaction";
 import { CONFIRMED_STATUS_CODES } from "@/lib/order-form";
-import { buildCalendar, startOfDayUtc, type WorkingCalendar } from "@/lib/production/calendar";
+import {
+  buildCalendar,
+  parseIsoDateStrict,
+  startOfDayUtc,
+  subtractWorkingDays,
+  workingDaysBetween,
+  type WorkingCalendar,
+} from "@/lib/production/calendar";
+
+export { parseIsoDateStrict };
 import {
   canhEquivalentOf,
   deriveSetStatus,
@@ -37,6 +46,12 @@ import {
   resolveWorkOrderTemplate,
   workOrderCodeInputsForSet,
 } from "@/lib/production/work-order";
+import {
+  computeStepTargets,
+  targetStepsFromTasks,
+  targetTotalDays,
+  type StepTarget,
+} from "@/lib/production/targets";
 
 export const SET_INCLUDE_TASKS = {
   tasks: { orderBy: [{ seq: "asc" }, { scope: "asc" }] },
@@ -359,6 +374,9 @@ export async function rebuildTasksForSet(setId: number): Promise<{ createdTasks:
     include: { componentOrders: true },
   });
   if (!set) throw new Error("Không tìm thấy bộ cửa.");
+  if (set.startedAt) {
+    throw new Error("Bộ đã vào sản xuất — không sinh lại công đoạn (sẽ mất tiến độ và mốc sản xuất).");
+  }
 
   const drafts = buildTaskDrafts({
     set: set as ProductionSetRow,
@@ -420,6 +438,171 @@ export async function rebuildTasksForSet(setId: number): Promise<{ createdTasks:
       await tx.productionWorkOrder.createMany({ data: workOrderRows });
     }
     return { createdTasks: drafts.length, createdWorkOrders: workOrderRows.length };
+  }, ORDER_WRITE_TRANSACTION);
+}
+
+// ---------------------------------------------------------------------------
+// V144 — ĐƯA VÀO SẢN XUẤT: nhập MỘT mốc ngày bắt đầu → tự suy target của mọi công đoạn
+// ---------------------------------------------------------------------------
+
+const isoDateOnly = (value: Date): string => value.toISOString().slice(0, 10);
+
+export type StartPlanStep = {
+  seq: number;
+  codes: string[];
+  hours: number;
+  days: number;
+  start: string;
+  end: string;
+};
+
+export type StartPreview = {
+  /** ngày bắt đầu thực tế (đã dời sang ngày làm việc nếu rơi vào Chủ nhật/ngày lễ) */
+  start: Date;
+  requestedStart: Date;
+  movedToWorkingDay: boolean;
+  /** ngày xong dự kiến của cả bộ */
+  end: Date;
+  totalDays: number;
+  steps: StartPlanStep[];
+  /** hạn xưởng phải xong = hạn giao khách − đệm vận chuyển */
+  workshopDue: Date | null;
+  /** số ngày làm việc KHÔNG KỊP (null = kịp hoặc không có hạn giao) */
+  lateDays: number | null;
+};
+
+/** Tính trước kế hoạch (không ghi DB) để người dùng xem rồi mới bấm "Đưa vào sản xuất". */
+export async function previewSetStart(setId: number, requestedStart: Date): Promise<StartPreview | null> {
+  const [config, stages, set] = await Promise.all([
+    readProductionConfig(),
+    loadActiveStages(),
+    prisma.productionSet.findUnique({ where: { id: setId }, include: { tasks: true } }),
+  ]);
+  if (!set) return null;
+  const stageByCode = new Map(stages.map((stage) => [stage.code, stage]));
+  const steps = targetStepsFromTasks(set.tasks, stageByCode);
+  if (!steps.length) return null;
+  const calendar = await loadCalendar(config);
+  return buildStartPreview({ requestedStart, steps, config, calendar, dueDate: set.dueDate });
+}
+
+function buildStartPreview(args: {
+  requestedStart: Date;
+  steps: Parameters<typeof computeStepTargets>[0]["steps"];
+  config: ProductionConfig;
+  calendar: WorkingCalendar;
+  dueDate: Date | null;
+}): StartPreview {
+  const targets: StepTarget[] = computeStepTargets({
+    start: args.requestedStart,
+    steps: args.steps,
+    config: args.config,
+    calendar: args.calendar,
+  });
+  const start = targets[0].start;
+  const end = targets[targets.length - 1].end;
+  const workshopDue = args.dueDate
+    ? startOfDayUtc(subtractWorkingDays(args.dueDate, args.config.deliveryBufferDays, args.calendar))
+    : null;
+  const lateDays =
+    workshopDue && end.getTime() > workshopDue.getTime()
+      ? Math.max(0, workingDaysBetween(workshopDue, end, args.calendar))
+      : null;
+  return {
+    start,
+    requestedStart: startOfDayUtc(args.requestedStart),
+    movedToWorkingDay: startOfDayUtc(args.requestedStart).getTime() !== start.getTime(),
+    end,
+    totalDays: targetTotalDays(targets, args.calendar),
+    steps: targets.map((step) => ({
+      seq: step.seq,
+      codes: step.codes,
+      hours: step.hours,
+      days: step.days,
+      start: isoDateOnly(step.start),
+      end: isoDateOnly(step.end),
+    })),
+    workshopDue,
+    lateDays,
+  };
+}
+
+/**
+ * ĐƯA BỘ VÀO SẢN XUẤT: lưu mốc bắt đầu, tự suy target cho MỌI công đoạn,
+ * chuyển bộ sang DANG_SX và công đoạn đầu tiên sang DANG_LAM. Ghi gộp 1 lượt (bài học V111).
+ */
+export async function startProductionForSet(
+  setId: number,
+  requestedStart: Date,
+  byName: string | null = null,
+): Promise<{ start: Date; end: Date; totalDays: number; tasks: number; startedSeq: number }> {
+  const [config, stages, set] = await Promise.all([
+    readProductionConfig(),
+    loadActiveStages(),
+    prisma.productionSet.findUnique({ where: { id: setId }, include: { tasks: true } }),
+  ]);
+  if (!set) throw new Error("Không tìm thấy bộ cửa.");
+  if (set.status === "HUY") throw new Error("Bộ đã huỷ — không đưa vào sản xuất được.");
+  if (set.startedAt) throw new Error("Bộ đã vào sản xuất (đã có ngày bắt đầu sản xuất).");
+  if (set.status === "DANG_SX" || set.status === "HOAN_THANH" || set.status === "DA_GIAO") {
+    throw new Error("Bộ đã vào sản xuất rồi.");
+  }
+  const stageByCode = new Map(stages.map((stage) => [stage.code, stage]));
+  const steps = targetStepsFromTasks(set.tasks, stageByCode);
+  if (!steps.length) throw new Error("Bộ chưa có công đoạn nào để sản xuất.");
+
+  const calendar = await loadCalendar(config);
+  const preview = buildStartPreview({ requestedStart, steps, config, calendar, dueDate: set.dueDate });
+  const targetBySeq = new Map(preview.steps.map((step) => [step.seq, step]));
+  const records = set.tasks.map((task) => {
+    const target = targetBySeq.get(task.seq);
+    return {
+      id: task.id,
+      target_start: target ? target.start : null,
+      target_end: target ? target.end : null,
+    };
+  });
+  const firstSeq = steps[0].seq;
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.$executeRaw`
+      UPDATE production_tasks AS t
+      SET target_start = v.target_start::date,
+          target_end   = v.target_end::date,
+          updated_at   = now()
+      FROM jsonb_to_recordset(${JSON.stringify(records)}::jsonb) AS v(id int, target_start text, target_end text)
+      WHERE t.id = v.id AND t.set_id = ${setId}`;
+    // Ghi thiếu dòng nào là lỗi thật (không được im lặng báo thành công).
+    if (Number(updated) !== records.length) {
+      throw new Error(`Chỉ ghi được mốc cho ${Number(updated)}/${records.length} công đoạn — đã huỷ, không đưa vào sản xuất.`);
+    }
+    // WIP ở CÔNG ĐOẠN ĐẦU TIÊN
+    await tx.productionTask.updateMany({
+      where: { setId, seq: firstSeq, status: "CHUA_LAM" },
+      data: { status: "DANG_LAM" },
+    });
+    await tx.productionSet.update({
+      where: { id: setId },
+      data: { startedAt: preview.start, targetEnd: preview.end, status: "DANG_SX" },
+    });
+    await tx.productionLog.create({
+      data: {
+        entity: "SET",
+        entityId: setId,
+        action: "BAT_DAU_SAN_XUAT",
+        field: "started_at",
+        oldValue: null,
+        newValue: isoDateOnly(preview.start),
+        byName,
+      },
+    });
+    return {
+      start: preview.start,
+      end: preview.end,
+      totalDays: preview.totalDays,
+      tasks: Number(updated),
+      startedSeq: firstSeq,
+    };
   }, ORDER_WRITE_TRANSACTION);
 }
 
