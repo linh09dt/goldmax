@@ -167,6 +167,8 @@ export function partStageCode(operation: PartOperation, scope: TaskScope): strin
 }
 
 export const WORK_CENTER = {
+  // V140: Thiết kế tách riêng thành tổ (trước đây nằm chung KY_THUAT với Bồi Lares/CAM).
+  TO_THIET_KE: "TO_THIET_KE",
   TO_MAY: "TO_MAY",
   TO_HAN: "TO_HAN",
   TO_SON: "TO_SON",

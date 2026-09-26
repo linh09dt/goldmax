@@ -402,7 +402,8 @@ model ProductionWorkCenter {
   id             Int      @id @default(autoincrement())
   code           String   @unique @db.VarChar(40)
   name           String   @db.VarChar(120)
-  /// TO = tổ trong xưởng · NGUON_LUC_NGOAI = thuê ngoài · VAN_PHONG = kỹ thuật (Thiết kế, Bồi Lares).
+  /// TO = tổ trong xưởng · NGUON_LUC_NGOAI = thuê ngoài · VAN_PHONG = văn phòng/kỹ thuật (vd Bồi Lares/CAM).
+  /// (V140: Thiết kế đã tách sang tổ TO_THIET_KE với kind = 'TO'.)
   kind           String   @default("TO") @db.VarChar(20)
   peopleCount    Int?     @map("people_count")
   shiftsPerDay   Int?     @map("shifts_per_day")
