@@ -9,10 +9,13 @@
 
 import {
   canhEquivalentOf,
+  COMPONENT_KINDS,
+  componentQuantities,
   DEFAULT_PARTS,
   isStageSkippedForSet,
   parseScopeParts,
   STAGE,
+  type ComponentKind,
   type ProductionSetRow,
   type ProductionStageRow,
   type TaskScope,
@@ -38,16 +41,23 @@ export function applicableStages(stages: ProductionStageRow[], config: Productio
     .sort((a, b) => a.seq - b.seq || a.code.localeCompare(b.code));
 }
 
-function qtyForScope(set: ProductionSetRow, scope: TaskScope): number {
+/**
+ * Số lượng của một công đoạn theo phạm vi (V136.1 — nhà máy chốt 26/09/2026):
+ *   - CÁNH = số cánh × số bộ
+ *   - KHUNG = số bộ
+ *   - PHÀO  = (phào rời + phào biệt thự) × số bộ
+ *   - CẢ BỘ = số bộ
+ */
+function qtyForScope(set: ProductionSetRow, scope: TaskScope, config: ProductionConfig): number {
   const sets = Number.isFinite(Number(set.quantity)) && Number(set.quantity) > 0 ? Math.trunc(Number(set.quantity)) : 1;
-  const leaves = Number.isFinite(Number(set.leavesPerSet)) && Number(set.leavesPerSet) > 0 ? Math.trunc(Number(set.leavesPerSet)) : 1;
-  const trims = Number.isFinite(Number(set.trimBarsPerSet)) && Number(set.trimBarsPerSet) > 0 ? Math.trunc(Number(set.trimBarsPerSet)) : 1;
+  const quantities = componentQuantities(set, { cuaDi: config.defaultTrimCuaDi, cuaSo: config.defaultTrimCuaSo });
   switch (scope) {
     case "CANH":
-      return leaves * sets;
+      return quantities.CANH;
     case "PHAO":
-      return trims * sets;
+      return quantities.PHAO;
     case "KHUNG":
+      return quantities.KHUNG;
     case "BO":
     default:
       return sets;
@@ -88,7 +98,7 @@ export function buildTaskDrafts({ set, stages, config, modelHasProgram = false }
         scope,
         seq: stage.seq,
         workCenterCode: stage.workCenterCode,
-        qtyExpected: qtyForScope(set, scope),
+        qtyExpected: qtyForScope(set, scope, config),
         status,
       });
     }
@@ -128,4 +138,19 @@ export function canhOf(set: ProductionSetRow): number {
   const stored = Number(set.canhEquivalent);
   if (Number.isFinite(stored) && stored > 0) return Math.trunc(stored);
   return canhEquivalentOf(set);
+}
+
+// ---------------------------------------------------------------------------
+// LỆNH SẢN XUẤT CON (V136.1): mỗi bộ cửa tách thành ĐÚNG 3 lệnh con.
+// ---------------------------------------------------------------------------
+
+export type ComponentOrderDraft = { kind: ComponentKind; qtyExpected: number };
+
+/**
+ * Ba lệnh con của một bộ cửa + số lượng:
+ *   CÁNH = số cánh × số bộ · KHUNG = số bộ · PHÀO = (phào rời + phào biệt thự) × số bộ.
+ */
+export function buildComponentOrderDrafts(set: ProductionSetRow, config: ProductionConfig): ComponentOrderDraft[] {
+  const quantities = componentQuantities(set, { cuaDi: config.defaultTrimCuaDi, cuaSo: config.defaultTrimCuaSo });
+  return COMPONENT_KINDS.map((kind) => ({ kind, qtyExpected: quantities[kind] }));
 }

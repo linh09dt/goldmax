@@ -28,6 +28,8 @@ export type ProgressTask = {
   isRework: boolean;
   reasonCode: string | null;
   note: string | null;
+  /** V136.1 — lý do đang bị khoá (chưa xong công đoạn bắt buộc). Null = được phép chạy. */
+  lockedReason: string | null;
 };
 
 type ReasonOption = { code: string; name: string; group: string };
@@ -211,10 +213,18 @@ export function SetProgressForm({
             {tasks.map((task) => {
               const status = String(valueOf(task, "status") ?? task.status);
               const isWait = task.stageKind === "CHO";
+              const locked = Boolean(task.lockedReason) && (status === "CHUA_LAM" || status === "DANG_LAM");
               const reasonChoices = status === "TAM_DUNG" ? pauseReasons : reworkReasons;
               return (
-                <tr key={task.id} className={isWait ? "bg-slate-50/60" : undefined}>
-                  <td className="erp-td-strong">{task.stageName}</td>
+                <tr key={task.id} className={isWait ? "bg-slate-50/60" : locked ? "bg-amber-50/40" : undefined}>
+                  <td className="erp-td-strong">
+                    <div>{task.stageName}</div>
+                    {locked ? (
+                      <span className="mt-0.5 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10.5px] font-medium text-amber-900">
+                        🔒 chờ {task.lockedReason}
+                      </span>
+                    ) : null}
+                  </td>
                   <td>{task.scopeLabel}</td>
                   <td className="text-[12px] text-slate-600">{task.workCenterName || "—"}</td>
                   <td className="erp-td-num">{task.qtyExpected ?? "—"}</td>
@@ -225,7 +235,11 @@ export function SetProgressForm({
                       onChange={(event) => setPatch(task.id, { status: event.target.value as TaskStatus })}
                     >
                       {TASK_STATUS_OPTIONS.map((option) => (
-                        <option key={option} value={option}>
+                        <option
+                          key={option}
+                          value={option}
+                          disabled={locked && (option === "DANG_LAM" || option === "XONG")}
+                        >
                           {TASK_STATUS_LABELS[option]}
                         </option>
                       ))}
@@ -275,7 +289,8 @@ export function SetProgressForm({
       </div>
 
       <p className="erp-hint">
-        Chọn “Xong” sẽ tự ghi mốc kết thúc. Khi tất cả công đoạn cần làm đều Xong, bộ chuyển sang <strong>Hoàn thành</strong> và ghi mốc
+        Dòng có dấu 🔒 là chưa được chạy: phải báo hoàn thành công đoạn trước (ví dụ Test cơ khí chỉ mở khi{" "}
+        <strong>cả 3 phần cánh + khung + phào</strong> đã hàn xong). Chọn “Xong” sẽ tự ghi mốc kết thúc. Khi tất cả công đoạn cần làm đều Xong, bộ chuyển sang <strong>Hoàn thành</strong> và ghi mốc
         hoàn thành sản xuất (mốc tính giao đúng hạn). Công đoạn “Chờ” là thời gian khô/nguội, không chiếm năng lực tổ.
       </p>
     </div>

@@ -17,6 +17,7 @@ import {
   deriveSetStatus,
   percentDoneOf,
   STAGE,
+  taskUnlockState,
   type ProductionSetRow,
   type ProductionStageRow,
   type ProductionTaskRow,
@@ -30,11 +31,12 @@ import {
   type ProductionConfig,
 } from "@/lib/production/config";
 import { autoSchedule } from "@/lib/production/auto-schedule";
-import { buildTaskDrafts } from "@/lib/production/routing";
+import { buildComponentOrderDrafts, buildTaskDrafts } from "@/lib/production/routing";
 import { defaultPriorityForOrderType } from "@/lib/production/scheduling";
 
 export const SET_INCLUDE_TASKS = {
   tasks: { orderBy: [{ seq: "asc" }, { scope: "asc" }] },
+  componentOrders: { orderBy: { kind: "asc" } },
 } satisfies Prisma.ProductionSetInclude;
 
 // ---------------------------------------------------------------------------
@@ -210,6 +212,7 @@ export async function syncProductionSets(options: {
     // Sinh công đoạn cho từng bộ — mỗi BẢNG một lượt ghi (bài học V111).
     const setByOrderItem = new Map(createdSets.map((row) => [row.orderItemId, row.id]));
     const taskRows: Prisma.ProductionTaskCreateManyInput[] = [];
+    const componentRows: Prisma.ProductionComponentOrderCreateManyInput[] = [];
     for (const item of pending) {
       const setId = setByOrderItem.get(item.id);
       if (!setId) continue;
@@ -217,10 +220,17 @@ export async function syncProductionSets(options: {
         leavesPerSet: item.leavesPerSet ?? null,
         quantity: item.quantity ?? null,
         trimBarsPerSet: item.trimBarsPerSet ?? null,
+        productName: item.productName ?? null,
         paintColor: item.paintColor ?? null,
         veneerCode: null,
         model: item.model ?? null,
       } as ProductionSetRow;
+
+      // LỆNH CON: đúng 3 lệnh — CÁNH / KHUNG / PHÀO.
+      for (const draft of buildComponentOrderDrafts(setRow, config)) {
+        componentRows.push({ setId, kind: draft.kind, qtyExpected: draft.qtyExpected });
+      }
+
       const drafts = buildTaskDrafts({
         set: setRow,
         stages,
@@ -241,6 +251,9 @@ export async function syncProductionSets(options: {
         });
       }
     }
+    if (componentRows.length) {
+      await tx.productionComponentOrder.createMany({ data: componentRows });
+    }
     if (taskRows.length) {
       await tx.productionTask.createMany({ data: taskRows });
     }
@@ -254,7 +267,10 @@ export async function rebuildTasksForSet(setId: number): Promise<{ createdTasks:
   const config = await readProductionConfig();
   const stages = await loadActiveStages();
   const programModels = await loadProgramModels();
-  const set = await prisma.productionSet.findUnique({ where: { id: setId } });
+  const set = await prisma.productionSet.findUnique({
+    where: { id: setId },
+    include: { componentOrders: true },
+  });
   if (!set) throw new Error("Không tìm thấy bộ cửa.");
 
   const drafts = buildTaskDrafts({
@@ -266,6 +282,14 @@ export async function rebuildTasksForSet(setId: number): Promise<{ createdTasks:
 
   return prisma.$transaction(async (tx) => {
     await tx.productionTask.deleteMany({ where: { setId } });
+    await tx.productionComponentOrder.deleteMany({ where: { setId } });
+    await tx.productionComponentOrder.createMany({
+      data: buildComponentOrderDrafts(set as ProductionSetRow, config).map((draft) => ({
+        setId,
+        kind: draft.kind,
+        qtyExpected: draft.qtyExpected,
+      })),
+    });
     if (!drafts.length) return { createdTasks: 0 };
     await tx.productionTask.createMany({
       data: drafts.map((draft) => ({
@@ -348,7 +372,11 @@ export async function loadSetDetail(setId: number) {
   const [set, config, stages, reasons, programModels] = await Promise.all([
     prisma.productionSet.findUnique({
       where: { id: setId },
-      include: { tasks: { orderBy: [{ seq: "asc" }, { scope: "asc" }] }, plan: true },
+      include: {
+        tasks: { orderBy: [{ seq: "asc" }, { scope: "asc" }] },
+        componentOrders: { orderBy: { kind: "asc" } },
+        plan: true,
+      },
     }),
     readProductionConfig(),
     loadStages(),
@@ -417,12 +445,47 @@ export async function updateSetProgress(setId: number, payload: UpdateSetPayload
 
   const existingTasks = await prisma.productionTask.findMany({
     where: { setId },
-    select: { id: true, stageKind: true, status: true, stageCode: true, isRework: true },
+    select: { id: true, stageKind: true, status: true, stageCode: true, scope: true, isRework: true },
   });
   const byId = new Map(existingTasks.map((task) => [task.id, task]));
   const now = new Date().toISOString();
 
   const patches = (payload.tasks ?? []).filter((patch) => byId.has(patch.id));
+
+  // --- GATE (V136.1): công đoạn chỉ được bắt đầu/kết thúc khi công đoạn bắt buộc đã XONG ---
+  // Nhà máy: "nếu các công đoạn hàn được báo cáo hoàn thành, sẽ xem xét tính đủ bộ để test cơ khí"
+  // và "khi nào cánh, khung, phào báo hoàn thành vân trên cùng bộ thì sẽ chuyển về vệ sinh, đóng gói".
+  // Kiểm trên trạng thái SAU khi áp các thay đổi trong cùng lượt lưu (để lưu nhiều bước một lần vẫn được).
+  if (patches.length) {
+    const stages = await loadActiveStages();
+    const stageByCode = new Map(stages.map((stage) => [stage.code, stage]));
+    const effective = new Map<number, { stageCode: string; scope: string; status: string }>();
+    for (const task of existingTasks) {
+      effective.set(task.id, { stageCode: task.stageCode, scope: task.scope, status: task.status });
+    }
+    for (const patch of patches) {
+      if (!patch.status) continue;
+      const current = effective.get(patch.id);
+      if (current) current.status = patch.status;
+    }
+    const effectiveRows = Array.from(effective.values());
+    const blocked: string[] = [];
+    for (const patch of patches) {
+      if (patch.status !== "DANG_LAM" && patch.status !== "XONG") continue;
+      const current = effective.get(patch.id);
+      if (!current) continue;
+      const state = taskUnlockState(current, effectiveRows, stageByCode);
+      if (state.unlocked) continue;
+      const waiting = state.waitingFor.map((code) => stageByCode.get(code)?.name ?? code).join(", ");
+      blocked.push(`${stageByCode.get(current.stageCode)?.name ?? current.stageCode} (đang chờ ${waiting})`);
+    }
+    if (blocked.length) {
+      throw new Error(
+        `Chưa đủ điều kiện: ${blocked.join("; ")}. Phải báo hoàn thành công đoạn trước rồi mới báo bước sau.`,
+      );
+    }
+  }
+
   const logs: Prisma.ProductionLogCreateManyInput[] = [];
 
   for (const patch of patches) {

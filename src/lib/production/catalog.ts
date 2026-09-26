@@ -284,13 +284,18 @@ export function deriveSetStatus(tasks: Array<Pick<ProductionTaskRow, "stageKind"
   return current === "DA_XEP_LICH" || current === "CHO_XEP_LICH" ? "DA_XEP_LICH" : (current as SetStatus);
 }
 
-/** Số cánh quy đổi của một bộ để tính tải. Không có `leavesPerSet` thì coi là 1 cánh. */
-export function canhEquivalentOf(set: Pick<ProductionSetRow, "leavesPerSet" | "quantity">): number {
-  const leaves = Number(set.leavesPerSet);
-  const sets = Number(set.quantity);
-  const safeLeaves = Number.isFinite(leaves) && leaves > 0 ? Math.trunc(leaves) : 1;
-  const safeSets = Number.isFinite(sets) && sets > 0 ? Math.trunc(sets) : 1;
-  return safeLeaves * safeSets;
+/**
+ * Số cánh quy đổi của một bộ để tính tải = số cánh × số bộ.
+ * Suy số cánh từ `leavesPerSet`, thiếu thì đọc từ tên sản phẩm diễn giải (V136.1).
+ */
+export function canhEquivalentOf(
+  set: Pick<ProductionSetRow, "leavesPerSet" | "quantity"> & Partial<Pick<ProductionSetRow, "productName">>,
+): number {
+  return canhEquivalent({
+    leavesPerSet: set.leavesPerSet,
+    quantity: set.quantity,
+    productName: set.productName ?? null,
+  });
 }
 
 /** Ngày cần xong của xưởng = hạn giao − đệm vận chuyển (B6/GH2). */
@@ -299,4 +304,170 @@ export function workshopDueDate(dueDate: Date | null, bufferDays: number): Date 
   const result = new Date(Date.UTC(dueDate.getUTCFullYear(), dueDate.getUTCMonth(), dueDate.getUTCDate()));
   result.setUTCDate(result.getUTCDate() - Math.max(0, Math.trunc(bufferDays)));
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// V136.1 — LỆNH SẢN XUẤT CHA – CON
+//
+// Lệnh CHA = BỘ CỬA (`production_sets`). Lệnh CON = CÁNH / KHUNG / PHÀO
+// (`production_component_orders`). Công đoạn của lệnh con là các `production_tasks`
+// có `scope` = kind của lệnh con đó.
+// ---------------------------------------------------------------------------
+
+export type ComponentKind = "CANH" | "KHUNG" | "PHAO";
+
+export const COMPONENT_KINDS: ComponentKind[] = ["CANH", "KHUNG", "PHAO"];
+
+export const COMPONENT_LABELS: Record<string, string> = {
+  CANH: "Cánh",
+  KHUNG: "Khung",
+  PHAO: "Phào",
+};
+
+export type ProductionComponentOrderRow = {
+  id: number;
+  setId: number;
+  kind: string;
+  qtyExpected: number | null;
+  note: string | null;
+};
+
+/** Bỏ dấu tiếng Việt để so khớp tên hàng (giống `order-form.tsx`). */
+export function normalizeViText(value: unknown): string {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Số cánh của MỘT bộ cửa.
+ * Ưu tiên trường "Số cánh" của dòng hàng; nếu trống thì suy từ **tên sản phẩm diễn giải**
+ * (nhà máy nói: "cửa đi 1 cánh là 1, 2 cánh là 2, 4 cánh là 4").
+ */
+export function soCanhPerBo(set: Pick<ProductionSetRow, "leavesPerSet" | "productName">): number {
+  const leaves = Number(set.leavesPerSet);
+  if (Number.isFinite(leaves) && leaves > 0) return Math.trunc(leaves);
+  const text = normalizeViText(set.productName);
+  const match = text.match(/(\d+)\s*canh/);
+  if (match) {
+    const parsed = Number(match[1]);
+    if (Number.isFinite(parsed) && parsed > 0) return Math.trunc(parsed);
+  }
+  return 1;
+}
+
+/**
+ * Số phào của MỘT bộ cửa — CÔNG THỨC NHÀ MÁY ĐÃ CHỐT 26/09/2026:
+ *
+ *     số phào = số cánh + số phào rời MẶC ĐỊNH theo loại cửa
+ *               (cửa đi = 3 · cửa sổ = 4)
+ *
+ * Ví dụ nhà máy đưa: cửa đi 1 cánh → 1 + 3 = **4** · cửa sổ 1 cánh → 1 + 4 = **5**.
+ * Số mặc định 3 và 4 sửa được ở Cấu hình sản xuất (`defaultTrimCuaDi` / `defaultTrimCuaSo`).
+ *
+ * Lưu ý: công thức này KHÔNG dùng số lượng phào nhập ở dòng chi tiết của đơn —
+ * đúng như nhà máy xác nhận. Nếu một bộ cần số khác thì phải sửa tay trên lệnh con.
+ */
+export function soPhaoPerBo(
+  set: Pick<ProductionSetRow, "leavesPerSet" | "productName">,
+  defaults: { cuaDi: number; cuaSo: number },
+): number {
+  const text = normalizeViText(set.productName);
+  const macDinh = text.includes("cua so") ? defaults.cuaSo : defaults.cuaDi;
+  return soCanhPerBo(set) + Math.max(0, Math.trunc(macDinh));
+}
+
+/** Số lượng của 3 lệnh con cho một bộ cửa. */
+export function componentQuantities(
+  set: Pick<ProductionSetRow, "leavesPerSet" | "quantity" | "productName">,
+  defaults: { cuaDi: number; cuaSo: number },
+): Record<ComponentKind, number> {
+  const soBo = Number.isFinite(Number(set.quantity)) && Number(set.quantity) > 0 ? Math.trunc(Number(set.quantity)) : 1;
+  return {
+    CANH: soCanhPerBo(set) * soBo,
+    KHUNG: soBo,
+    PHAO: soPhaoPerBo(set, defaults) * soBo,
+  };
+}
+
+/** Tổng số cánh quy đổi để tính tải = số cánh của bộ (KHÔNG nhân số phào/khung). */
+export function canhEquivalent(set: Pick<ProductionSetRow, "leavesPerSet" | "quantity" | "productName">): number {
+  const soBo = Number.isFinite(Number(set.quantity)) && Number(set.quantity) > 0 ? Math.trunc(Number(set.quantity)) : 1;
+  return soCanhPerBo(set) * soBo;
+}
+
+// ---------------------------------------------------------------------------
+// Gate: công đoạn chỉ được chạy khi công đoạn trước đã xong
+// ---------------------------------------------------------------------------
+
+export type UnlockState = {
+  unlocked: boolean;
+  /** Mã công đoạn đang phải chờ (rỗng nếu đã mở). */
+  waitingFor: string[];
+};
+
+/**
+ * Điều kiện mở của một công đoạn, theo `requiresStage` trong danh mục công đoạn.
+ *
+ * Quy tắc (nhà máy chốt 26/09/2026):
+ *   - `requiresStage = S` → **TẤT CẢ** công đoạn mã S của cùng bộ phải XONG (hoặc BỎ QUA).
+ *   - Nếu công đoạn đang xét thuộc một LỆNH CON (scope CANH/KHUNG/PHAO) mà **công đoạn S
+ *     cũng có trong chính lệnh con đó** → chỉ cần phần của lệnh con đó xong.
+ *     (vd: Ép cánh chỉ cần Hàn của CÁNH, không phải Hàn của cả khung và phào.)
+ *   - Nếu S chỉ tồn tại ở lệnh cha (vd SON, TEST) → tính toàn bộ.
+ *
+ * Nhờ vậy mô hình hoá đúng các mốc GỘP mà nhà máy mô tả:
+ *   TEST CƠ KHÍ chỉ chạy khi CẢ 3 phần đã hàn xong;
+ *   LẮP KÍNH + ĐÓNG GÓI chỉ chạy khi CẢ 3 phần đã vân xong.
+ */
+export function taskUnlockState(
+  task: Pick<ProductionTaskRow, "stageCode" | "scope">,
+  setTasks: Array<Pick<ProductionTaskRow, "stageCode" | "scope" | "status">>,
+  stageByCode: Map<string, Pick<ProductionStageRow, "code" | "requiresStage">>,
+): UnlockState {
+  const stage = stageByCode.get(task.stageCode);
+  const required = String(stage?.requiresStage ?? "").trim();
+  if (!required) return { unlocked: true, waitingFor: [] };
+
+  const sameScope = setTasks.filter((row) => row.stageCode === required && row.scope === task.scope);
+  const candidates = sameScope.length ? sameScope : setTasks.filter((row) => row.stageCode === required);
+  if (!candidates.length) return { unlocked: true, waitingFor: [] };
+
+  const pending = candidates.filter((row) => row.status !== "XONG" && row.status !== "BO_QUA");
+  return { unlocked: pending.length === 0, waitingFor: pending.length ? [required] : [] };
+}
+
+/** Tiến độ của một lệnh con, suy từ công đoạn có `scope` = kind. */
+export function componentProgress(
+  setTasks: ProductionTaskRow[],
+  kind: ComponentKind,
+): { percent: number; status: SetStatus; plannedStart: Date | null; plannedEnd: Date | null; done: number; total: number } {
+  const tasks = setTasks.filter((task) => task.scope === kind);
+  const counted = tasks.filter((task) => task.status !== "BO_QUA" && task.stageKind !== "CHO");
+  const done = counted.filter((task) => task.status === "XONG").length;
+  const dates = tasks.map((task) => task.plannedStart).filter((value): value is Date => Boolean(value));
+  const ends = tasks.map((task) => task.plannedEnd ?? task.plannedStart).filter((value): value is Date => Boolean(value));
+  const percent = counted.length ? Math.round((done / counted.length) * 100) : 0;
+  const status: SetStatus = !counted.length
+    ? "CHO_XEP_LICH"
+    : counted.some((task) => task.status === "TAM_DUNG")
+      ? "TAM_DUNG"
+      : counted.every((task) => task.status === "XONG")
+        ? "HOAN_THANH"
+        : counted.some((task) => task.status === "XONG" || task.status === "DANG_LAM")
+          ? "DANG_SX"
+          : "DA_XEP_LICH";
+  return {
+    percent,
+    status,
+    plannedStart: dates.length ? new Date(Math.min(...dates.map((d) => d.getTime()))) : null,
+    plannedEnd: ends.length ? new Date(Math.max(...ends.map((d) => d.getTime()))) : null,
+    done,
+    total: counted.length,
+  };
 }

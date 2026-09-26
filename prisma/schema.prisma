@@ -524,14 +524,39 @@ model ProductionSet {
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
-  tasks ProductionTask[]
-  plan  ProductionPlan?  @relation(fields: [planId], references: [id], onDelete: SetNull)
+  tasks          ProductionTask[]
+  componentOrders ProductionComponentOrder[]
+  plan           ProductionPlan?  @relation(fields: [planId], references: [id], onDelete: SetNull)
 
   @@index([status, dueDate])
   @@index([planId])
   @@index([setNo])
   @@index([orderId])
   @@map("production_sets")
+}
+
+/// V136.1 — LỆNH SẢN XUẤT CON: mỗi BỘ CỬA (lệnh cha) tách thành ĐÚNG 3 lệnh con —
+/// CÁNH, KHUNG, PHÀO — vì cắt/chấn/hàn/vân làm riêng cho từng phần.
+///
+/// Công đoạn của một lệnh con là các `production_tasks` có `scope` = kind tương ứng.
+/// Trạng thái / % tiến độ / ngày kế hoạch của lệnh con được SUY RA từ công đoạn (không lưu trùng),
+/// nên chỉ lưu ở đây số lượng và ghi chú.
+model ProductionComponentOrder {
+  id          Int      @id @default(autoincrement())
+  setId       Int      @map("set_id")
+  /// CANH | KHUNG | PHAO
+  kind        String   @db.VarChar(10)
+  /// Số lượng: cánh = số cánh × số bộ · khung = số bộ · phào = số phào × số bộ.
+  qtyExpected Float?   @map("qty_expected")
+  note        String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  set ProductionSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+
+  @@unique([setId, kind])
+  @@index([setId])
+  @@map("production_component_orders")
 }
 
 /// 1 dòng = 1 BỘ × 1 CÔNG ĐOẠN (KH22: cập nhật ở mức công đoạn của từng bộ).

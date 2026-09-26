@@ -359,6 +359,8 @@ function GeneralConfig({ config }: { config: ProductionConfig }) {
     requireInfoBeforePlan: config.requireInfoBeforePlan,
     paintBatchMinCanh: String(config.paintBatchMinCanh),
     bendChangeoverMaxPerDay: String(config.bendChangeoverMaxPerDay),
+    defaultTrimCuaDi: String(config.defaultTrimCuaDi),
+    defaultTrimCuaSo: String(config.defaultTrimCuaSo),
     waitsEnabled: config.waitsEnabled,
     autoReschedule: config.autoReschedule,
   });
@@ -388,6 +390,8 @@ function GeneralConfig({ config }: { config: ProductionConfig }) {
             requireInfoBeforePlan: draft.requireInfoBeforePlan,
             paintBatchMinCanh: Number(draft.paintBatchMinCanh),
             bendChangeoverMaxPerDay: Number(draft.bendChangeoverMaxPerDay),
+            defaultTrimCuaDi: Number(draft.defaultTrimCuaDi),
+            defaultTrimCuaSo: Number(draft.defaultTrimCuaSo),
             waitsEnabled: draft.waitsEnabled,
             autoReschedule: draft.autoReschedule,
           },
@@ -475,6 +479,16 @@ function GeneralConfig({ config }: { config: ProductionConfig }) {
         <label className="block">
           <span className="erp-field-label">Chấn: đổi khuôn tối đa mỗi ngày</span>
           <input className="erp-input" type="number" value={draft.bendChangeoverMaxPerDay} onChange={(e) => setDraft((c) => ({ ...c, bendChangeoverMaxPerDay: e.target.value }))} />
+        </label>
+        <label className="block">
+          <span className="erp-field-label">Số phào rời mặc định — cửa ĐI</span>
+          <input className="erp-input" type="number" value={draft.defaultTrimCuaDi} onChange={(e) => setDraft((c) => ({ ...c, defaultTrimCuaDi: e.target.value }))} />
+          <p className="erp-hint mt-1">Số phào của một bộ = <strong>số cánh + số phào rời mặc định</strong> (đã chốt 26/09/2026).</p>
+        </label>
+        <label className="block">
+          <span className="erp-field-label">Số phào rời mặc định — cửa SỔ</span>
+          <input className="erp-input" type="number" value={draft.defaultTrimCuaSo} onChange={(e) => setDraft((c) => ({ ...c, defaultTrimCuaSo: e.target.value }))} />
+          <p className="erp-hint mt-1">Tổng phào của bộ = (số cánh + mặc định theo loại cửa) × số bộ. Ví dụ cửa đi 1 cánh → 1 + 3 = 4.</p>
         </label>
 
         <div>

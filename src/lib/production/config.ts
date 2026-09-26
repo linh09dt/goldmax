@@ -41,6 +41,12 @@ export type ProductionConfig = {
   paintBatchMinCanh: number;
   /** Chấn: tối đa mấy lượt đổi khuôn mỗi ngày (CH4). */
   bendChangeoverMaxPerDay: number;
+  /**
+   * Số phào mặc định cho MỘT bộ khi đơn không ghi phào rời / phào biệt thự.
+   * Nhà máy: "số phào rời sẽ tính nếu cửa đi là 3, còn cửa sổ sẽ là 4" — ⚠️ CHỜ XÁC NHẬN công thức.
+   */
+  defaultTrimCuaDi: number;
+  defaultTrimCuaSo: number;
   /** Có tính các khoảng CHỜ (chờ khô sau sơn, sau vân, sau Bồi Lares…) vào thời lượng không. */
   waitsEnabled: boolean;
   /** J8: trễ hạn chỉ BÁO ĐỎ, không tự đề xuất lại lịch. */
@@ -64,6 +70,8 @@ export const DEFAULT_PRODUCTION_CONFIG: ProductionConfig = {
   requireInfoBeforePlan: ["heightMm", "widthMm", "openingDirection", "paintColor"],
   paintBatchMinCanh: 20,
   bendChangeoverMaxPerDay: 2,
+  defaultTrimCuaDi: 3,
+  defaultTrimCuaSo: 4,
   waitsEnabled: true,
   autoReschedule: false,
 };
@@ -125,6 +133,8 @@ export function normalizeProductionConfig(
     requireInfoBeforePlan,
     paintBatchMinCanh: Math.round(clampNumber(source.paintBatchMinCanh, 1, 1000, fallback.paintBatchMinCanh)),
     bendChangeoverMaxPerDay: Math.round(clampNumber(source.bendChangeoverMaxPerDay, 1, 50, fallback.bendChangeoverMaxPerDay)),
+    defaultTrimCuaDi: Math.round(clampNumber(source.defaultTrimCuaDi, 0, 50, fallback.defaultTrimCuaDi)),
+    defaultTrimCuaSo: Math.round(clampNumber(source.defaultTrimCuaSo, 0, 50, fallback.defaultTrimCuaSo)),
     waitsEnabled: boolValue(source.waitsEnabled, fallback.waitsEnabled),
     autoReschedule: boolValue(source.autoReschedule, fallback.autoReschedule),
   };

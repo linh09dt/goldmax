@@ -6,10 +6,15 @@ import { SetProgressForm, type ProgressTask } from "@/components/production/set-
 import { ProductionWarnings } from "@/components/production/production-warnings";
 import { formatDate, formatNumber } from "@/components/order-list/format";
 import {
+  componentProgress,
+  COMPONENT_KINDS,
+  COMPONENT_LABELS,
   SCOPE_LABELS,
   SET_STATUS_LABELS,
   STAGE_KIND_LABELS,
   percentDoneOf,
+  taskUnlockState,
+  type ComponentKind,
   type ProductionSetRow,
   type ProductionTaskRow,
 } from "@/lib/production/catalog";
@@ -55,6 +60,20 @@ export default async function ProductionSetPage({ params }: { params: Promise<{ 
     modelsWithProgram: programModels,
   }).filter((warning) => warning.kind === "SAP_TRE" || warning.kind === "CHUA_DU_THONG_TIN" || warning.kind === "CHUA_CO_CHUONG_TRINH");
 
+  // V136.1 — trạng thái khoá của từng công đoạn (gate đủ bộ).
+  const lockRows = tasks.map((task) => ({ stageCode: task.stageCode, scope: task.scope, status: task.status }));
+  const lockedReasonOf = (task: ProductionTaskRow): string | null => {
+    const state = taskUnlockState(task, lockRows, stageByCode);
+    if (state.unlocked) return null;
+    return state.waitingFor.map((code) => stageByCode.get(code)?.name ?? code).join(", ");
+  };
+
+  const componentRows = COMPONENT_KINDS.map((kind) => {
+    const progress = componentProgress(tasks, kind);
+    const child = (set.componentOrders ?? []).find((row) => row.kind === kind);
+    return { kind: kind as ComponentKind, progress, qtyExpected: child?.qtyExpected ?? null };
+  });
+
   const progressTasks: ProgressTask[] = tasks.map((task) => {
     const stage = stageByCode.get(task.stageCode);
     return {
@@ -74,6 +93,7 @@ export default async function ProductionSetPage({ params }: { params: Promise<{ 
       isRework: task.isRework,
       reasonCode: task.reasonCode,
       note: task.note,
+      lockedReason: lockedReasonOf(task),
     };
   });
 
@@ -122,6 +142,59 @@ export default async function ProductionSetPage({ params }: { params: Promise<{ 
 
         <ProductionWarnings warnings={warnings} />
 
+        <ReportCard
+          title="Lệnh sản xuất cha – con"
+          hint="Cha = bộ cửa. Con = cánh / khung / phào — cắt, chấn, hàn, vân làm riêng từng phần; test cơ khí và sơn làm cho cả bộ."
+        >
+          <div className="erp-scrollbar overflow-x-auto">
+            <table className="erp-table">
+              <thead>
+                <tr>
+                  <th>Lệnh</th>
+                  <th>Phần</th>
+                  <th className="text-right">Số lượng</th>
+                  <th className="text-right">Tiến độ</th>
+                  <th>Trạng thái</th>
+                  <th>Xếp lịch</th>
+                  <th>Việc phải làm</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="bg-slate-50/70">
+                  <td className="erp-td-strong">CHA</td>
+                  <td>Bộ cửa {setRow.setNo || `#${setRow.id}`}</td>
+                  <td className="erp-td-num">{setRow.quantity ?? 1}</td>
+                  <td className="erp-td-num font-semibold">{percentDoneOf(tasks)}%</td>
+                  <td>{SET_STATUS_LABELS[setRow.status] ?? setRow.status}</td>
+                  <td className="whitespace-nowrap text-[12px] text-slate-500">
+                    {setRow.plannedStart ? `${formatDate(setRow.plannedStart)} → ${formatDate(setRow.plannedEnd)}` : "chưa gán"}
+                  </td>
+                  <td className="text-[11.5px] text-slate-500">Thiết kế · Bồi Lares · Test cơ khí · Sơn · Lắp kính · Đóng gói · Kho</td>
+                </tr>
+                {componentRows.map((row) => (
+                  <tr key={row.kind}>
+                    <td className="erp-td-strong">CON</td>
+                    <td className="font-medium text-slate-800">{COMPONENT_LABELS[row.kind]}</td>
+                    <td className="erp-td-num">{row.qtyExpected ?? "—"}</td>
+                    <td className="erp-td-num font-semibold">{row.progress.percent}%</td>
+                    <td>{SET_STATUS_LABELS[row.progress.status] ?? row.progress.status}</td>
+                    <td className="whitespace-nowrap text-[12px] text-slate-500">
+                      {row.progress.plannedStart ? `${formatDate(row.progress.plannedStart)} → ${formatDate(row.progress.plannedEnd)}` : "chưa gán"}
+                    </td>
+                    <td className="text-[11.5px] text-slate-500">
+                      Cắt · Chấn · Hàn · Vân{row.kind === "CANH" ? " · Ép cánh" : ""} ({row.progress.done}/{row.progress.total} công đoạn)
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="erp-hint px-3 pb-3 pt-1">
+            Gate: <strong>Test cơ khí</strong> chỉ mở khi cả 3 lệnh con đã hàn xong. <strong>Lắp kính + Vệ sinh/Đóng gói</strong> chỉ mở khi cả 3
+            lệnh con đã vân xong. Sơn làm cho cả bộ 1 lượt, sau khi test đạt.
+          </p>
+        </ReportCard>
+
         <ReportCard title="Cập nhật tiến độ theo công đoạn" hint="Thay đổi nhiều dòng rồi bấm Lưu một lần — hệ thống ghi gộp trong 1 lượt.">
           <SetProgressForm
             setId={setRow.id}
@@ -134,7 +207,6 @@ export default async function ProductionSetPage({ params }: { params: Promise<{ 
           {skipped.length ? (
             <p className="erp-hint mt-2">
               Bỏ qua {skipped.length} công đoạn: {skipped.map((task) => `${stageByCode.get(task.stageCode)?.name ?? task.stageCode} (${SCOPE_LABELS[task.scope] ?? task.scope})`).join(", ")}
-              {skipped.some((task) => task.stageCode === "VAN") ? " — màu sơn 11 và 14 không cần vân." : ""}
             </p>
           ) : null}
         </ReportCard>

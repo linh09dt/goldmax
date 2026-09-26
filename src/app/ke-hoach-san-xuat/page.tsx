@@ -3,7 +3,15 @@ import { ErpShell } from "@/components/erp-shell";
 import { ReportCard, ReportKpi, reportKpiGrid } from "@/components/reports/report-ui";
 import { formatDate, formatNumber } from "@/components/order-list/format";
 import { eachDay, shortDayLabel, todayInVietnam, MS_DAY } from "@/lib/production/calendar";
-import { canhEquivalentOf, SET_STATUS_LABELS, percentDoneOf, type ProductionTaskRow } from "@/lib/production/catalog";
+import {
+  canhEquivalentOf,
+  componentProgress,
+  COMPONENT_KINDS,
+  COMPONENT_LABELS,
+  SET_STATUS_LABELS,
+  percentDoneOf,
+  type ProductionTaskRow,
+} from "@/lib/production/catalog";
 import {
   ALL_WORKSHOP,
   buildProductionSummary,
@@ -295,6 +303,7 @@ export default async function ProductionPlanPage({ searchParams }: { searchParam
                     <th className="text-right">Tiến độ</th>
                     <th>Trạng thái</th>
                     <th>Công đoạn đang làm</th>
+                    <th>Tiến độ lệnh con</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -327,6 +336,24 @@ export default async function ProductionPlanPage({ searchParams }: { searchParam
                           </span>
                         </td>
                         <td className="text-[12px] text-slate-600">{current || "—"}</td>
+                        <td>
+                          <div className="flex flex-wrap gap-1">
+                            {COMPONENT_KINDS.map((kind) => {
+                              const progress = componentProgress(setTasks, kind);
+                              const tone =
+                                progress.percent >= 100
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : progress.percent > 0
+                                    ? "bg-blue-100 text-blue-800"
+                                    : "bg-slate-100 text-slate-600";
+                              return (
+                                <span key={kind} className={`rounded px-1.5 py-0.5 text-[10.5px] ${tone}`} title={`${COMPONENT_LABELS[kind]} · ${progress.done}/${progress.total} công đoạn`}>
+                                  {COMPONENT_LABELS[kind]} {progress.percent}%
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
