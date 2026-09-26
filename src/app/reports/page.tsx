@@ -46,6 +46,12 @@ const REPORTS: Array<{ href: string; title: string; description: string; source:
     source: "sales_orders (đã xác nhận) — suy ra từ đơn",
   },
   {
+    href: "/reports/production",
+    title: "Báo cáo Sản xuất (OTD)",
+    description: "Giao đúng hạn, bộ giao trễ, tỷ lệ làm lại, thời gian thực tế từng công đoạn so với định mức, năng suất tổ, lý do trễ, tồn thành phẩm.",
+    source: "production_sets + production_tasks (mốc thực tế xưởng ghi)",
+  },
+  {
     href: "/reports/production-load",
     title: "Tải sản xuất theo tuần",
     description: "Khối lượng bộ cửa phải giao theo tuần (tuần này + 7 tuần tới), danh sách đơn quá hạn, phân bổ vùng miền.",

@@ -344,7 +344,8 @@ export async function loadProductionBoard(options: {
 
   const sets = await prisma.productionSet.findMany({
     where: {
-      ...(options.statusIn?.length ? { status: { in: options.statusIn } } : {}),
+      // V137: bộ đã HUỶ (do bị xoá khỏi đơn…) không hiện trên bảng kế hoạch.
+      ...(options.statusIn?.length ? { status: { in: options.statusIn } } : { status: { not: "HUY" } }),
       ...(dateConditions.length ? { OR: dateConditions } : {}),
     },
     include: SET_INCLUDE_TASKS,
@@ -408,8 +409,12 @@ export type TaskPatch = {
   isRework?: boolean;
 };
 
+/** V137: sửa tay số lượng của lệnh con (bộ cần số phào/cánh khác công thức). */
+export type ComponentPatch = { id: number; qtyExpected: number | null };
+
 export type UpdateSetPayload = {
   tasks?: TaskPatch[];
+  components?: ComponentPatch[];
   plannedStart?: string | null;
   plannedEnd?: string | null;
   note?: string | null;
@@ -514,7 +519,40 @@ export async function updateSetProgress(setId: number, payload: UpdateSetPayload
     }
   }
 
+  const componentPatches = (payload.components ?? []).filter((patch) => Number.isInteger(patch.id));
+  if (componentPatches.length) {
+    const currentComponents = await prisma.productionComponentOrder.findMany({
+      where: { setId, id: { in: componentPatches.map((patch) => patch.id) } },
+      select: { id: true, kind: true, qtyExpected: true },
+    });
+    const byComponentId = new Map(currentComponents.map((row) => [row.id, row]));
+    for (const patch of componentPatches) {
+      const current = byComponentId.get(patch.id);
+      if (!current) continue;
+      const next = patch.qtyExpected === null ? null : Number(patch.qtyExpected);
+      if (current.qtyExpected === next) continue;
+      logs.push({
+        entity: "SET",
+        entityId: setId,
+        action: "SUA_SO_LUONG_LENH_CON",
+        field: current.kind,
+        oldValue: current.qtyExpected === null ? null : String(current.qtyExpected),
+        newValue: next === null ? null : String(next),
+        byName: payload.byName ?? null,
+      });
+    }
+  }
+
   const result = await prisma.$transaction(async (tx) => {
+    if (componentPatches.length) {
+      const records = componentPatches.map((patch) => ({ id: patch.id, qty: patch.qtyExpected === null ? null : Number(patch.qtyExpected) }));
+      await tx.$executeRaw`
+        UPDATE production_component_orders AS c
+        SET qty_expected = v.qty, updated_at = now()
+        FROM jsonb_to_recordset(${JSON.stringify(records)}::jsonb) AS v(id int, qty double precision)
+        WHERE c.id = v.id AND c.set_id = ${setId}`;
+    }
+
     // 1 lượt ghi cho toàn bộ công đoạn của bộ (jsonb_to_recordset — bài học V111).
     if (patches.length) {
       const records = patches.map((patch) => ({
@@ -764,5 +802,259 @@ export async function applyAutoSchedule(options: { from?: Date; rescheduleAll?: 
     skippedSets: result.skippedSets,
     overloadCells: result.overloadCells,
     lastDay: result.lastDay ? result.lastDay.toISOString().slice(0, 10) : null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// V137 — Dọn lệnh sản xuất khi bộ cửa bị XOÁ khỏi đơn
+// ---------------------------------------------------------------------------
+
+export type ReconcileResult = { removed: number; cancelled: number };
+
+/**
+ * Đồng bộ lại lệnh sản xuất sau khi lưu đơn: bộ nào **không còn trong đơn** thì:
+ *   - **chưa có tiến độ** (0% và chưa ghi mốc hoàn thành/đã giao) → **XOÁ hẳn** (kèm công đoạn + lệnh con);
+ *   - **đã có tiến độ** → **giữ lại nhưng đánh dấu ĐÃ HUỶ** — không phá công xưởng đã làm.
+ *
+ * KHÔNG BAO GIỜ ném lỗi ra ngoài: việc lưu đơn hàng không được phụ thuộc module sản xuất
+ * (ví dụ khi DB chưa chạy migration sản xuất).
+ */
+export async function reconcileOrderProductionSets(
+  orderId: number,
+  currentSetNos: Array<string | null | undefined>,
+  byName: string | null = null,
+): Promise<ReconcileResult> {
+  const empty: ReconcileResult = { removed: 0, cancelled: 0 };
+  try {
+    const sets = await prisma.productionSet.findMany({
+      where: { orderId },
+      select: { id: true, setNo: true, status: true, percentDone: true, actualCompletedAt: true, actualDeliveredAt: true },
+    });
+    if (!sets.length) return empty;
+
+    const keep = new Set(
+      currentSetNos.map((value) => String(value ?? "").trim().toUpperCase()).filter((value) => value.length > 0),
+    );
+    // Chỉ xét các bộ CÓ Bộ số — bộ không có số thì giữ nguyên (không đoán).
+    const orphans = sets.filter((set) => {
+      const no = String(set.setNo ?? "").trim().toUpperCase();
+      return no.length > 0 && !keep.has(no);
+    });
+    if (!orphans.length) return empty;
+
+    const untouched = orphans.filter((set) => set.percentDone === 0 && !set.actualCompletedAt && !set.actualDeliveredAt);
+    const touched = orphans.filter((set) => !untouched.some((row) => row.id === set.id));
+    const removeIds = new Set(untouched.map((set) => set.id));
+
+    if (removeIds.size) {
+      await prisma.productionSet.deleteMany({ where: { id: { in: Array.from(removeIds) } } });
+    }
+    if (touched.length) {
+      await prisma.productionSet.updateMany({ where: { id: { in: touched.map((set) => set.id) } }, data: { status: "HUY" } });
+    }
+    await prisma.productionLog.createMany({
+      data: [
+        ...untouched.map((set) => ({
+          entity: "SET",
+          entityId: set.id,
+          action: "XOA_VI_BO_KHOI_DON",
+          field: "set_no",
+          oldValue: String(set.setNo ?? ""),
+          newValue: null,
+          byName,
+        })),
+        ...touched.map((set) => ({
+          entity: "SET",
+          entityId: set.id,
+          action: "HUY_VI_BO_KHOI_DON",
+          field: "status",
+          oldValue: set.status,
+          newValue: "HUY",
+          byName,
+        })),
+      ],
+    });
+
+    return { removed: removeIds.size, cancelled: touched.length };
+  } catch (error) {
+    console.error("Reconcile production sets failed:", error);
+    return empty;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// V137 — KẾ HOẠCH TUẦN + CHỐT KẾ HOẠCH
+// (J3: kế hoạch tuần do kinh doanh + sản xuất thống nhất, giám đốc nhà máy chốt)
+// ---------------------------------------------------------------------------
+
+export type PlanSummary = {
+  id: number;
+  code: string;
+  fromDate: Date;
+  toDate: Date;
+  status: string;
+  createdBy: string | null;
+  approvedBy: string | null;
+  approvedAt: Date | null;
+  note: string | null;
+  setCount: number;
+  canhTotal: number;
+  completed: number;
+  inProgress: number;
+  waiting: number;
+  cancelled: number;
+  sets: Array<{
+    id: number;
+    setNo: string | null;
+    orderCode: string | null;
+    customerName: string | null;
+    model: string | null;
+    paintColor: string | null;
+    dueDate: Date | null;
+    status: string;
+    percentDone: number;
+    canh: number;
+    plannedStart: Date | null;
+    plannedEnd: Date | null;
+  }>;
+};
+
+export async function loadPlans(): Promise<PlanSummary[]> {
+  const plans = await prisma.productionPlan.findMany({ orderBy: [{ fromDate: "desc" }] });
+  if (!plans.length) return [];
+  const sets = await prisma.productionSet.findMany({
+    where: { planId: { in: plans.map((plan) => plan.id) } },
+    orderBy: [{ setNo: "asc" }],
+  });
+
+  return plans.map((plan) => {
+    const planSets = sets.filter((set) => set.planId === plan.id);
+    return {
+      id: plan.id,
+      code: plan.code,
+      fromDate: plan.fromDate,
+      toDate: plan.toDate,
+      status: plan.status,
+      createdBy: plan.createdBy,
+      approvedBy: plan.approvedBy,
+      approvedAt: plan.approvedAt,
+      note: plan.note,
+      setCount: planSets.length,
+      canhTotal: planSets.reduce((sum, set) => sum + (Number(set.canhEquivalent) || 0), 0),
+      completed: planSets.filter((set) => set.status === "HOAN_THANH" || set.status === "DA_GIAO").length,
+      inProgress: planSets.filter((set) => set.status === "DANG_SX" || set.status === "DA_XEP_LICH").length,
+      waiting: planSets.filter((set) => set.status === "CHO_XEP_LICH").length,
+      cancelled: planSets.filter((set) => set.status === "HUY").length,
+      sets: planSets.map((set) => ({
+        id: set.id,
+        setNo: set.setNo,
+        orderCode: set.orderCode,
+        customerName: set.customerName,
+        model: set.model,
+        paintColor: set.paintColor,
+        dueDate: set.dueDate,
+        status: set.status,
+        percentDone: set.percentDone,
+        canh: Number(set.canhEquivalent) || 0,
+        plannedStart: set.plannedStart,
+        plannedEnd: set.plannedEnd,
+      })),
+    };
+  });
+}
+
+/** Mã kế hoạch theo khoảng ngày: KH-20261005-20261010 */
+function planCodeFor(fromDate: Date, toDate: Date): string {
+  const stamp = (date: Date) => date.toISOString().slice(0, 10).replace(/-/g, "");
+  return `KH-${stamp(fromDate)}-${stamp(toDate)}`;
+}
+
+/**
+ * Tạo kế hoạch cho một khoảng ngày và **gán các bộ có ngày bắt đầu nằm trong khoảng** vào kế hoạch.
+ * Idempotent theo mã kế hoạch: gọi lại cùng khoảng ngày thì trả về kế hoạch cũ.
+ */
+export async function createPlan(input: { fromDate: Date; toDate: Date; note?: string | null; createdBy?: string | null }) {
+  const fromDate = startOfDayUtc(input.fromDate);
+  const toDate = startOfDayUtc(input.toDate);
+  if (toDate.getTime() < fromDate.getTime()) throw new Error("Ngày kết thúc phải sau ngày bắt đầu.");
+  const code = planCodeFor(fromDate, toDate);
+
+  const existing = await prisma.productionPlan.findUnique({ where: { code }, select: { id: true } });
+  const plan =
+    existing ??
+    (await prisma.productionPlan.create({
+      data: { code, fromDate, toDate, status: "NHAP", createdBy: input.createdBy ?? null, note: input.note ?? null },
+      select: { id: true },
+    }));
+
+  const candidates = await prisma.productionSet.findMany({
+    where: {
+      status: { not: "HUY" },
+      plannedStart: { gte: fromDate, lte: toDate },
+      OR: [{ planId: null }, { planId: plan.id }],
+    },
+    select: { id: true },
+  });
+  const assigned =
+    candidates.length > 0
+      ? await prisma.productionSet.updateMany({
+          where: { id: { in: candidates.map((row) => row.id) } },
+          data: { planId: plan.id },
+        })
+      : { count: 0 };
+
+  return { id: plan.id, code, assigned: assigned.count, created: !existing };
+}
+
+export async function approvePlan(planId: number, approvedBy: string | null) {
+  const plan = await prisma.productionPlan.update({
+    where: { id: planId },
+    data: { status: "DA_CHOT", approvedBy: approvedBy ?? null, approvedAt: new Date() },
+    select: { id: true, code: true, status: true },
+  });
+  await prisma.productionLog.create({
+    data: { entity: "PLAN", entityId: planId, action: "CHOT_KE_HOACH", field: "status", oldValue: "NHAP", newValue: "DA_CHOT", byName: approvedBy },
+  });
+  return plan;
+}
+
+export async function reopenPlan(planId: number, byName: string | null) {
+  const plan = await prisma.productionPlan.update({
+    where: { id: planId },
+    data: { status: "NHAP", approvedBy: null, approvedAt: null },
+    select: { id: true, code: true, status: true },
+  });
+  await prisma.productionLog.create({
+    data: { entity: "PLAN", entityId: planId, action: "MO_LAI_KE_HOACH", field: "status", oldValue: "DA_CHOT", newValue: "NHAP", byName },
+  });
+  return plan;
+}
+
+export async function deletePlan(planId: number) {
+  await prisma.productionSet.updateMany({ where: { planId }, data: { planId: null } });
+  await prisma.productionPlan.delete({ where: { id: planId } });
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// V137 — Nạp dữ liệu cho BÁO CÁO SẢN XUẤT
+// ---------------------------------------------------------------------------
+
+export async function loadProductionReportData(limit = 5000) {
+  const [sets, stages, workCenters, reasons] = await Promise.all([
+    prisma.productionSet.findMany({ orderBy: [{ dueDate: "asc" }, { id: "asc" }], take: limit }),
+    loadStages(),
+    loadWorkCenters(),
+    loadReasons(),
+  ]);
+  const tasks = sets.length
+    ? await prisma.productionTask.findMany({ where: { setId: { in: sets.map((set) => set.id) } } })
+    : [];
+  return {
+    sets: sets as unknown as ProductionSetRow[],
+    tasks: tasks as unknown as ProductionTaskRow[],
+    stages,
+    workCenters,
+    reasons: reasons.map((reason) => ({ code: reason.code, name: reason.name, group: reason.group })),
   };
 }

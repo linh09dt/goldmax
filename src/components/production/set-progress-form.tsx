@@ -34,6 +34,16 @@ export type ProgressTask = {
 
 type ReasonOption = { code: string; name: string; group: string };
 
+/** V137: lệnh con của bộ — số lượng sửa tay được (bộ cần số phào/cánh khác công thức). */
+export type ComponentOrderInput = {
+  id: number;
+  kind: string;
+  kindLabel: string;
+  qtyExpected: number | null;
+  /** Gợi ý số lượng theo công thức, để hiện cạnh ô nhập khi người dùng sửa khác. */
+  formulaQty: number | null;
+};
+
 type Patch = {
   status?: TaskStatus;
   note?: string | null;
@@ -62,6 +72,7 @@ export function SetProgressForm({
   setId,
   tasks,
   reasons,
+  components = [],
   plannedStart,
   plannedEnd,
   byName: initialByName,
@@ -69,12 +80,16 @@ export function SetProgressForm({
   setId: number;
   tasks: ProgressTask[];
   reasons: ReasonOption[];
+  components?: ComponentOrderInput[];
   plannedStart: string | null;
   plannedEnd: string | null;
   byName: string | null;
 }) {
   const router = useRouter();
   const [patches, setPatches] = useState<Record<number, Patch>>({});
+  const [componentQty, setComponentQty] = useState<Record<number, string>>(() =>
+    Object.fromEntries(components.map((row) => [row.id, row.qtyExpected === null ? "" : String(row.qtyExpected)])),
+  );
   const [start, setStart] = useState(plannedStart ?? "");
   const [end, setEnd] = useState(plannedEnd ?? "");
   const [byName, setByName] = useState(initialByName ?? "");
@@ -82,6 +97,9 @@ export function SetProgressForm({
   const [message, setMessage] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
 
   const dirtyCount = Object.keys(patches).length;
+  const componentChanged = components.filter(
+    (row) => (componentQty[row.id] ?? "") !== (row.qtyExpected === null ? "" : String(row.qtyExpected)),
+  );
   const pauseReasons = useMemo(() => reasons.filter((reason) => reason.group === "TAM_DUNG"), [reasons]);
   const reworkReasons = useMemo(() => reasons.filter((reason) => reason.group === "LOI"), [reasons]);
 
@@ -113,6 +131,10 @@ export function SetProgressForm({
           byName: byName || null,
           plannedStart: start || null,
           plannedEnd: end || null,
+          components: componentChanged.map((row) => ({
+            id: row.id,
+            qtyExpected: (componentQty[row.id] ?? "").trim() === "" ? null : Number(componentQty[row.id]),
+          })),
           tasks: Object.entries(patches).map(([id, patch]) => ({
             id: Number(id),
             status: patch.status,
@@ -126,6 +148,8 @@ export function SetProgressForm({
       const result = (await response.json()) as { ok?: boolean; error?: string; percentDone?: number; status?: string };
       if (!response.ok || !result.ok) throw new Error(result.error || "Không lưu được tiến độ.");
       setPatches({});
+      // Sau khi lưu, `router.refresh()` cập nhật lại props nên ô "chưa lưu" tự hết —
+      // không cần đồng bộ state bằng tay.
       setMessage({ tone: "ok", text: `Đã lưu. Tiến độ ${result.percentDone ?? 0}%.` });
       router.refresh();
     } catch (error) {
@@ -176,8 +200,14 @@ export function SetProgressForm({
           />
         </label>
         <div className="ml-auto flex items-center gap-2">
-          {dirtyCount > 0 ? <span className="text-[12px] text-amber-700">{dirtyCount} công đoạn chưa lưu</span> : null}
-          <button className="erp-button" type="button" disabled={busy || dirtyCount === 0} onClick={save}>
+          {dirtyCount > 0 || componentChanged.length > 0 ? (
+            <span className="text-[12px] text-amber-700">
+              chưa lưu: {dirtyCount ? `${dirtyCount} công đoạn` : ""}
+              {dirtyCount && componentChanged.length ? " · " : ""}
+              {componentChanged.length ? `${componentChanged.length} số lượng lệnh con` : ""}
+            </span>
+          ) : null}
+          <button className="erp-button" type="button" disabled={busy || (dirtyCount === 0 && componentChanged.length === 0)} onClick={save}>
             {busy ? "Đang lưu…" : "Lưu tiến độ"}
           </button>
           <button className="erp-button-secondary" type="button" disabled={busy} onClick={markDelivered}>
@@ -190,6 +220,38 @@ export function SetProgressForm({
         <p className={`rounded-lg px-3 py-2 text-[12.5px] ${message.tone === "ok" ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-700"}`}>
           {message.text}
         </p>
+      ) : null}
+
+      {components.length ? (
+        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+          <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            Số lượng lệnh con (sửa tay được)
+          </div>
+          <div className="flex flex-wrap items-end gap-4">
+            {components.map((row) => {
+              const value = componentQty[row.id] ?? "";
+              const khacCongThuc = String(row.formulaQty ?? "") !== value && (value !== "" || row.formulaQty !== null);
+              return (
+                <label key={row.id} className="text-[11.5px] text-slate-600">
+                  {row.kindLabel}
+                  <input
+                    className="erp-input mt-1 w-[110px]"
+                    type="number"
+                    min={0}
+                    value={value}
+                    onChange={(event) => {
+                      setComponentQty((current) => ({ ...current, [row.id]: event.target.value }));
+                      setMessage(null);
+                    }}
+                  />
+                  <span className={`ml-1.5 text-[10.5px] ${khacCongThuc ? "text-amber-700" : "text-slate-400"}`}>
+                    công thức: {row.formulaQty ?? "—"}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
       ) : null}
 
       <div className="erp-scrollbar overflow-x-auto rounded-xl border border-slate-200 bg-white">

@@ -122,6 +122,12 @@ export default async function ProductionPlanPage({ searchParams }: { searchParam
           <Link className="erp-button-secondary" href="/ke-hoach-san-xuat/nhap-do-dang">
             Nhập bộ đang sản xuất dở{unplannedCount > 0 ? ` (${formatNumber(unplannedCount)})` : ""}
           </Link>
+          <Link className="erp-button-secondary" href="/ke-hoach-san-xuat/ke-hoach">
+            Kế hoạch tuần
+          </Link>
+          <Link className="erp-button-secondary" href="/ke-hoach-san-xuat/in">
+            In phiếu lệnh SX
+          </Link>
           <Link className="erp-button-secondary" href="/ke-hoach-san-xuat/cau-hinh">
             Cấu hình sản xuất
           </Link>

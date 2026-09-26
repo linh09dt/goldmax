@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { markSetDelivered, rebuildTasksForSet, updateSetProgress, type TaskPatch } from "@/lib/production/service";
+import { markSetDelivered, rebuildTasksForSet, updateSetProgress, type ComponentPatch, type TaskPatch } from "@/lib/production/service";
 import { TASK_STATUS_OPTIONS, type TaskStatus } from "@/lib/production/catalog";
 
 export const runtime = "nodejs";
@@ -11,6 +11,21 @@ function text(value: unknown, max = 2000): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed ? trimmed.slice(0, max) : null;
+}
+
+/** V137: số lượng lệnh con do người dùng sửa tay. Cho phép null = để trống. */
+function normalizeComponentPatches(value: unknown): ComponentPatch[] {
+  if (!Array.isArray(value)) return [];
+  const patches: ComponentPatch[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") continue;
+    const row = raw as Record<string, unknown>;
+    const id = Number(row.id);
+    if (!Number.isInteger(id) || id <= 0) continue;
+    const qty = row.qtyExpected === null || row.qtyExpected === "" || row.qtyExpected === undefined ? null : Number(row.qtyExpected);
+    patches.push({ id, qtyExpected: qty !== null && Number.isFinite(qty) && qty >= 0 ? qty : null });
+  }
+  return patches;
 }
 
 function normalizeTaskPatches(value: unknown): TaskPatch[] {
@@ -41,6 +56,7 @@ function normalizeTaskPatches(value: unknown): TaskPatch[] {
  *
  * Body:
  *   { action: "update", tasks: [{ id, status, note, reasonCode, assignee, isRework }],
+ *     components: [{ id, qtyExpected }],   ← V137: sửa tay số lượng lệnh con (cánh/khung/phào)
  *     plannedStart, plannedEnd, note, planId, materialReady, programReady, byName }
  *   { action: "delivered", deliveredDate, byName }
  *   { action: "rebuild" }   ← sinh lại công đoạn theo danh mục mới nhất
@@ -75,6 +91,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     const result = await updateSetProgress(setId, {
       tasks: normalizeTaskPatches(body.tasks),
+      components: normalizeComponentPatches(body.components),
       plannedStart: body.plannedStart === undefined ? undefined : text(body.plannedStart, 40),
       plannedEnd: body.plannedEnd === undefined ? undefined : text(body.plannedEnd, 40),
       note: body.note === undefined ? undefined : text(body.note),

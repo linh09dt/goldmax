@@ -4,6 +4,7 @@ import { normalizeOrderPayload } from "@/lib/order-persistence";
 import { resolveSetNumbers } from "@/lib/set-number";
 import { ORDER_WRITE_TRANSACTION } from "@/lib/db-transaction";
 import { isConfirmedStatus } from "@/lib/order-form";
+import { reconcileOrderProductionSets } from "@/lib/production/service";
 
 export const runtime = "nodejs";
 
@@ -102,6 +103,10 @@ async function updateOrder(request: Request, context: { params: Promise<{ id: st
       return setNumbers;
     }, ORDER_WRITE_TRANSACTION);
 
+    // V137: bộ cửa nào bị XOÁ khỏi đơn thì dọn lệnh sản xuất tương ứng.
+    // Chạy SAU transaction và không bao giờ làm hỏng việc lưu đơn.
+    await reconcileOrderProductionSets(orderId, assignedSetNumbers);
+
     return NextResponse.json({
       ok: true,
       id: orderId,
@@ -142,6 +147,9 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
     }
 
     await prisma.salesOrder.delete({ where: { id: orderId } });
+
+    // V137: đơn bị xoá → dọn luôn lệnh sản xuất của đơn đó (bộ đã có tiến độ thì chỉ đánh dấu HUỶ).
+    await reconcileOrderProductionSets(orderId, []);
 
     return NextResponse.json({ ok: true, id: order.id, orderCode: order.orderCode });
   } catch (error) {

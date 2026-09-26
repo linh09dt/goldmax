@@ -7,6 +7,7 @@ import { ProductionWarnings } from "@/components/production/production-warnings"
 import { formatDate, formatNumber } from "@/components/order-list/format";
 import {
   componentProgress,
+  componentQuantities,
   COMPONENT_KINDS,
   COMPONENT_LABELS,
   SCOPE_LABELS,
@@ -68,10 +69,12 @@ export default async function ProductionSetPage({ params }: { params: Promise<{ 
     return state.waitingFor.map((code) => stageByCode.get(code)?.name ?? code).join(", ");
   };
 
+  // Số lượng theo CÔNG THỨC (để so với số sửa tay trên form).
+  const formulaQty = componentQuantities(setRow, { cuaDi: config.defaultTrimCuaDi, cuaSo: config.defaultTrimCuaSo });
   const componentRows = COMPONENT_KINDS.map((kind) => {
     const progress = componentProgress(tasks, kind);
     const child = (set.componentOrders ?? []).find((row) => row.kind === kind);
-    return { kind: kind as ComponentKind, progress, qtyExpected: child?.qtyExpected ?? null };
+    return { kind: kind as ComponentKind, progress, qtyExpected: child?.qtyExpected ?? null, childId: child?.id ?? null };
   });
 
   const progressTasks: ProgressTask[] = tasks.map((task) => {
@@ -110,6 +113,9 @@ export default async function ProductionSetPage({ params }: { params: Promise<{ 
           <Link className="erp-button-secondary" href="/ke-hoach-san-xuat">
             ← Bảng kế hoạch
           </Link>
+          <a className="erp-button" href={`/ke-hoach-san-xuat/in/phieu-lenh?bo=${setRow.id}`} target="_blank" rel="noreferrer">
+            In phiếu lệnh SX
+          </a>
           {setRow.orderId ? (
             <Link className="erp-button-secondary" href={`/orders/${setRow.orderId}`}>
               Mở đơn hàng
@@ -200,6 +206,15 @@ export default async function ProductionSetPage({ params }: { params: Promise<{ 
             setId={setRow.id}
             tasks={progressTasks}
             reasons={reasons.map((reason) => ({ code: reason.code, name: reason.name, group: reason.group }))}
+            components={componentRows
+              .filter((row): row is typeof row & { childId: number } => row.childId !== null)
+              .map((row) => ({
+                id: row.childId,
+                kind: row.kind,
+                kindLabel: COMPONENT_LABELS[row.kind],
+                qtyExpected: row.qtyExpected,
+                formulaQty: formulaQty[row.kind],
+              }))}
             plannedStart={setRow.plannedStart ? setRow.plannedStart.toISOString().slice(0, 10) : null}
             plannedEnd={setRow.plannedEnd ? setRow.plannedEnd.toISOString().slice(0, 10) : null}
             byName={null}

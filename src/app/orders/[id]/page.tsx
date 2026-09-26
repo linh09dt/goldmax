@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ErpShell } from "@/components/erp-shell";
+import { CreateProductionOrderButton } from "@/components/production/create-production-order-button";
 import { OrderDeleteButton } from "@/components/order-delete-button";
 import { OrderExportButtons } from "@/components/order-export-buttons";
 import { prisma } from "@/lib/prisma";
 import { resolveOrderItemDetails } from "@/lib/order-detail";
-import { showsSetNumber, orderStatusLabel, orderTypeLabel } from "@/lib/order-form";
+import { isConfirmedStatus, showsSetNumber, orderStatusLabel, orderTypeLabel } from "@/lib/order-form";
 import { buildOutputGroups, calculateOutputTotals, hasRowContent } from "@/lib/order-output";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +47,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           <Link className="erp-button-secondary" href="/orders">← Danh sách</Link>
           <OrderExportButtons orderId={order.id} pdfLabel="Xuất PDF" />
           <span className="mx-1 hidden h-7 w-px bg-slate-300 md:inline-block" aria-hidden="true" />
-          <Link className="erp-button" href={`/orders/${order.id}/edit`}>Sửa đơn</Link>
+          <CreateProductionOrderButton orderId={order.id} orderCode={order.orderCode} confirmed={isConfirmedStatus(order.status)} />
+          <Link className="erp-button-secondary" href={`/orders/${order.id}/edit`}>Sửa đơn</Link>
           <OrderDeleteButton orderId={order.id} orderCode={order.orderCode} redirectAfterDelete />
         </>
       }
