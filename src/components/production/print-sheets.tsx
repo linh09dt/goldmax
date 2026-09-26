@@ -73,6 +73,7 @@ export function ProductionOrderSheet({ set, teamLabel }: { set: PrintSet; teamLa
         <div><strong>Hạn giao khách:</strong> {formatDate(set.dueDate)}</div>
         <div><strong>Xưởng phải xong:</strong> {formatDate(set.workShopDue)}</div>
         <div><strong>Xếp lịch:</strong> {set.plannedStart ? `${formatDate(set.plannedStart)} → ${formatDate(set.plannedEnd)}` : "chưa gán"}</div>
+        <div><strong>Mã lệnh (bộ):</strong> {set.workOrderCodes.bo ?? "—"}</div>
         <div><strong>Trạng thái:</strong> {SET_STATUS_LABELS[set.status] ?? set.status} · {set.percentDone}%</div>
       </div>
 
@@ -80,6 +81,7 @@ export function ProductionOrderSheet({ set, teamLabel }: { set: PrintSet; teamLa
         <thead>
           <tr>
             <th style={{ width: "10%" }}>Lệnh con</th>
+            <th style={{ width: "22%" }}>Mã lệnh</th>
             <th style={{ width: "12%" }}>Số lượng</th>
             <th style={{ width: "14%" }}>Tiến độ</th>
             <th>Các việc</th>
@@ -89,6 +91,7 @@ export function ProductionOrderSheet({ set, teamLabel }: { set: PrintSet; teamLa
           {set.components.map((component) => (
             <tr key={component.kindLabel}>
               <td className="c"><strong>{component.kindLabel}</strong></td>
+              <td className="c">{component.workOrderCode ?? "—"}</td>
               <td className="c">{component.qtyExpected ?? "—"}</td>
               <td className="c">{component.percent}% ({component.done}/{component.total})</td>
               <td>{component.workSummary}</td>
@@ -100,19 +103,21 @@ export function ProductionOrderSheet({ set, teamLabel }: { set: PrintSet; teamLa
       <table className="prod-print-table">
         <thead>
           <tr>
-            <th style={{ width: "6%" }}>Bước</th>
-            <th style={{ width: "30%" }}>Công đoạn</th>
-            <th style={{ width: "13%" }}>Bộ phận</th>
-            <th style={{ width: "16%" }}>Tổ</th>
-            <th style={{ width: "9%" }}>SL</th>
-            <th style={{ width: "12%" }}>Ngày KH</th>
-            <th style={{ width: "14%" }}>Xong (tích)</th>
+            <th style={{ width: "5%" }}>Bước</th>
+            <th style={{ width: "17%" }}>Mã lệnh</th>
+            <th style={{ width: "21%" }}>Công đoạn</th>
+            <th style={{ width: "10%" }}>Bộ phận</th>
+            <th style={{ width: "13%" }}>Tổ</th>
+            <th style={{ width: "7%" }}>SL</th>
+            <th style={{ width: "11%" }}>Ngày KH</th>
+            <th style={{ width: "16%" }}>Xong (tích)</th>
           </tr>
         </thead>
         <tbody>
           {set.tasks.map((task: PrintTaskLine) => (
             <tr key={task.id}>
               <td className="c">{task.seq}</td>
+              <td className="c" style={{ fontSize: 9.5 }}>{task.workOrderCode ?? "—"}</td>
               <td>
                 {task.stageName}
                 {task.isRework ? " (LÀM LẠI)" : ""}
@@ -153,7 +158,7 @@ export function DailyWorkSheet({
 }: {
   workCenterName: string;
   day: Date;
-  rows: Array<{ setId: number; setNo: string | null; orderCode: string | null; customerName: string | null; model: string | null; paintColor: string | null; stageName: string; scopeLabel: string; qtyExpected: number | null; dueDate: Date | null; taskId: number }>;
+  rows: Array<{ setId: number; setNo: string | null; orderCode: string | null; customerName: string | null; model: string | null; paintColor: string | null; stageName: string; scopeLabel: string; qtyExpected: number | null; dueDate: Date | null; taskId: number; workOrderCode: string | null }>;
 }) {
   return (
     <section className="prod-print-sheet">
@@ -165,16 +170,17 @@ export function DailyWorkSheet({
         <table className="prod-print-table" style={{ marginTop: 10 }}>
           <thead>
             <tr>
-              <th style={{ width: "5%" }}>TT</th>
-              <th style={{ width: "11%" }}>Bộ số</th>
-              <th style={{ width: "13%" }}>Mã đơn</th>
-              <th style={{ width: "16%" }}>Khách hàng</th>
-              <th style={{ width: "15%" }}>Model</th>
-              <th style={{ width: "8%" }}>Màu</th>
-              <th style={{ width: "18%" }}>Công đoạn</th>
-              <th style={{ width: "7%" }}>SL</th>
-              <th style={{ width: "11%" }}>Hạn giao</th>
-              <th style={{ width: "11%" }}>Xong (tích)</th>
+              <th style={{ width: "4%" }}>TT</th>
+              <th style={{ width: "9%" }}>Bộ số</th>
+              <th style={{ width: "18%" }}>Mã lệnh</th>
+              <th style={{ width: "11%" }}>Mã đơn</th>
+              <th style={{ width: "13%" }}>Khách hàng</th>
+              <th style={{ width: "12%" }}>Model</th>
+              <th style={{ width: "6%" }}>Màu</th>
+              <th style={{ width: "15%" }}>Công đoạn</th>
+              <th style={{ width: "5%" }}>SL</th>
+              <th style={{ width: "9%" }}>Hạn giao</th>
+              <th style={{ width: "8%" }}>Xong</th>
             </tr>
           </thead>
           <tbody>
@@ -182,6 +188,7 @@ export function DailyWorkSheet({
               <tr key={`${row.setId}-${row.taskId}`}>
                 <td className="c">{index + 1}</td>
                 <td className="c"><strong>{row.setNo ?? "—"}</strong></td>
+                <td className="c" style={{ fontSize: 9.5 }}>{row.workOrderCode ?? "—"}</td>
                 <td>{row.orderCode ?? "—"}</td>
                 <td>{row.customerName ?? "—"}</td>
                 <td>{row.model ?? "—"}</td>
@@ -194,8 +201,7 @@ export function DailyWorkSheet({
                 </td>
                 <td className="n">{row.qtyExpected ?? "—"}</td>
                 <td className="c">{formatDate(row.dueDate)}</td>
-                <td className="c"><span className="prod-print-box" /> ……</td>
-              </tr>
+                <td className="c"><span className="prod-print-box" /> ……</td>              </tr>
             ))}
           </tbody>
         </table>

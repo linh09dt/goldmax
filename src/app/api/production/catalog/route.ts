@@ -117,7 +117,8 @@ export async function POST(request: Request) {
           scopeMode: str(body.scopeMode, 20) ?? "BO",
           scopeParts: str(body.scopeParts, 60),
           workCenterCode: str(body.workCenterCode, 40),
-          seq: int(body.seq) ?? 0,
+          // "Bước" phải >= 1: bước 0 bị lệnh cha/lệnh con dùng (mã lệnh …-00B/00C/00K/00P).
+          seq: Math.max(1, int(body.seq) ?? 1),
           leadTimeHours: num(body.leadTimeHours),
           setupMinutes: int(body.setupMinutes),
           capacityPerDay: num(body.capacityPerDay),

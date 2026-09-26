@@ -33,6 +33,8 @@ export type ProgressTask = {
   isRework: boolean;
   reasonCode: string | null;
   note: string | null;
+  /** V142 — mã lệnh sản xuất của công đoạn (chỉ để xem, không sửa ở đây). */
+  workOrderCode: string | null;
   /** V136.1 — lý do đang bị khoá (chưa xong công đoạn bắt buộc). Null = được phép chạy. */
   lockedReason: string | null;
 };
@@ -268,6 +270,7 @@ export function SetProgressForm({
           <thead>
             <tr>
               <th className="min-w-[200px]">Công đoạn</th>
+              <th className="min-w-[150px]">Mã lệnh</th>
               <th>Bộ phận</th>
               <th>Tổ phụ trách</th>
               <th className="text-right">SL</th>
@@ -297,6 +300,7 @@ export function SetProgressForm({
                       </span>
                     ) : null}
                   </td>
+                  <td className="whitespace-nowrap text-[11px] font-medium tabular-nums text-slate-500">{task.workOrderCode ?? "—"}</td>
                   <td>{task.scopeLabel}</td>
                   <td className="text-[12px] text-slate-600">{task.workCenterName || "—"}</td>
                   <td className="erp-td-num">{task.qtyExpected ?? "—"}</td>

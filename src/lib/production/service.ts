@@ -32,11 +32,56 @@ import {
 } from "@/lib/production/config";
 import { buildComponentOrderDrafts, buildTaskDrafts } from "@/lib/production/routing";
 import { defaultPriorityForOrderType } from "@/lib/production/scheduling";
+import {
+  assignWorkOrderCodes,
+  resolveWorkOrderTemplate,
+  workOrderCodeInputsForSet,
+} from "@/lib/production/work-order";
 
 export const SET_INCLUDE_TASKS = {
   tasks: { orderBy: [{ seq: "asc" }, { scope: "asc" }] },
   componentOrders: { orderBy: { kind: "asc" } },
 } satisfies Prisma.ProductionSetInclude;
+
+/**
+ * V142 — sinh dòng LỆNH SẢN XUẤT cho MỘT bộ: 1 lệnh cha → 3 lệnh con → 1 lệnh mỗi công đoạn.
+ * Mã lệnh theo mẫu trong Cấu hình; lệnh công đoạn gắn `taskId` để tra cứu ngược.
+ */
+function buildWorkOrderRows(args: {
+  setId: number;
+  orderCode: string | null;
+  setNo: string | null;
+  tasks: Array<{ id: number; seq: number; scope: string; stageCode: string }>;
+  config: ProductionConfig;
+}): Prisma.ProductionWorkOrderCreateManyInput[] {
+  const template = resolveWorkOrderTemplate(args.orderCode, args.config.workOrderCodeTemplate);
+  const inputs = workOrderCodeInputsForSet({
+    setId: args.setId,
+    orderCode: args.orderCode,
+    setNo: args.setNo,
+    tasks: args.tasks,
+  });
+  const codes = assignWorkOrderCodes(inputs, template);
+
+  const rows: Prisma.ProductionWorkOrderCreateManyInput[] = inputs.map((input, index) => ({
+    code: codes[index],
+    setId: args.setId,
+    taskId: null,
+    kind: input.kind,
+    stageCode: input.kind === "CONG_DOAN" ? input.stageCode ?? null : null,
+    scope: input.kind === "CONG_DOAN" ? input.scope ?? null : null,
+    seq: input.kind === "CONG_DOAN" ? input.seq ?? null : null,
+  }));
+
+  // Gắn taskId: các lệnh công đoạn đi đúng thứ tự `tasks` truyền vào.
+  let taskIndex = 0;
+  for (const row of rows) {
+    if (row.kind !== "CONG_DOAN") continue;
+    row.taskId = args.tasks[taskIndex]?.id ?? null;
+    taskIndex += 1;
+  }
+  return rows;
+}
 
 // ---------------------------------------------------------------------------
 // Cấu hình & danh mục
@@ -168,13 +213,17 @@ export async function syncProductionSets(options: {
       .filter((row) => String(row.setNo ?? "").trim())
       .map((row) => `${row.orderId}|${String(row.setNo).trim().toUpperCase()}`),
   );
+  // Trong CÙNG một lượt đưa vào kế hoạch: 2 dòng hàng cùng đơn + cùng Bộ số là dữ liệu lỗi.
+  // Chỉ lấy dòng ĐẦU — nếu lấy cả hai thì 2 bộ sẽ trùng mã lệnh và cả transaction bị huỷ (V142).
+  const seenOrderSetNo = new Set<string>();
   const pending = orderItems.filter((item) => {
     if (plannedItemIds.has(item.id)) return false;
     const setNo = String(item.setNo ?? "").trim().toUpperCase();
     if (setNo && plannedOrderSetNo.has(`${item.orderId}|${setNo}`)) return false;
+    if (setNo && seenOrderSetNo.has(`${item.orderId}|${setNo}`)) return false;
+    if (setNo) seenOrderSetNo.add(`${item.orderId}|${setNo}`);
     return true;
   });
-
   if (!pending.length) return { createdSets: 0, createdTasks: 0, skipped: orderItems.length };
 
   return prisma.$transaction(async (tx) => {
@@ -210,6 +259,13 @@ export async function syncProductionSets(options: {
 
     // Sinh công đoạn cho từng bộ — mỗi BẢNG một lượt ghi (bài học V111).
     const setByOrderItem = new Map(createdSets.map((row) => [row.orderItemId, row.id]));
+    // Mã đơn / bộ số của từng bộ vừa tạo — dùng để sinh mã lệnh.
+    const setMetaById = new Map<number, { orderCode: string | null; setNo: string | null }>();
+    for (const item of pending) {
+      const setId = setByOrderItem.get(item.id);
+      if (!setId) continue;
+      setMetaById.set(setId, { orderCode: item.order?.orderCode ?? null, setNo: item.setNo ?? null });
+    }
     const taskRows: Prisma.ProductionTaskCreateManyInput[] = [];
     const componentRows: Prisma.ProductionComponentOrderCreateManyInput[] = [];
     for (const item of pending) {
@@ -253,8 +309,40 @@ export async function syncProductionSets(options: {
     if (componentRows.length) {
       await tx.productionComponentOrder.createMany({ data: componentRows });
     }
+
+    // LỆNH SẢN XUẤT (V142): 1 lệnh cha + 3 lệnh con + 1 lệnh mỗi công đoạn — vẫn 1 lượt ghi.
+    // Lệnh cha/3 lệnh con có NGAY cả khi bộ chưa có công đoạn nào (danh mục công đoạn trống).
+    const tasksBySet = new Map<number, Array<{ id: number; seq: number; scope: string; stageCode: string }>>();
     if (taskRows.length) {
-      await tx.productionTask.createMany({ data: taskRows });
+      const createdTasks = await tx.productionTask.createManyAndReturn({
+        data: taskRows,
+        select: { id: true, setId: true, seq: true, scope: true, stageCode: true },
+      });
+      for (const task of createdTasks) {
+        const list = tasksBySet.get(task.setId) ?? [];
+        list.push({ id: task.id, seq: task.seq, scope: task.scope, stageCode: task.stageCode });
+        tasksBySet.set(task.setId, list);
+      }
+    }
+    const workOrderRows: Prisma.ProductionWorkOrderCreateManyInput[] = [];
+    for (const created of createdSets) {
+      const meta = setMetaById.get(created.id);
+      // Sắp theo (bước, bộ phận) để mã lệnh ổn định dù DB trả về thứ tự nào.
+      const tasks = (tasksBySet.get(created.id) ?? []).sort(
+        (a, b) => a.seq - b.seq || a.scope.localeCompare(b.scope) || a.id - b.id,
+      );
+      workOrderRows.push(
+        ...buildWorkOrderRows({
+          setId: created.id,
+          orderCode: meta?.orderCode ?? null,
+          setNo: meta?.setNo ?? null,
+          tasks,
+          config,
+        }),
+      );
+    }
+    if (workOrderRows.length) {
+      await tx.productionWorkOrder.createMany({ data: workOrderRows });
     }
 
     return { createdSets: createdSets.length, createdTasks: taskRows.length, skipped: orderItems.length - pending.length };
@@ -262,7 +350,7 @@ export async function syncProductionSets(options: {
 }
 
 /** Sinh lại công đoạn cho MỘT bộ đã có (dùng khi danh mục công đoạn thay đổi). */
-export async function rebuildTasksForSet(setId: number): Promise<{ createdTasks: number }> {
+export async function rebuildTasksForSet(setId: number): Promise<{ createdTasks: number; createdWorkOrders: number }> {
   const config = await readProductionConfig();
   const stages = await loadActiveStages();
   const programModels = await loadProgramModels();
@@ -280,6 +368,9 @@ export async function rebuildTasksForSet(setId: number): Promise<{ createdTasks:
   });
 
   return prisma.$transaction(async (tx) => {
+    // Lệnh sản xuất sinh lại theo công đoạn mới → xoá hết lệnh cũ của bộ (lệnh công đoạn
+    // còn bị xoá theo khoá ngoại khi xoá công đoạn, nhưng lệnh cha/con thì không).
+    await tx.productionWorkOrder.deleteMany({ where: { setId } });
     await tx.productionTask.deleteMany({ where: { setId } });
     await tx.productionComponentOrder.deleteMany({ where: { setId } });
     await tx.productionComponentOrder.createMany({
@@ -289,8 +380,19 @@ export async function rebuildTasksForSet(setId: number): Promise<{ createdTasks:
         qtyExpected: draft.qtyExpected,
       })),
     });
-    if (!drafts.length) return { createdTasks: 0 };
-    await tx.productionTask.createMany({
+    if (!drafts.length) {
+      // Vẫn phải có lệnh cha + 3 lệnh con cho bộ (danh mục công đoạn đang trống).
+      const emptyRows = buildWorkOrderRows({
+        setId,
+        orderCode: set.orderCode ?? null,
+        setNo: set.setNo ?? null,
+        tasks: [],
+        config,
+      });
+      if (emptyRows.length) await tx.productionWorkOrder.createMany({ data: emptyRows });
+      return { createdTasks: 0, createdWorkOrders: emptyRows.length };
+    }
+    const createdTasks = await tx.productionTask.createManyAndReturn({
       data: drafts.map((draft) => ({
         setId,
         orderItemId: set.orderItemId,
@@ -302,8 +404,22 @@ export async function rebuildTasksForSet(setId: number): Promise<{ createdTasks:
         status: draft.status,
         qtyExpected: draft.qtyExpected,
       })),
+      select: { id: true, seq: true, scope: true, stageCode: true },
     });
-    return { createdTasks: drafts.length };
+    const tasks = createdTasks
+      .map((task) => ({ id: task.id, seq: task.seq, scope: task.scope, stageCode: task.stageCode }))
+      .sort((a, b) => a.seq - b.seq || a.scope.localeCompare(b.scope) || a.id - b.id);
+    const workOrderRows = buildWorkOrderRows({
+      setId,
+      orderCode: set.orderCode ?? null,
+      setNo: set.setNo ?? null,
+      tasks,
+      config,
+    });
+    if (workOrderRows.length) {
+      await tx.productionWorkOrder.createMany({ data: workOrderRows });
+    }
+    return { createdTasks: drafts.length, createdWorkOrders: workOrderRows.length };
   }, ORDER_WRITE_TRANSACTION);
 }
 
@@ -375,6 +491,7 @@ export async function loadSetDetail(setId: number) {
       include: {
         tasks: { orderBy: [{ seq: "asc" }, { scope: "asc" }] },
         componentOrders: { orderBy: { kind: "asc" } },
+        workOrders: { orderBy: { id: "asc" }, include: { task: { select: { status: true } } } },
         plan: true,
       },
     }),

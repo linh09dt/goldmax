@@ -35,6 +35,8 @@ export type PrintTaskLine = {
   actualEnd: Date | null;
   note: string | null;
   isRework: boolean;
+  /** V142 — mã lệnh sản xuất của chính công đoạn này (in trên phiếu để tổ đối chiếu). */
+  workOrderCode: string | null;
 };
 
 export type PrintComponentLine = {
@@ -44,6 +46,8 @@ export type PrintComponentLine = {
   done: number;
   total: number;
   workSummary: string;
+  /** V142 — mã lệnh con tương ứng (Cánh / Khung / Phào). */
+  workOrderCode: string | null;
 };
 
 export type PrintSet = {
@@ -67,6 +71,8 @@ export type PrintSet = {
   plannedEnd: Date | null;
   components: PrintComponentLine[];
   tasks: PrintTaskLine[];
+  /** V142 — mã lệnh cha (bộ) và 3 lệnh con (cánh · khung · phào). */
+  workOrderCodes: { bo: string | null; canh: string | null; khung: string | null; phao: string | null };
 };
 
 function sizeText(height: number | null, width: number | null): string {
@@ -106,6 +112,7 @@ export async function loadPrintSets(options: {
     include: {
       tasks: { orderBy: [{ seq: "asc" }, { scope: "asc" }] },
       componentOrders: { orderBy: { kind: "asc" } },
+      workOrders: { orderBy: { id: "asc" } },
     },
     orderBy: [{ setNo: "asc" }, { id: "asc" }],
     take: options.limit && options.limit > 0 ? options.limit : undefined,
@@ -116,6 +123,13 @@ export async function loadPrintSets(options: {
     const tasksForPrint = options.onlyTasksOfWorkCenter && options.workCenterCode
       ? tasks.filter((task) => task.workCenterCode === options.workCenterCode)
       : tasks;
+    // V142 — mã lệnh công đoạn tra theo id công đoạn; mã lệnh cha/con tra theo loại.
+    const workOrderCodeByTaskId = new Map<number, string>();
+    const workOrderCodeByKind = new Map<string, string>();
+    for (const order of set.workOrders ?? []) {
+      if (order.taskId !== null) workOrderCodeByTaskId.set(order.taskId, order.code);
+      else workOrderCodeByKind.set(order.kind, order.code);
+    }
 
     return {
       id: set.id,
@@ -146,6 +160,7 @@ export async function loadPrintSets(options: {
           done: progress.done,
           total: progress.total,
           workSummary: kind === "CANH" ? "Cắt · Chấn · Hàn · Ép cánh · Vân" : "Cắt · Chấn · Hàn · Vân",
+          workOrderCode: workOrderCodeByKind.get(kind) ?? null,
         };
       }),
       tasks: tasksForPrint.map((task) => {
@@ -167,8 +182,15 @@ export async function loadPrintSets(options: {
           actualEnd: task.actualEnd,
           note: task.note,
           isRework: task.isRework,
+          workOrderCode: workOrderCodeByTaskId.get(task.id) ?? null,
         };
       }),
+      workOrderCodes: {
+        bo: workOrderCodeByKind.get("BO") ?? null,
+        canh: workOrderCodeByKind.get("CANH") ?? null,
+        khung: workOrderCodeByKind.get("KHUNG") ?? null,
+        phao: workOrderCodeByKind.get("PHAO") ?? null,
+      },
     };
   });
 }

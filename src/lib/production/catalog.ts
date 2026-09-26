@@ -268,6 +268,22 @@ function normalizeCode(value: unknown): string {
   return String(value ?? "").trim().toUpperCase();
 }
 
+/**
+ * So màu sơn với điều kiện `PAINT_COLOR`.
+ * Đơn hàng có thể ghi màu kèm tiền tố (`GM-11`) còn điều kiện ghi theo số (`11`, `14`) như nhà máy nói,
+ * nên so CHÍNH XÁC trước, không khớp thì so PHẦN SỐ. (LK5: “màu sơn 11 và 14 không cần vân”.)
+ */
+function paintColorMatches(stored: unknown, expected: string): boolean {
+  const actual = normalizeCode(stored);
+  const wanted = normalizeCode(expected);
+  if (!actual || !wanted) return false;
+  if (actual === wanted) return true;
+  const digitsOf = (text: string) => text.replace(/[^0-9]/g, "");
+  const actualDigits = digitsOf(actual);
+  const wantedDigits = digitsOf(wanted);
+  return wantedDigits.length > 0 && actualDigits === wantedDigits;
+}
+
 /** Công đoạn này có bị bỏ qua với bộ cửa đang xét không (theo `skipCondition`). */
 export function isStageSkippedForSet(
   stage: Pick<ProductionStageRow, "skipCondition">,
@@ -276,7 +292,7 @@ export function isStageSkippedForSet(
   const condition = parseSkipCondition(stage.skipCondition);
   if (!condition) return false;
   if (condition.key === "PAINT_COLOR") {
-    return condition.values.map(normalizeCode).includes(normalizeCode(set.paintColor));
+    return condition.values.some((value) => paintColorMatches(set.paintColor, value));
   }
   if (condition.key === "VENEER_CODE") {
     return condition.values.map(normalizeCode).includes(normalizeCode(set.veneerCode));

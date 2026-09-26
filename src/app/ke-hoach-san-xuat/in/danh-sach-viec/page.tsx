@@ -48,6 +48,7 @@ export default async function PrintDailyWorkPage({
             qtyExpected: task.qtyExpected,
             dueDate: set.dueDate,
             taskId: task.id,
+            workOrderCode: task.workOrderCode,
           })),
       );
       return { team, rows };

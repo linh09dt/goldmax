@@ -8,6 +8,8 @@
  * SỬA ĐƯỢC ở màn Cấu hình sản xuất. Không hard-code nghiệp vụ trong code.
  */
 
+import { DEFAULT_WORK_ORDER_CODE_TEMPLATE, validateWorkOrderCodeTemplate } from "./work-order";
+
 export const PRODUCTION_CONFIG_SETTING_KEY = "PRODUCTION_CONFIG_V1";
 
 export type ProductionConfig = {
@@ -51,6 +53,12 @@ export type ProductionConfig = {
   waitsEnabled: boolean;
   /** J8: trễ hạn chỉ BÁO ĐỎ, không tự đề xuất lại lịch. */
   autoReschedule: boolean;
+  /**
+   * V142: MẪU MÃ LỆNH SẢN XUẤT theo công đoạn.
+   * Token: {orderCode} {setNo} {set} {seq} {scope} {scopeShort} {stage} {kind} — vd {seq:02} = canh 0.
+   * Xem `src/lib/production/work-order.ts`.
+   */
+  workOrderCodeTemplate: string;
 };
 
 export const DEFAULT_PRODUCTION_CONFIG: ProductionConfig = {
@@ -74,6 +82,7 @@ export const DEFAULT_PRODUCTION_CONFIG: ProductionConfig = {
   defaultTrimCuaSo: 4,
   waitsEnabled: true,
   autoReschedule: false,
+  workOrderCodeTemplate: DEFAULT_WORK_ORDER_CODE_TEMPLATE,
 };
 
 const VALID_WEEKDAYS = new Set([0, 1, 2, 3, 4, 5, 6]);
@@ -88,6 +97,12 @@ function clampNumber(value: unknown, min: number, max: number, fallback: number)
 
 function boolValue(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
+}
+
+/** Mẫu mã lệnh đọc từ DB: sai định dạng thì quay về mặc định (không làm hỏng cả cấu hình). */
+function normalizeWorkOrderTemplate(value: unknown, fallback: string): string {
+  if (typeof value !== "string" || !value.trim()) return fallback;
+  return validateWorkOrderCodeTemplate(value) ? fallback : value.trim();
 }
 
 /** Chuẩn hoá cấu hình đọc từ DB / từ client — luôn trả về object đủ trường, giá trị hợp lệ. */
@@ -137,6 +152,7 @@ export function normalizeProductionConfig(
     defaultTrimCuaSo: Math.round(clampNumber(source.defaultTrimCuaSo, 0, 50, fallback.defaultTrimCuaSo)),
     waitsEnabled: boolValue(source.waitsEnabled, fallback.waitsEnabled),
     autoReschedule: boolValue(source.autoReschedule, fallback.autoReschedule),
+    workOrderCodeTemplate: normalizeWorkOrderTemplate(source.workOrderCodeTemplate, fallback.workOrderCodeTemplate),
   };
 }
 
@@ -159,6 +175,8 @@ export function validateProductionConfig(config: ProductionConfig) {
   if (config.hoursPerShift * config.shiftsPerDay < 1) {
     throw new Error("Số giờ làm việc mỗi ngày phải lớn hơn 0.");
   }
+  const templateError = validateWorkOrderCodeTemplate(config.workOrderCodeTemplate ?? "");
+  if (templateError) throw new Error(templateError);
 }
 
 export const WEEKDAY_LABELS: Record<number, string> = {

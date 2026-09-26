@@ -366,6 +366,7 @@ function GeneralConfig({ config }: { config: ProductionConfig }) {
     defaultTrimCuaSo: String(config.defaultTrimCuaSo),
     waitsEnabled: config.waitsEnabled,
     autoReschedule: config.autoReschedule,
+    workOrderCodeTemplate: config.workOrderCodeTemplate,
   });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
@@ -397,6 +398,7 @@ function GeneralConfig({ config }: { config: ProductionConfig }) {
             defaultTrimCuaSo: Number(draft.defaultTrimCuaSo),
             waitsEnabled: draft.waitsEnabled,
             autoReschedule: draft.autoReschedule,
+            workOrderCodeTemplate: draft.workOrderCodeTemplate,
           },
         }),
       });
@@ -537,6 +539,27 @@ function GeneralConfig({ config }: { config: ProductionConfig }) {
             <input type="checkbox" checked={draft.autoReschedule} onChange={(e) => setDraft((c) => ({ ...c, autoReschedule: e.target.checked }))} />
             Tự đề xuất lại lịch khi trễ (J8: nhà máy chọn KHÔNG — chỉ báo đỏ)
           </label>
+        </div>
+
+        <div className="space-y-2 border-t border-slate-200 pt-3">
+          <h3 className="text-[13px] font-semibold text-slate-700">Mã lệnh sản xuất (V142)</h3>
+          <label className="flex flex-col gap-1 text-[12.5px]">
+            <span>Mẫu mã lệnh — mỗi công đoạn của mỗi bộ có một lệnh riêng</span>
+            <input
+              className="erp-input max-w-[560px]"
+              value={draft.workOrderCodeTemplate}
+              onChange={(e) => setDraft((c) => ({ ...c, workOrderCodeTemplate: e.target.value }))}
+            />
+          </label>
+          <p className="erp-hint">
+            Token dùng được: <code>{"{orderCode}"}</code> <code>{"{setNo}"}</code> <code>{"{set}"}</code> (id bộ) <code>{"{seq}"}</code>{" "}
+            <code>{"{seq:02}"}</code> (canh 0) <code>{"{scope}"}</code> <code>{"{scopeShort}"}</code> <code>{"{stage}"}</code> <code>{"{kind}"}</code>.
+            Chữ phần: Cánh <strong>C</strong> · Khung <strong>K</strong> · Phào <strong>P</strong> · cả bộ <strong>B</strong>.
+            <br />
+            Mặc định <code>{"LSX-{orderCode}-{setNo}-{seq:02}{scopeShort}"}</code> → <code>LSX-26082201QN17DH01-1-40C</code>.
+            Mẫu <strong>phải có {"{set}"} — hoặc có CẢ {"{orderCode}"} và {"{setNo}"}</strong>
+            để mã lệnh không trùng giữa các bộ ({"{orderCode}"} một mình là không đủ: mọi bộ trong cùng một đơn sẽ ra cùng bộ mã).
+          </p>
         </div>
       </div>
     </section>

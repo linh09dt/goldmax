@@ -527,6 +527,7 @@ model ProductionSet {
 
   tasks          ProductionTask[]
   componentOrders ProductionComponentOrder[]
+  workOrders     ProductionWorkOrder[]
   plan           ProductionPlan?  @relation(fields: [planId], references: [id], onDelete: SetNull)
 
   @@index([status, dueDate])
@@ -590,12 +591,52 @@ model ProductionTask {
 
   set ProductionSet @relation(fields: [setId], references: [id], onDelete: Cascade)
 
+  workOrder ProductionWorkOrder?
+
   @@unique([setId, stageCode, scope])
   @@index([workCenterCode, plannedStart])
   @@index([status])
   @@index([plannedStart])
   @@map("production_tasks")
 }
+
+/// V142 — LỆNH SẢN XUẤT: mỗi bộ cửa phát ra 1 lệnh CHA (bộ) + 3 lệnh CON (cánh·khung·phào)
+/// + 1 lệnh cho MỖI CÔNG ĐOẠN của bộ đó, mỗi lệnh có MÃ LỆNH riêng để phát cho tổ và tra cứu.
+///
+/// Theo đúng quy ước của lệnh con (xem ProductionComponentOrder): ở đây CHỈ lưu danh tính +
+/// mã lệnh + ngày phát; SỐ LƯỢNG / TRẠNG THÁI / NGÀY KẾ HOẠCH đều SUY RA từ production_tasks
+/// (lệnh công đoạn) hoặc từ bộ / lệnh con tương ứng — không lưu trùng để khỏi lệch số.
+model ProductionWorkOrder {
+  id        Int       @id @default(autoincrement())
+  /// Mã lệnh, sinh theo mẫu trong Cấu hình sản xuất (`workOrderCodeTemplate`). Duy nhất toàn hệ thống.
+  code      String    @unique @db.VarChar(220)
+  setId     Int       @map("set_id")
+  /// Lệnh công đoạn trỏ tới đúng dòng công đoạn; lệnh cha / lệnh con để trống.
+  taskId    Int?      @unique @map("task_id")
+  /// BO | CANH | KHUNG | PHAO | CONG_DOAN
+  kind      String    @db.VarChar(20)
+  /// Chép lại từ công đoạn để tra cứu khi lệnh công đoạn bị sinh lại.
+  stageCode String?   @map("stage_code") @db.VarChar(40)
+  scope     String?   @db.VarChar(10)
+  seq       Int?
+  /// Ngày phát lệnh cho tổ (in trên phiếu). Không có = chưa phát.
+  issuedAt  DateTime? @map("issued_at") @db.Date
+  issuedBy  String?   @map("issued_by") @db.VarChar(120)
+  note      String?   @db.Text
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  set  ProductionSet  @relation(fields: [setId], references: [id], onDelete: Cascade)
+  task ProductionTask? @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([setId, kind])
+  @@index([kind])
+  @@index([stageCode])
+  @@map("production_work_orders")
+}
+// ⚠️ Ngoài các ràng buộc trên, DB còn chỉ số RIÊNG PHẦN `production_work_orders_set_id_kind_key`
+//    trên (set_id, kind) WHERE kind <> 'CONG_DOAN' — Prisma không khai được chỉ số có WHERE,
+//    nên khi tạo migration bằng `prisma migrate dev` phải TỰ THÊM lại câu CREATE UNIQUE INDEX này.
 
 /// Danh mục LÝ DO tạm dừng / trễ / máy dừng / lỗi.
 model ProductionReason {

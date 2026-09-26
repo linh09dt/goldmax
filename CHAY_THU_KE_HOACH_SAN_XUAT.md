@@ -142,3 +142,8 @@ chuyển thành **Đã xếp lịch**, nên cột **BACKLOG** sẽ **mất dần
 psql "$DATABASE_URL" -f sim-500/sim-500-CLEANUP.sql   # xoá đúng 500 mã đơn mô phỏng
 ```
 Bộ đếm Bộ số (`system_settings.ORDER_SET_NUMBER_COUNTER`) **giữ nguyên** — muốn trả về giá trị cũ thì tự `UPDATE`.
+
+> **V142 — mã lệnh công đoạn:** mỗi bộ có thêm lệnh cho **từng công đoạn** với mã riêng
+> (vd `LSX-26082201QN17DH01-1-07C`), hiện ở trang bộ cửa và trên phiếu in.
+> **Nếu bạn nạp bộ dữ liệu SIM-500/SIM-1000:** nạp xong hãy chạy
+> `migrate-production-v142-lenh-cong-doan.sql` (mục 2→3→4) để các bộ mô phỏng cũng có lệnh.

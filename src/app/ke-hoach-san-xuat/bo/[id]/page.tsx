@@ -61,6 +61,14 @@ export default async function ProductionSetPage({ params }: { params: Promise<{ 
     modelsWithProgram: programModels,
   }).filter((warning) => warning.kind === "SAP_TRE" || warning.kind === "CHUA_DU_THONG_TIN" || warning.kind === "CHUA_CO_CHUONG_TRINH");
 
+  // V142 — mã lệnh sản xuất: lệnh cha (bộ), 3 lệnh con và mã của từng công đoạn.
+  const codeByTaskId = new Map<number, string>();
+  const codeByKind = new Map<string, string>();
+  for (const order of set.workOrders ?? []) {
+    if (order.taskId !== null) codeByTaskId.set(order.taskId, order.code);
+    else codeByKind.set(order.kind, order.code);
+  }
+
   // V136.1 — trạng thái khoá của từng công đoạn (gate đủ bộ).
   const lockRows = tasks.map((task) => ({ stageCode: task.stageCode, scope: task.scope, status: task.status }));
   const lockedReasonOf = (task: ProductionTaskRow): string | null => {
@@ -90,6 +98,8 @@ export default async function ProductionSetPage({ params }: { params: Promise<{ 
       status: task.status,
       qtyExpected: task.qtyExpected,
       qtyDone: task.qtyDone,
+      // V142 — mã lệnh sản xuất của công đoạn (in trên phiếu, đối chiếu ở xưởng).
+      workOrderCode: codeByTaskId.get(task.id) ?? null,
       // V141 — ngày kế hoạch của công đoạn để gán bằng tay trong form.
       plannedStart: task.plannedStart ? new Date(task.plannedStart).toISOString().slice(0, 10) : null,
       actualStart: task.actualStart ? new Date(task.actualStart).toISOString() : null,
@@ -102,8 +112,7 @@ export default async function ProductionSetPage({ params }: { params: Promise<{ 
     };
   });
 
-  const doneCount = tasks.filter((task) => task.status === "XONG" && task.stageKind !== "CHO").length;
-  const workCount = tasks.filter((task) => task.stageKind !== "CHO" && task.status !== "BO_QUA").length;
+  const doneCount = tasks.filter((task) => task.status === "XONG" && task.stageKind !== "CHO").length;  const workCount = tasks.filter((task) => task.stageKind !== "CHO" && task.status !== "BO_QUA").length;
   const skipped = tasks.filter((task) => task.status === "BO_QUA");
 
   return (
@@ -159,6 +168,7 @@ export default async function ProductionSetPage({ params }: { params: Promise<{ 
               <thead>
                 <tr>
                   <th>Lệnh</th>
+                  <th>Mã lệnh</th>
                   <th>Phần</th>
                   <th className="text-right">Số lượng</th>
                   <th className="text-right">Tiến độ</th>
@@ -170,6 +180,7 @@ export default async function ProductionSetPage({ params }: { params: Promise<{ 
               <tbody>
                 <tr className="bg-slate-50/70">
                   <td className="erp-td-strong">CHA</td>
+                  <td className="whitespace-nowrap text-[11px] font-medium tabular-nums text-slate-500">{codeByKind.get("BO") ?? "—"}</td>
                   <td>Bộ cửa {setRow.setNo || `#${setRow.id}`}</td>
                   <td className="erp-td-num">{setRow.quantity ?? 1}</td>
                   <td className="erp-td-num font-semibold">{percentDoneOf(tasks)}%</td>
@@ -182,6 +193,7 @@ export default async function ProductionSetPage({ params }: { params: Promise<{ 
                 {componentRows.map((row) => (
                   <tr key={row.kind}>
                     <td className="erp-td-strong">CON</td>
+                    <td className="whitespace-nowrap text-[11px] font-medium tabular-nums text-slate-500">{codeByKind.get(row.kind) ?? "—"}</td>
                     <td className="font-medium text-slate-800">{COMPONENT_LABELS[row.kind]}</td>
                     <td className="erp-td-num">{row.qtyExpected ?? "—"}</td>
                     <td className="erp-td-num font-semibold">{row.progress.percent}%</td>
@@ -234,6 +246,7 @@ export default async function ProductionSetPage({ params }: { params: Promise<{ 
               {[
                 ["Bộ số", setRow.setNo ?? "—"],
                 ["Mã đơn", setRow.orderCode ?? "—"],
+                ["Mã lệnh (bộ)", codeByKind.get("BO") ?? "—"],
                 ["Loại đơn", setRow.orderType],
                 ["Khách hàng", setRow.customerName ?? "—"],
                 ["Sản phẩm", setRow.productName ?? "—"],
