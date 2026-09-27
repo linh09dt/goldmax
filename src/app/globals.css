@@ -586,3 +586,52 @@ textarea.erp-cell-input {
   max-width: 100%;
   overflow: hidden;
 }
+
+/*
+ * V159c — BẢNG KẾ HOẠCH THEO NGÀY: lưới kẻ nét hơn, cột công đoạn hẹp (cột ngày rộng ra),
+ * hàng tô màu nhạt theo TỔ. Dùng border-collapse: separate để cột dính (sticky) giữ được đường kẻ.
+ */
+.daygrid {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.daygrid th,
+.daygrid td {
+  border-right: 1px solid #cbd5e1;
+  border-bottom: 1px solid #cbd5e1;
+  padding: 2px 3px;
+  vertical-align: top;
+}
+.daygrid thead th {
+  border-top: 1px solid #94a3b8;
+  border-bottom: 1px solid #94a3b8;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.15;
+  text-align: center;
+}
+.daygrid tbody tr td:first-child,
+.daygrid thead tr th:first-child {
+  border-left: 1px solid #94a3b8;
+}
+.daygrid tbody tr td:last-child,
+.daygrid thead tr th:last-child {
+  border-right: 1px solid #94a3b8;
+}
+.daygrid tbody tr:first-child td {
+  border-top: 1px solid #cbd5e1;
+}
+.daygrid .daygrid-sticky {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  box-shadow: 1px 0 0 #94a3b8;
+  text-align: left;
+}
+.daygrid thead .daygrid-sticky {
+  z-index: 3;
+}
