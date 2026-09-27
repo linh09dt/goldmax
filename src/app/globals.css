@@ -510,3 +510,79 @@ textarea.erp-cell-input {
   .prod-print-table tr { break-inside: avoid; page-break-inside: avoid; }
   .prod-print-table thead { display: table-header-group; }
 }
+
+/*
+ * V159b — Bảng danh sách bộ ở tab KẾ HOẠCH SẢN XUẤT:
+ * FULL VIEW (không kéo ngang), cột theo % (table-layout fixed), mỗi DÒNG chỉ 1 hàng (nowrap + cắt …).
+ */
+.plan-table {
+  table-layout: fixed;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+.plan-table thead th {
+  background: #1e293b;
+  color: #f1f5f9;
+  padding: 5px 4px;
+  text-align: left;
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+}
+.plan-table tbody td {
+  border-bottom: 1px solid #f1f5f9;
+  padding: 4px 4px;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  line-height: 1.3;
+}
+.plan-table tbody tr:hover td {
+  background: rgba(236, 254, 255, 0.45);
+}
+.plan-table .plan-td-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.plan-table .plan-td-strong {
+  font-weight: 600;
+  color: #0f172a;
+}
+.plan-table .plan-link {
+  color: #0e7490;
+  font-weight: 600;
+  text-decoration: none;
+}
+.plan-table .plan-link:hover {
+  text-decoration: underline;
+}
+.plan-table .plan-warn {
+  display: inline-block;
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 9.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.plan-table .plan-warn-bad {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.plan-table .plan-warn-warn {
+  background: #fef3c7;
+  color: #92400e;
+}
+.plan-table .plan-warn-list {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: 3px;
+  max-width: 100%;
+  overflow: hidden;
+}

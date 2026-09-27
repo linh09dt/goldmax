@@ -856,6 +856,10 @@ export type StagePlanRow = {
 export type StagePlanGrid = {
   days: Date[];
   rows: StagePlanRow[];
+  /** Tổng theo từng ngày (mọi công đoạn). */
+  dailyTotals: Array<{ planned: number; actual: number }>;
+  /** LŨY KẾ tới từng ngày (cộng dồn từ đầu tháng). */
+  cumulative: Array<{ planned: number; actual: number }>;
   plannedTotal: number;
   actualTotal: number;
 };
@@ -917,9 +921,25 @@ export function buildStagePlanGrid(options: {
   }
 
   const orderedRows = Array.from(rows.values()).sort((a, b) => a.seq - b.seq || a.stageCode.localeCompare(b.stageCode));
+  const dailyTotals = orderedRows[0]
+    ? days.map((_, index) => ({
+        planned: orderedRows.reduce((sum, row) => sum + row.cells[index].planned, 0),
+        actual: orderedRows.reduce((sum, row) => sum + row.cells[index].actual, 0),
+      }))
+    : [];
+  const cumulative: Array<{ planned: number; actual: number }> = [];
+  let runningPlanned = 0;
+  let runningActual = 0;
+  for (const day of dailyTotals) {
+    runningPlanned += day.planned;
+    runningActual += day.actual;
+    cumulative.push({ planned: runningPlanned, actual: runningActual });
+  }
   return {
     days,
     rows: orderedRows,
+    dailyTotals,
+    cumulative,
     plannedTotal: orderedRows.reduce((sum, row) => sum + row.plannedTotal, 0),
     actualTotal: orderedRows.reduce((sum, row) => sum + row.actualTotal, 0),
   };

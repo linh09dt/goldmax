@@ -3,6 +3,7 @@ import { ErpShell } from "@/components/erp-shell";
 import { PlanAutoRefresh } from "@/components/production/plan-auto-refresh";
 import { PlanSetTable } from "@/components/production/plan-set-table";
 import { StagePlanGridTable } from "@/components/production/stage-plan-grid";
+import { TablePager } from "@/components/production/table-pager";
 import { ReportCard, ReportKpi } from "@/components/reports/report-ui";
 import { formatDate, formatNumber } from "@/components/order-list/format";
 import { dateKeyUtc, isWorkingDay, MS_DAY, startOfDayUtc, todayInVietnam } from "@/lib/production/calendar";
@@ -28,10 +29,13 @@ export const dynamic = "force-dynamic";
 const pad2 = (value: number) => String(value).padStart(2, "0");
 const monthKeyOf = (value: Date) => `${value.getUTCFullYear()}-${pad2(value.getUTCMonth() + 1)}`;
 
+/** V159b — mỗi trang của 2 bảng danh sách hiện 10 dòng. */
+const PAGE_SIZE = 10;
+
 export default async function ProductionPlanPage({
   searchParams,
 }: {
-  searchParams: Promise<{ thang?: string }>;
+  searchParams: Promise<{ thang?: string; cho?: string; sx?: string }>;
 }) {
   const query = await searchParams;
   const today = todayInVietnam();
@@ -57,6 +61,24 @@ export default async function ProductionPlanPage({
 
   const waitingRows = buildSetTableRows({ sets: waiting, tasksBySet, stages, config, warnings });
   const runningRows = buildSetTableRows({ sets: running, tasksBySet, stages, config, warnings });
+
+  // V159b — phân trang 10 dòng/trang cho 2 bảng danh sách.
+  const toPage = (raw: string | undefined, total: number) => {
+    const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    const parsed = Number.parseInt(String(raw ?? "1"), 10);
+    const page = Number.isFinite(parsed) ? Math.min(Math.max(1, parsed), pageCount) : 1;
+    return { page, pageCount };
+  };
+  const waitingPageInfo = toPage(query.cho, waitingRows.length);
+  const runningPageInfo = toPage(query.sx, runningRows.length);
+  const waitingSlice = waitingRows.slice((waitingPageInfo.page - 1) * PAGE_SIZE, waitingPageInfo.page * PAGE_SIZE);
+  const runningSlice = runningRows.slice((runningPageInfo.page - 1) * PAGE_SIZE, runningPageInfo.page * PAGE_SIZE);
+  const waitingPagerParams: Record<string, string> = {};
+  if (query.thang) waitingPagerParams.thang = query.thang;
+  if (runningPageInfo.page > 1) waitingPagerParams.sx = String(runningPageInfo.page);
+  const runningPagerParams: Record<string, string> = {};
+  if (query.thang) runningPagerParams.thang = query.thang;
+  if (waitingPageInfo.page > 1) runningPagerParams.cho = String(waitingPageInfo.page);
 
   // --- Bảng kế hoạch theo ngày: tháng đang xem (?thang=YYYY-MM), mặc định tháng hiện tại ---
   const requested = String(query.thang ?? "").match(/^(\d{4})-(\d{2})$/);
@@ -114,18 +136,36 @@ export default async function ProductionPlanPage({
 
         <ReportCard
           title="Bộ chờ xếp lịch"
-          hint="Xếp theo hạn giao gần nhất trước (EDD). Cột “Cảnh báo” chỉ hiện TÊN cảnh báo (rê chuột để xem diễn giải). **Xếp lịch bằng tay**: mở một bộ → gán ngày kế hoạch cho từng công đoạn."
-          right={`${formatNumber(waiting.length)} bộ`}
+          hint="Xếp theo hạn giao gần nhất trước (EDD). Cột “Cảnh báo” chỉ hiện TÊN cảnh báo (rê chuột để xem diễn giải). Mỗi trang 10 dòng. **Xếp lịch bằng tay**: mở một bộ → gán ngày kế hoạch cho từng công đoạn."
+          right={
+            <TablePager
+              page={waitingPageInfo.page}
+              pageCount={waitingPageInfo.pageCount}
+              total={waitingRows.length}
+              basePath="/ke-hoach-san-xuat"
+              pageKey="cho"
+              params={waitingPagerParams}
+            />
+          }
         >
-          <PlanSetTable rows={waitingRows.slice(0, 200)} emptyText="Không còn bộ nào chờ xếp lịch." />
+          <PlanSetTable rows={waitingSlice} emptyText="Không còn bộ nào chờ xếp lịch." />
         </ReportCard>
 
         <ReportCard
           title="Đang sản xuất"
-          hint="Cùng bộ cột với bảng Bộ chờ xếp lịch. Cột “Cảnh báo” so SỐ NGÀY CHẬM với LEAD TIME của công đoạn đang chậm: ≤ 1× = Chậm nhẹ · ≤ 2× = Chậm · > 2× = Chậm nặng."
-          right={`${formatNumber(running.length)} bộ`}
+          hint="Cùng bộ cột với bảng Bộ chờ xếp lịch. Cột “Cảnh báo” so SỐ NGÀY CHẬM với LEAD TIME của công đoạn đang chậm: ≤ 1× = Chậm nhẹ · ≤ 2× = Chậm · > 2× = Chậm nặng. Mỗi trang 10 dòng."
+          right={
+            <TablePager
+              page={runningPageInfo.page}
+              pageCount={runningPageInfo.pageCount}
+              total={runningRows.length}
+              basePath="/ke-hoach-san-xuat"
+              pageKey="sx"
+              params={runningPagerParams}
+            />
+          }
         >
-          <PlanSetTable rows={runningRows.slice(0, 200)} emptyText="Chưa có bộ nào đang sản xuất." />
+          <PlanSetTable rows={runningSlice} emptyText="Chưa có bộ nào đang sản xuất." />
         </ReportCard>
 
         <ReportCard
@@ -144,6 +184,12 @@ export default async function ProductionPlanPage({
                 <input className="erp-input h-7 px-2 text-[11px]" type="month" name="thang" defaultValue={monthKey} />
                 <button className="erp-button h-7 px-2 text-[11px]" type="submit">Xem</button>
               </form>
+              <a
+                className="erp-button-secondary h-7 px-2 text-[11px]"
+                href={`/api/production/stage-plan/export?thang=${monthKey}`}
+              >
+                Xuất Excel
+              </a>
             </div>
           }
         >
