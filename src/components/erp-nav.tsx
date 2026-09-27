@@ -49,26 +49,30 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
         isActive: (pathname) =>
           pathname.startsWith("/ke-hoach-san-xuat") &&
           !pathname.startsWith("/ke-hoach-san-xuat/cau-hinh") &&
+          !pathname.startsWith("/ke-hoach-san-xuat/xep-lich-toan-xuong") &&
+          !pathname.startsWith("/ke-hoach-san-xuat/xep-viec-theo-cong-doan") &&
+          // V157 — đường dẫn CŨ (nay chỉ còn là trang chuyển hướng): vẫn loại trừ để
+          // trong lúc chuyển hướng, mục "Kế hoạch sản xuất" không bị sáng nhầm.
           !pathname.startsWith("/ke-hoach-san-xuat/ke-hoach-cong-doan") &&
           !pathname.startsWith("/ke-hoach-san-xuat/dieu-do"),
+      },
+      {
+        href: "/ke-hoach-san-xuat/xep-lich-toan-xuong",
+        label: "Xếp lịch toàn xưởng",
+        icon: <IconChart />,
+        isActive: (pathname) => pathname.startsWith("/ke-hoach-san-xuat/xep-lich-toan-xuong"),
+      },
+      {
+        href: "/ke-hoach-san-xuat/xep-viec-theo-cong-doan",
+        label: "Xếp việc theo công đoạn",
+        icon: <IconBox />,
+        isActive: (pathname) => pathname.startsWith("/ke-hoach-san-xuat/xep-viec-theo-cong-doan"),
       },
       {
         href: "/san-xuat/theo-to",
         label: "Báo cáo theo tổ",
         icon: <IconFactory />,
         isActive: (pathname) => pathname.startsWith("/san-xuat/theo-to"),
-      },
-      {
-        href: "/ke-hoach-san-xuat/dieu-do",
-        label: "Điều độ công đoạn",
-        icon: <IconFactory />,
-        isActive: (pathname) => pathname.startsWith("/ke-hoach-san-xuat/dieu-do"),
-      },
-      {
-        href: "/ke-hoach-san-xuat/ke-hoach-cong-doan",
-        label: "Kế hoạch theo công đoạn",
-        icon: <IconFactory />,
-        isActive: (pathname) => pathname.startsWith("/ke-hoach-san-xuat/ke-hoach-cong-doan"),
       },
       {
         href: "/ke-hoach-san-xuat/cau-hinh",

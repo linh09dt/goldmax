@@ -1,38 +1,10 @@
-import Link from "next/link";
-import { ErpShell } from "@/components/erp-shell";
-import { PlanAutoRefresh } from "@/components/production/plan-auto-refresh";
-import { StagePlanBoard } from "@/components/production/stage-plan-board";
-import { dateKeyUtc, todayInVietnam } from "@/lib/production/calendar";
-
-export const dynamic = "force-dynamic";
+import { redirect } from "next/navigation";
 
 /**
- * V148 — KẾ HOẠCH CHO TỪNG CÔNG ĐOẠN.
- *
- * Khác màn "Kế hoạch sản xuất" (theo dõi tiến độ) và khác mốc target V144:
- * màn này XẾP NGÀY KẾ HOẠCH cho từng công đoạn theo NĂNG LỰC của công đoạn/tổ.
- * Lead time chỉ dùng để hiện cột "Mốc (target)" và biết đơn có kịp hay không.
+ * V157 — Màn này đã ĐỔI TÊN thành **"Xếp lịch toàn xưởng"** (`/ke-hoach-san-xuat/xep-lich-toan-xuong`)
+ * để không lẫn với màn "Xếp việc theo công đoạn". Giữ đường dẫn cũ chuyển hướng
+ * cho bookmark / link cũ không bị chết.
  */
-export default async function StagePlanPage() {
-  const today = dateKeyUtc(todayInVietnam());
-
-  return (
-    <ErpShell
-      title="Kế hoạch theo công đoạn"
-      subtitle="Xếp ngày kế hoạch cho từng công đoạn theo NĂNG LỰC công đoạn/tổ — lead time chỉ để đối chiếu mốc và biết có kịp hay không."
-      actions={
-        <div className="flex flex-wrap items-center gap-2">
-          <Link className="erp-button-secondary" href="/ke-hoach-san-xuat">
-            Bảng kế hoạch sản xuất
-          </Link>
-          <Link className="erp-button-secondary" href="/reports/production">
-            Báo cáo sản xuất
-          </Link>
-        </div>
-      }
-    >
-      <PlanAutoRefresh />
-      <StagePlanBoard today={today} />
-    </ErpShell>
-  );
+export default function Page() {
+  redirect("/ke-hoach-san-xuat/xep-lich-toan-xuong");
 }

@@ -80,9 +80,8 @@ export default async function ProductionPlanPage() {
       subtitle="Mỗi dòng là 1 bộ cửa. Mở một bộ để cập nhật tiến độ từng công đoạn."
       actions={
         <div className="flex flex-wrap items-center gap-2">
-          <Link className="erp-button" href="/ke-hoach-san-xuat/ke-hoach-cong-doan">
-            Lập kế hoạch theo công đoạn
-          </Link>
+          <Link className="erp-button" href="/ke-hoach-san-xuat/xep-lich-toan-xuong">
+            Xếp lịch toàn xưởng (cả dây chuyền)</Link>
           <Link className="erp-button-secondary" href="/ke-hoach-san-xuat/nhap-do-dang">
             Nhập bộ đang sản xuất dở{unplannedCount > 0 ? ` (${formatNumber(unplannedCount)})` : ""}
           </Link>

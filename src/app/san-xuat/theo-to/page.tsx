@@ -28,8 +28,8 @@ export default async function TeamReportPage({
       subtitle="Màn hình xưởng: chọn tổ → công đoạn → bấm 1 chạm để Bắt đầu / Hoàn thành / Lỗi / Tạm dừng. Tự cập nhật, không cần F5."
       actions={
         <div className="flex flex-wrap items-center gap-2">
-          <Link className="erp-button-secondary" href="/ke-hoach-san-xuat/dieu-do">
-            Điều độ công đoạn
+          <Link className="erp-button-secondary" href="/ke-hoach-san-xuat/xep-viec-theo-cong-doan">
+            Xếp việc theo công đoạn
           </Link>
           <Link className="erp-button-secondary" href="/reports/production">
             Báo cáo tổng hợp
