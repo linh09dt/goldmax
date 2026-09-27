@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { WARNING_LABELS } from "@/lib/production/scheduling";
 import type { ProductionWarning } from "@/lib/production/scheduling";
 
 /**
@@ -6,18 +7,12 @@ import type { ProductionWarning } from "@/lib/production/scheduling";
  *
  * KH29: nhà máy chỉ cần 2 cảnh báo — QUÁ TẢI TỔ và BỘ SẮP CHẬM TIẾN ĐỘ.
  * J9: không cần chuông/thông báo/Zalo — báo đỏ trong màn là đủ.
+ *
+ * V159: **tab Kế hoạch sản xuất không còn hiện dải này** (cảnh báo nay là 1 CỘT trong 2 bảng).
+ * Dải vẫn dùng ở trang chi tiết 1 bộ.
  */
 
-const KIND_LABELS: Record<ProductionWarning["kind"], string> = {
-  QUA_TAI_TO: "Quá tải",
-  QUA_TAI_CONG_DOAN: "Quá tải công đoạn",
-  SAP_TRE: "Sắp trễ",
-  CHAM_CONG_DOAN: "Chậm công đoạn",
-  KHONG_KIP: "Không kịp",
-  CHUA_DU_THONG_TIN: "Thiếu thông tin",
-  CHUA_CO_CHUONG_TRINH: "Chờ chương trình",
-  MAY_DUNG: "Máy dừng",
-};
+const KIND_LABELS = WARNING_LABELS;
 
 export function ProductionWarnings({ warnings }: { warnings: ProductionWarning[] }) {
   if (!warnings.length) {

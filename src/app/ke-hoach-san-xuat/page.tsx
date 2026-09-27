@@ -1,65 +1,43 @@
 import Link from "next/link";
 import { ErpShell } from "@/components/erp-shell";
 import { PlanAutoRefresh } from "@/components/production/plan-auto-refresh";
-import { ReportCard, ReportKpi, reportKpiGrid } from "@/components/reports/report-ui";
+import { PlanSetTable } from "@/components/production/plan-set-table";
+import { StagePlanGridTable } from "@/components/production/stage-plan-grid";
+import { ReportCard, ReportKpi } from "@/components/reports/report-ui";
 import { formatDate, formatNumber } from "@/components/order-list/format";
-import { todayInVietnam, MS_DAY } from "@/lib/production/calendar";
-import {
-  canhEquivalentOf,
-  componentProgress,
-  COMPONENT_KINDS,
-  COMPONENT_LABELS,
-  SET_STATUS_LABELS,
-  percentDoneOf,
-  soPhaoPerBo,
-  type ProductionTaskRow,
-} from "@/lib/production/catalog";
+import { dateKeyUtc, isWorkingDay, MS_DAY, startOfDayUtc, todayInVietnam } from "@/lib/production/calendar";
+import type { ProductionTaskRow } from "@/lib/production/catalog";
 import {
   buildProductionSummary,
-  buildStageLoad,
-  buildWarnings,
-  buildWorkCenterLoad,
-  setLeadDaysFromTasks,
+  buildSetTableRows,
+  buildSetWarningTags,
+  buildStagePlanGrid,
   sortSetsForPlanning,
 } from "@/lib/production/scheduling";
 import { countUnplannedOrderItems, loadProductionBoard } from "@/lib/production/service";
-import { ProductionWarnings } from "@/components/production/production-warnings";
 
 export const dynamic = "force-dynamic";
 
 /**
  * V136 — Màn chính module Lên kế hoạch sản xuất.
- *
- * KH24: mỗi ngày xưởng cần xem "việc hôm nay của tổ".
- * KH29: cảnh báo quá tải tổ + bộ sắp chậm tiến độ.
+ * V158 — bảng “Bộ chờ xếp lịch” đủ cột theo yêu cầu.
+ * V159 — bảng “Đang sản xuất” cùng bộ cột; bỏ dải cảnh báo; thêm cột “Cảnh báo” cho 2 bảng;
+ *        xếp 8 card trên 1 dòng; thêm “Bảng kế hoạch theo ngày” (hàng = công đoạn, cột = ngày trong tháng).
  */
 
-const STATUS_TONE: Record<string, string> = {
-  CHO_XEP_LICH: "bg-slate-100 text-slate-700",
-  DA_XEP_LICH: "bg-cyan-100 text-cyan-800",
-  DANG_SX: "bg-blue-100 text-blue-800",
-  HOAN_THANH: "bg-emerald-100 text-emerald-800",
-  DA_GIAO: "bg-emerald-600 text-white",
-  TAM_DUNG: "bg-amber-100 text-amber-900",
-  HUY: "bg-slate-200 text-slate-600",
-};
+const pad2 = (value: number) => String(value).padStart(2, "0");
+const monthKeyOf = (value: Date) => `${value.getUTCFullYear()}-${pad2(value.getUTCMonth() + 1)}`;
 
-/** V146 — số ngày tính cảnh báo quá tải (bảng tải theo tổ/ngày đã bỏ, cảnh báo vẫn dùng). */
-const LOAD_WINDOW_DAYS = 7;
-
-export default async function ProductionPlanPage() {
+export default async function ProductionPlanPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ thang?: string }>;
+}) {
+  const query = await searchParams;
   const today = todayInVietnam();
-  const from = today;
-  const to = new Date(from.getTime() + (LOAD_WINDOW_DAYS - 1) * MS_DAY);
 
-  // V146: KHÔNG lọc bộ theo khoảng ngày nữa (bảng "Tải theo tổ và ngày" đã bỏ) — bảng kế hoạch hiện MỌI bộ,
-  // còn khoảng ngày chỉ dùng để tính cảnh báo quá tải (7 ngày kể từ hôm nay).
   const [board, unplannedCount] = await Promise.all([loadProductionBoard(), countUnplannedOrderItems()]);
-
-  const { sets, tasks, workCenters, stages, config, calendar, programModels } = board;
-  const loadCells = buildWorkCenterLoad({ sets, tasks, workCenters, from, to, config });
-  const stageLoadCells = buildStageLoad({ sets, tasks, workCenters, stages, from, to, config });
-  const warnings = buildWarnings({ sets, tasks, stages, config, calendar, loadCells, stageLoadCells, today, modelsWithProgram: programModels });
+  const { sets, tasks, stages, config, calendar, programModels } = board;
   const summary = buildProductionSummary(sets, tasks);
 
   const tasksBySet = new Map<number, ProductionTaskRow[]>();
@@ -69,11 +47,39 @@ export default async function ProductionPlanPage() {
     else tasksBySet.set(task.setId, [task]);
   }
 
+  const warnings = buildSetWarningTags({ sets, tasks, stages, config, calendar, today, modelsWithProgram: programModels });
+
   const waiting = sortSetsForPlanning(sets.filter((set) => set.status === "CHO_XEP_LICH"));
   const running = sortSetsForPlanning(
     sets.filter((set) => set.status === "DANG_SX" || set.status === "DA_XEP_LICH" || set.status === "TAM_DUNG"),
   );
   const finished = sortSetsForPlanning(sets.filter((set) => set.status === "HOAN_THANH"));
+
+  const waitingRows = buildSetTableRows({ sets: waiting, tasksBySet, stages, config, warnings });
+  const runningRows = buildSetTableRows({ sets: running, tasksBySet, stages, config, warnings });
+
+  // --- Bảng kế hoạch theo ngày: tháng đang xem (?thang=YYYY-MM), mặc định tháng hiện tại ---
+  const requested = String(query.thang ?? "").match(/^(\d{4})-(\d{2})$/);
+  const monthStart = requested
+    ? new Date(Date.UTC(Number(requested[1]), Number(requested[2]) - 1, 1))
+    : new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+  const monthKey = monthKeyOf(monthStart);
+  const prevMonth = new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() - 1, 1));
+  const nextMonth = new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 1));
+  const grid = buildStagePlanGrid({ stages, tasks, month: monthStart });
+  const workingDayFlags = grid.days.map((day) => isWorkingDay(startOfDayUtc(day), calendar));
+  const todayKey = dateKeyUtc(today);
+
+  const kpis: Array<{ label: string; value: string; hint: string; tone: "neutral" | "good" | "warn" | "bad" }> = [
+    { label: "Bộ trong kế hoạch", value: formatNumber(summary.total), hint: "Đã đưa từ đơn vào sản xuất", tone: "neutral" },
+    { label: "Chờ xếp lịch", value: formatNumber(summary.waiting), hint: "Chưa gán ngày/tổ", tone: summary.waiting > 0 ? "warn" : "neutral" },
+    { label: "Đang sản xuất", value: formatNumber(summary.inProgress), hint: "Đã xếp lịch hoặc đang làm", tone: "neutral" },
+    { label: "Hoàn thành / đã giao", value: `${formatNumber(summary.completed)} / ${formatNumber(summary.delivered)}`, hint: "Đóng gói xong / đã giao khách", tone: "good" },
+    { label: "Tổng cánh", value: formatNumber(summary.totalCanh), hint: "Quy đổi từ số cánh × số bộ", tone: "neutral" },
+    { label: "Tiến độ trung bình", value: `${summary.avgPercent}%`, hint: "Theo công đoạn đã xong", tone: "neutral" },
+    { label: "Chưa nhập vào kế hoạch", value: formatNumber(unplannedCount), hint: "Bộ của đơn đã xác nhận còn ngoài kế hoạch", tone: unplannedCount > 0 ? "warn" : "neutral" },
+    { label: "Tạm dừng", value: formatNumber(summary.paused), hint: "Có công đoạn bị tạm dừng", tone: summary.paused > 0 ? "bad" : "neutral" },
+  ];
 
   return (
     <ErpShell
@@ -97,172 +103,51 @@ export default async function ProductionPlanPage() {
     >
       <PlanAutoRefresh />
       <div className="space-y-3">
-        <section className={reportKpiGrid}>
-          <ReportKpi label="Bộ trong kế hoạch" value={formatNumber(summary.total)} hint="Đã đưa từ đơn vào sản xuất" tone="neutral" />
-          <ReportKpi label="Chờ xếp lịch" value={formatNumber(summary.waiting)} hint="Chưa gán ngày/tổ" tone={summary.waiting > 0 ? "warn" : "neutral"} />
-          <ReportKpi label="Đang sản xuất" value={formatNumber(summary.inProgress)} hint="Đã xếp lịch hoặc đang làm" tone="neutral" />
-          <ReportKpi label="Hoàn thành / đã giao" value={`${formatNumber(summary.completed)} / ${formatNumber(summary.delivered)}`} hint="Đóng gói xong / đã giao khách" tone="good" />
-          <ReportKpi label="Tổng cánh" value={formatNumber(summary.totalCanh)} hint="Quy đổi từ số cánh × số bộ" tone="neutral" />
-          <ReportKpi label="Tiến độ trung bình" value={`${summary.avgPercent}%`} hint="Theo công đoạn đã xong" tone="neutral" />
-          <ReportKpi label="Chưa nhập vào kế hoạch" value={formatNumber(unplannedCount)} hint="Bộ của đơn đã xác nhận còn ngoài kế hoạch" tone={unplannedCount > 0 ? "warn" : "neutral"} />
-          <ReportKpi label="Tạm dừng" value={formatNumber(summary.paused)} hint="Có công đoạn bị tạm dừng" tone={summary.paused > 0 ? "bad" : "neutral"} />
+        {/* V159 — 8 card nằm CHUNG 1 DÒNG (cuộn ngang khi màn hình hẹp). */}
+        <section className="erp-scrollbar flex flex-nowrap gap-2.5 overflow-x-auto pb-1">
+          {kpis.map((kpi) => (
+            <div key={kpi.label} className="w-[172px] shrink-0">
+              <ReportKpi label={kpi.label} value={kpi.value} hint={kpi.hint} tone={kpi.tone} />
+            </div>
+          ))}
         </section>
-
-        <ProductionWarnings warnings={warnings} />
 
         <ReportCard
           title="Bộ chờ xếp lịch"
-          hint="Xếp theo hạn giao gần nhất trước (EDD). “Số ngày dự kiến giao” = đường găng (tổng số ngày làm việc của các bước, cùng bước tính 1 lần). **Xếp lịch bằng tay**: mở một bộ → gán ngày kế hoạch cho từng công đoạn."
+          hint="Xếp theo hạn giao gần nhất trước (EDD). Cột “Cảnh báo” chỉ hiện TÊN cảnh báo (rê chuột để xem diễn giải). **Xếp lịch bằng tay**: mở một bộ → gán ngày kế hoạch cho từng công đoạn."
           right={`${formatNumber(waiting.length)} bộ`}
         >
-          {waiting.length === 0 ? (
-            <p className="py-6 text-center text-[12px] text-slate-500">Không còn bộ nào chờ xếp lịch.</p>
-          ) : (
-            <div className="erp-scrollbar overflow-x-auto">
-              <table className="erp-table">
-                <thead>
-                  <tr>
-                    <th>Mã đơn hàng</th>
-                    <th>Đại lý</th>
-                    <th>Ngày tháng</th>
-                    <th>Bộ số</th>
-                    <th>Model</th>
-                    <th>Ô thoáng</th>
-                    <th>Hướng mở</th>
-                    <th>Màu</th>
-                    <th className="text-right">
-                      Kích thước
-                      <span className="block font-normal">(cao × rộng × khuôn)</span>
-                    </th>
-                    <th className="text-right">Số thanh phào</th>
-                    <th>Loại khóa</th>
-                    <th>Loại PLX</th>
-                    <th className="text-right">Số cánh</th>
-                    <th>Ghi chú</th>
-                    <th className="text-right">
-                      Số ngày dự kiến giao
-                      <span className="block font-normal">(theo leadtime)</span>
-                    </th>
-                    <th>Ngày đặt</th>
-                    <th>Ngày giao</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {waiting.slice(0, 200).map((set) => {
-                    const trimBars = soPhaoPerBo(set, { cuaDi: config.defaultTrimCuaDi, cuaSo: config.defaultTrimCuaSo });
-                    const leadDays = setLeadDaysFromTasks(tasksBySet.get(set.id) ?? [], stages, config);
-                    const size = [set.heightMm, set.widthMm, set.frameMm].some((value) => value !== null && value !== undefined)
-                      ? `${set.heightMm ?? "—"} × ${set.widthMm ?? "—"} × ${set.frameMm ?? "—"}`
-                      : "—";
-                    const note = set.orderItemNote || set.note || "";
-                    return (
-                      <tr key={set.id}>
-                        <td>{set.orderCode || "—"}</td>
-                        <td className="max-w-[180px] truncate" title={set.customerName ?? ""}>{set.customerName || "—"}</td>
-                        <td className="whitespace-nowrap">{formatDate(set.excelUpdateDate)}</td>
-                        <td className="erp-td-strong">
-                          <Link className="font-semibold text-cyan-700 hover:underline" href={`/ke-hoach-san-xuat/bo/${set.id}`}>
-                            {set.setNo || `#${set.id}`}
-                          </Link>
-                        </td>
-                        <td className="max-w-[150px] truncate" title={set.model ?? ""}>{set.model || "—"}</td>
-                        <td className="max-w-[140px] truncate" title={set.panelInfo ?? ""}>{set.panelInfo || "—"}</td>
-                        <td className="whitespace-nowrap">{set.openingDirection || "—"}</td>
-                        <td>{set.paintColor || "—"}</td>
-                        <td className="erp-td-num whitespace-nowrap">{size}</td>
-                        <td className="erp-td-num" title="Số cánh + số thanh phào mặc định theo loại cửa (cửa đi / cửa sổ)">{formatNumber(trimBars)}</td>
-                        <td className="max-w-[160px] truncate" title={set.lockType ?? ""}>{set.lockType || "—"}</td>
-                        <td className="max-w-[160px] truncate" title={set.plxType ?? ""}>{set.plxType || "—"}</td>
-                        <td className="erp-td-num" title={`${formatNumber(set.leavesPerSet ?? 1)} cánh/bộ × ${formatNumber(set.quantity ?? 1)} bộ`}>{formatNumber(canhEquivalentOf(set))}</td>
-                        <td className="max-w-[220px] truncate" title={note}>{note || "—"}</td>
-                        <td className="erp-td-num" title="Đường găng: tổng số ngày làm việc của các bước">{formatNumber(leadDays)}</td>
-                        <td className="whitespace-nowrap">{formatDate(set.orderDate)}</td>
-                        <td className="whitespace-nowrap">{formatDate(set.dueDate)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <PlanSetTable rows={waitingRows.slice(0, 200)} emptyText="Không còn bộ nào chờ xếp lịch." />
         </ReportCard>
 
-        <ReportCard title="Đang sản xuất" hint="Mở một bộ để cập nhật tiến độ từng công đoạn." right={`${formatNumber(running.length)} bộ`}>
-          {running.length === 0 ? (
-            <p className="py-6 text-center text-[12px] text-slate-500">Chưa có bộ nào đang sản xuất.</p>
-          ) : (
-            <div className="erp-scrollbar overflow-x-auto">
-              <table className="erp-table">
-                <thead>
-                  <tr>
-                    <th>Bộ số</th>
-                    <th>Mã đơn</th>
-                    <th>Khách hàng</th>
-                    <th>Model</th>
-                    <th className="text-right">Cánh</th>
-                    <th>Hạn giao</th>
-                    <th>Xếp lịch</th>
-                    <th className="text-right">Tiến độ</th>
-                    <th>Trạng thái</th>
-                    <th>Công đoạn đang làm</th>
-                    <th>Tiến độ lệnh con</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {running.slice(0, 200).map((set) => {
-                    const setTasks = tasksBySet.get(set.id) ?? [];
-                    const current = setTasks
-                      .filter((task) => task.status === "DANG_LAM" || task.status === "CHUA_LAM")
-                      .map((task) => task.stageCode)
-                      .slice(0, 2)
-                      .join(", ");
-                    return (
-                      <tr key={set.id}>
-                        <td className="erp-td-strong">
-                          <Link className="font-semibold text-cyan-700 hover:underline" href={`/ke-hoach-san-xuat/bo/${set.id}`}>
-                            {set.setNo || `#${set.id}`}
-                          </Link>
-                        </td>
-                        <td>{set.orderCode || "—"}</td>
-                        <td className="max-w-[180px] truncate" title={set.customerName ?? ""}>{set.customerName || "—"}</td>
-                        <td className="max-w-[150px] truncate" title={set.model ?? ""}>{set.model || "—"}</td>
-                        <td className="erp-td-num">{formatNumber(canhEquivalentOf(set))}</td>
-                        <td>{formatDate(set.dueDate)}</td>
-                        <td className="whitespace-nowrap text-[12px] text-slate-500">
-                          {set.plannedStart ? `${formatDate(set.plannedStart)} → ${formatDate(set.plannedEnd)}` : "chưa gán"}
-                        </td>
-                        <td className="erp-td-num">{percentDoneOf(setTasks)}%</td>
-                        <td>
-                          <span className={`rounded px-1.5 py-0.5 text-[11px] ${STATUS_TONE[set.status] ?? "bg-slate-100 text-slate-700"}`}>
-                            {SET_STATUS_LABELS[set.status] ?? set.status}
-                          </span>
-                        </td>
-                        <td className="text-[12px] text-slate-600">{current || "—"}</td>
-                        <td>
-                          <div className="flex flex-wrap gap-1">
-                            {COMPONENT_KINDS.map((kind) => {
-                              const progress = componentProgress(setTasks, kind);
-                              const tone =
-                                progress.percent >= 100
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : progress.percent > 0
-                                    ? "bg-blue-100 text-blue-800"
-                                    : "bg-slate-100 text-slate-600";
-                              return (
-                                <span key={kind} className={`rounded px-1.5 py-0.5 text-[10.5px] ${tone}`} title={`${COMPONENT_LABELS[kind]} · ${progress.done}/${progress.total} công đoạn`}>
-                                  {COMPONENT_LABELS[kind]} {progress.percent}%
-                                </span>
-                              );
-                            })}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+        <ReportCard
+          title="Đang sản xuất"
+          hint="Cùng bộ cột với bảng Bộ chờ xếp lịch. Cột “Cảnh báo” so SỐ NGÀY CHẬM với LEAD TIME của công đoạn đang chậm: ≤ 1× = Chậm nhẹ · ≤ 2× = Chậm · > 2× = Chậm nặng."
+          right={`${formatNumber(running.length)} bộ`}
+        >
+          <PlanSetTable rows={runningRows.slice(0, 200)} emptyText="Chưa có bộ nào đang sản xuất." />
+        </ReportCard>
+
+        <ReportCard
+          title="Bảng kế hoạch theo ngày"
+          hint="Hàng = tất cả công đoạn · cột = mọi ngày trong tháng. Mỗi ô 2 số: kế hoạch (ngày kế hoạch) và thực tế (ngày báo xong)."
+          right={
+            <div className="flex flex-wrap items-center gap-2">
+              <Link className="erp-button-secondary h-7 px-2 text-[11px]" href={`/ke-hoach-san-xuat?thang=${monthKeyOf(prevMonth)}`}>
+                ← Tháng trước
+              </Link>
+              <span className="font-semibold text-slate-700">Tháng {monthStart.getUTCMonth() + 1}/{monthStart.getUTCFullYear()}</span>
+              <Link className="erp-button-secondary h-7 px-2 text-[11px]" href={`/ke-hoach-san-xuat?thang=${monthKeyOf(nextMonth)}`}>
+                Tháng sau →
+              </Link>
+              <form method="GET" action="/ke-hoach-san-xuat" className="flex items-center gap-1">
+                <input className="erp-input h-7 px-2 text-[11px]" type="month" name="thang" defaultValue={monthKey} />
+                <button className="erp-button h-7 px-2 text-[11px]" type="submit">Xem</button>
+              </form>
             </div>
-          )}
+          }
+        >
+          <StagePlanGridTable grid={grid} workingDays={workingDayFlags} todayKey={todayKey} />
         </ReportCard>
 
         <ReportCard title="Đã hoàn thành sản xuất" hint="Đóng gói xong = hoàn thành sản xuất (KHO5). Đã giao khách thì ghi ngày giao thực tế ở trang chi tiết bộ." right={`${formatNumber(finished.length)} bộ`}>
@@ -320,7 +205,8 @@ export default async function ProductionPlanPage() {
           {config.overlapDaysPerStep > 0
             ? ` Đang bật gối công đoạn ${config.overlapDaysPerStep} ngày/bước.`
             : " Chưa bật gối công đoạn (đang cộng dồn số ngày — cách tính an toàn)."}{" "}
-          Bảng kế hoạch hiện tất cả bộ; cảnh báo quá tải tính cho {LOAD_WINDOW_DAYS} ngày kể từ hôm nay.
+          Cảnh báo quá tải tổ / công đoạn theo ngày xem ở màn “Xếp việc theo công đoạn” và “Xếp lịch toàn xưởng”
+          (thanh tải mỗi ngày đổi màu khi vượt năng lực).
         </p>
       </div>
     </ErpShell>

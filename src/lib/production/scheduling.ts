@@ -23,6 +23,7 @@ import {
   canhEquivalentOf,
   parseSkipCondition,
   percentDoneOf,
+  soPhaoPerBo,
   STAGE,
   type ProductionSetRow,
   type ProductionStageRow,
@@ -585,3 +586,341 @@ export function buildProductionSummary(sets: ProductionSetRow[], tasks: Producti
 }
 
 export { parseSkipCondition };
+
+// ---------------------------------------------------------------------------
+// 6) V159 — CẢNH BÁO THEO TỪNG BỘ + CỘT DỮ LIỆU 2 BẢNG + BẢNG KẾ HOẠCH THEO NGÀY
+// ---------------------------------------------------------------------------
+
+/** Nhãn ngắn của cảnh báo chung (dùng chung cho dải cảnh báo và cột cảnh báo). */
+export const WARNING_LABELS: Record<ProductionWarning["kind"], string> = {
+  QUA_TAI_TO: "Quá tải",
+  QUA_TAI_CONG_DOAN: "Quá tải công đoạn",
+  SAP_TRE: "Sắp trễ",
+  CHAM_CONG_DOAN: "Chậm công đoạn",
+  KHONG_KIP: "Không kịp",
+  CHUA_DU_THONG_TIN: "Thiếu thông tin",
+  CHUA_CO_CHUONG_TRINH: "Chờ chương trình",
+  MAY_DUNG: "Máy dừng",
+};
+
+export type SetWarningCode =
+  | "THIEU_THONG_TIN"
+  | "CHO_CHUONG_TRINH"
+  | "QUA_HAN"
+  | "SAP_TRE"
+  | "KHONG_KIP"
+  | "CHAM_NHE"
+  | "CHAM"
+  | "CHAM_NANG";
+
+export type SetWarningTag = {
+  code: SetWarningCode;
+  /** TÊN cảnh báo — bảng chỉ hiện tên, không hiện diễn giải. */
+  label: string;
+  level: "warn" | "bad";
+  detail: string;
+};
+
+export const SET_WARNING_LABELS: Record<SetWarningCode, string> = {
+  THIEU_THONG_TIN: "Thiếu thông tin",
+  CHO_CHUONG_TRINH: "Chờ chương trình",
+  QUA_HAN: "Quá hạn",
+  SAP_TRE: "Sắp trễ",
+  KHONG_KIP: "Không kịp",
+  CHAM_NHE: "Chậm nhẹ",
+  CHAM: "Chậm",
+  CHAM_NANG: "Chậm nặng",
+};
+
+const DELAY_LEVEL: Record<"CHAM_NHE" | "CHAM" | "CHAM_NANG", "warn" | "bad"> = {
+  CHAM_NHE: "warn",
+  CHAM: "bad",
+  CHAM_NANG: "bad",
+};
+
+export type BuildSetWarningOptions = {
+  sets: ProductionSetRow[];
+  tasks: ProductionTaskRow[];
+  stages: ProductionStageRow[];
+  config: ProductionConfig;
+  calendar: WorkingCalendar;
+  today: Date;
+  modelsWithProgram: Set<string>;
+};
+
+/**
+ * Cảnh báo GẮN VỀ TỪNG BỘ để hiện ở cột “Cảnh báo” của 2 bảng.
+ *
+ * - Bộ chờ xếp lịch: thiếu thông tin · chờ chương trình · quá hạn · sắp trễ (phải bắt đầu bao giờ).
+ * - Bộ đang sản xuất: so **số ngày chậm** với **lead time của công đoạn** đang chậm →
+ *     chậm ≤ 1× lead time = “Chậm nhẹ” · ≤ 2× = “Chậm” · > 2× = “Chậm nặng”.
+ */
+export function buildSetWarningTags(options: BuildSetWarningOptions): Map<number, SetWarningTag[]> {
+  const { sets, tasks, stages, config, calendar, today, modelsWithProgram } = options;
+  const todayStart = startOfDayUtc(today);
+  const stageByCode = new Map(stages.map((stage) => [stage.code, stage]));
+  const tasksBySet = new Map<number, ProductionTaskRow[]>();
+  for (const task of tasks) {
+    const list = tasksBySet.get(task.setId);
+    if (list) list.push(task);
+    else tasksBySet.set(task.setId, [task]);
+  }
+
+  const result = new Map<number, SetWarningTag[]>();
+  for (const set of sets) {
+    if (set.status === "HOAN_THANH" || set.status === "DA_GIAO" || set.status === "HUY") continue;
+    const setTasks = tasksBySet.get(set.id) ?? [];
+    const tags: SetWarningTag[] = [];
+    const push = (code: SetWarningCode, level: "warn" | "bad", detail: string) => {
+      if (tags.some((tag) => tag.code === code)) return;
+      tags.push({ code, level, detail, label: SET_WARNING_LABELS[code] });
+    };
+
+    const missing = missingInfoForPlanning(set, config);
+    if (missing.length) push("THIEU_THONG_TIN", "warn", `Thiếu ${missing.join(", ")}`);
+
+    const model = String(set.model ?? "").trim().toUpperCase();
+    // Chỉ gắn nhãn khi thư viện chương trình ĐÃ có dữ liệu — nếu thư viện rỗng (chưa dùng tính năng)
+    // thì mọi bộ đều "thiếu chương trình", cột cảnh báo sẽ bị nhiễu vô ích.
+    if (modelsWithProgram.size > 0 && model && !modelsWithProgram.has(model)) {
+      const programTask = setTasks.find((task) => task.stageCode === STAGE.BOI_LARES);
+      if (programTask && programTask.status !== "XONG" && programTask.status !== "BO_QUA") {
+        push("CHO_CHUONG_TRINH", "warn", "Model chưa có chương trình máy cắt");
+      }
+    }
+
+    const workshopDue = set.dueDate ? subtractWorkingDays(set.dueDate, config.deliveryBufferDays, calendar) : null;
+
+    if (set.dueDate && startOfDayUtc(set.dueDate).getTime() < todayStart.getTime()) {
+      const late = workingDaysBetween(set.dueDate, todayStart, calendar);
+      push("QUA_HAN", "bad", `Quá hạn ${late} ngày làm việc`);
+    }
+
+    if (set.status === "CHO_XEP_LICH" && set.dueDate) {
+      const leadDays = setLeadDaysFromTasks(setTasks, stages, config);
+      const mustStart = latestStartDate(set.dueDate, leadDays, config, calendar);
+      if (mustStart.getTime() < todayStart.getTime()) {
+        push("SAP_TRE", "bad", `Phải bắt đầu trước ${formatDay(mustStart)}`);
+      } else if (workingDaysBetween(todayStart, mustStart, calendar) <= 2) {
+        push("SAP_TRE", "warn", "Còn ≤ 2 ngày làm việc là phải bắt đầu");
+      }
+    }
+
+    if (set.status === "DANG_SX" || set.status === "DA_XEP_LICH" || set.status === "TAM_DUNG") {
+      const delay = worstRunningDelay(set, setTasks, stageByCode, calendar, todayStart);
+      if (delay) push(delay.code, DELAY_LEVEL[delay.code], delay.detail);
+    }
+
+    if (set.targetEnd && workshopDue && startOfDayUtc(set.targetEnd).getTime() > startOfDayUtc(workshopDue).getTime()) {
+      const late = Math.max(1, workingDaysBetween(workshopDue, set.targetEnd, calendar));
+      push("KHONG_KIP", "bad", `Dự kiến xong muộn ${late} ngày làm việc`);
+    }
+
+    if (tags.length) {
+      tags.sort((a, b) => (a.level === b.level ? 0 : a.level === "bad" ? -1 : 1));
+      result.set(set.id, tags);
+    }
+  }
+  return result;
+}
+
+/**
+ * MỨC ĐỘ CHẬM của một bộ đang sản xuất = công đoạn chậm nhất, so với lead time của chính công đoạn đó.
+ * Mốc so sánh của công đoạn: `target_end` (mốc tự suy) → `planned_end`/`planned_start` (ngày kế hoạch)
+ * → ngày kế hoạch của cả bộ. Công đoạn đã XONG/BỎ QUA không tính.
+ */
+function worstRunningDelay(
+  set: ProductionSetRow,
+  tasks: ProductionTaskRow[],
+  stageByCode: Map<string, ProductionStageRow>,
+  calendar: WorkingCalendar,
+  todayStart: Date,
+): { code: "CHAM_NHE" | "CHAM" | "CHAM_NANG"; detail: string } | null {
+  const rank = { CHAM_NHE: 1, CHAM: 2, CHAM_NANG: 3 } as const;
+  let worst: { code: "CHAM_NHE" | "CHAM" | "CHAM_NANG"; overdue: number; stageName: string; leadDays: number } | null = null;
+
+  for (const task of tasks) {
+    if (task.status === "XONG" || task.status === "BO_QUA") continue;
+    const reference = task.targetEnd ?? task.plannedEnd ?? task.plannedStart ?? set.plannedEnd ?? set.plannedStart;
+    if (!reference) continue;
+    const refDay = startOfDayUtc(reference);
+    if (refDay.getTime() >= todayStart.getTime()) continue;
+
+    const overdue = Math.max(1, workingDaysBetween(refDay, todayStart, calendar));
+    const leadDays = Math.max(1, Math.floor(Number(stageByCode.get(task.stageCode)?.leadTimeDays) || 0));
+    const code: "CHAM_NHE" | "CHAM" | "CHAM_NANG" =
+      overdue <= leadDays ? "CHAM_NHE" : overdue <= leadDays * 2 ? "CHAM" : "CHAM_NANG";
+
+    if (
+      !worst ||
+      rank[code] > rank[worst.code] ||
+      (rank[code] === rank[worst.code] && overdue > worst.overdue)
+    ) {
+      worst = { code, overdue, stageName: stageByCode.get(task.stageCode)?.name ?? task.stageCode, leadDays };
+    }
+  }
+
+  if (!worst) return null;
+  const detail = `${worst.stageName} chậm ${worst.overdue} ngày làm việc (lead time ${worst.leadDays} ngày)`;
+  return { code: worst.code, detail };
+}
+
+// ---------------------------------------------------------------------------
+// 6b) DÒNG DỮ LIỆU CHUNG CHO 2 BẢNG (Bộ chờ xếp lịch · Đang sản xuất)
+// ---------------------------------------------------------------------------
+
+export type SetTableRow = {
+  id: number;
+  orderCode: string | null;
+  /** Đại lý (tên khách hàng trên đơn). */
+  dealer: string | null;
+  /** Ngày tháng = ngày cập nhật đơn. */
+  updatedAt: Date | null;
+  setNo: string | null;
+  model: string | null;
+  panelInfo: string | null;
+  openingDirection: string | null;
+  paintColor: string | null;
+  /** Cao × Rộng × Khuôn. */
+  sizeText: string;
+  /** Số thanh phào / bộ (công thức cửa đi – cửa sổ). */
+  trimBars: number;
+  lockType: string | null;
+  plxType: string | null;
+  canh: number;
+  note: string | null;
+  /** Số ngày dự kiến giao = đường găng (số ngày làm việc). */
+  leadDays: number;
+  orderDate: Date | null;
+  dueDate: Date | null;
+  warnings: SetWarningTag[];
+};
+
+export function buildSetTableRows(options: {
+  sets: ProductionSetRow[];
+  tasksBySet: Map<number, ProductionTaskRow[]>;
+  stages: ProductionStageRow[];
+  config: ProductionConfig;
+  warnings: Map<number, SetWarningTag[]>;
+}): SetTableRow[] {
+  const { sets, tasksBySet, stages, config, warnings } = options;
+  return sets.map((set) => {
+    const setTasks = tasksBySet.get(set.id) ?? [];
+    const hasSize = [set.heightMm, set.widthMm, set.frameMm].some((value) => value !== null && value !== undefined);
+    return {
+      id: set.id,
+      orderCode: set.orderCode ?? null,
+      dealer: set.customerName ?? null,
+      updatedAt: set.excelUpdateDate ?? null,
+      setNo: set.setNo ?? null,
+      model: set.model ?? null,
+      panelInfo: set.panelInfo ?? null,
+      openingDirection: set.openingDirection ?? null,
+      paintColor: set.paintColor ?? null,
+      sizeText: hasSize ? `${set.heightMm ?? "—"} × ${set.widthMm ?? "—"} × ${set.frameMm ?? "—"}` : "—",
+      trimBars: soPhaoPerBo(set, { cuaDi: config.defaultTrimCuaDi, cuaSo: config.defaultTrimCuaSo }),
+      lockType: set.lockType ?? null,
+      plxType: set.plxType ?? null,
+      canh: canhEquivalentOf(set),
+      note: set.orderItemNote || set.note || null,
+      leadDays: setLeadDaysFromTasks(setTasks, stages, config),
+      orderDate: set.orderDate ?? null,
+      dueDate: set.dueDate ?? null,
+      warnings: warnings.get(set.id) ?? [],
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 6c) BẢNG KẾ HOẠCH THEO NGÀY: hàng = công đoạn · cột = các ngày trong tháng
+// ---------------------------------------------------------------------------
+
+export type StagePlanCell = {
+  day: Date;
+  /** Số lượng KẾ HOẠCH (theo ngày kế hoạch của công đoạn). */
+  planned: number;
+  /** Số lượng THỰC TẾ (theo ngày báo xong của công đoạn). */
+  actual: number;
+};
+
+export type StagePlanRow = {
+  stageCode: string;
+  stageName: string;
+  seq: number;
+  workCenterCode: string | null;
+  cells: StagePlanCell[];
+  plannedTotal: number;
+  actualTotal: number;
+};
+
+export type StagePlanGrid = {
+  days: Date[];
+  rows: StagePlanRow[];
+  plannedTotal: number;
+  actualTotal: number;
+};
+
+/**
+ * Lưới kế hoạch theo NGÀY cho MỘT THÁNG: hàng = tất cả công đoạn, cột = mọi ngày trong tháng.
+ * Mỗi ô có 2 số: **kế hoạch** (tổng `qty_expected` của công đoạn xếp vào ngày đó) và
+ * **thực tế** (tổng `qty_done` của công đoạn được báo XONG trong ngày đó).
+ * Đơn vị theo công đoạn (cánh hoặc bộ) — mỗi công đoạn một hàng nên không trộn đơn vị.
+ */
+export function buildStagePlanGrid(options: {
+  stages: ProductionStageRow[];
+  tasks: ProductionTaskRow[];
+  month: Date;
+}): StagePlanGrid {
+  const { stages, tasks, month } = options;
+  const year = month.getUTCFullYear();
+  const monthIndex = month.getUTCMonth();
+  const daysInMonth = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+  const days = Array.from({ length: daysInMonth }, (_, index) => new Date(Date.UTC(year, monthIndex, index + 1)));
+  const dayIndex = new Map(days.map((day, index) => [dateKeyUtc(day), index]));
+
+  const rows = new Map<string, StagePlanRow>();
+  for (const stage of stages) {
+    rows.set(stage.code, {
+      stageCode: stage.code,
+      stageName: stage.name,
+      seq: stage.seq,
+      workCenterCode: stage.workCenterCode ?? null,
+      cells: days.map((day) => ({ day, planned: 0, actual: 0 })),
+      plannedTotal: 0,
+      actualTotal: 0,
+    });
+  }
+
+  for (const task of tasks) {
+    if (task.status === "BO_QUA") continue;
+    const row = rows.get(task.stageCode);
+    if (!row) continue;
+    const expected = Number(task.qtyExpected) || 0;
+
+    const plannedRef = task.plannedStart ?? task.targetStart;
+    if (plannedRef) {
+      const index = dayIndex.get(dateKeyUtc(startOfDayUtc(plannedRef)));
+      if (index !== undefined) {
+        row.cells[index].planned += expected;
+        row.plannedTotal += expected;
+      }
+    }
+
+    if (task.actualEnd) {
+      const index = dayIndex.get(dateKeyUtc(startOfDayUtc(task.actualEnd)));
+      if (index !== undefined) {
+        const done = Number(task.qtyDone) || (task.status === "XONG" ? expected : 0);
+        row.cells[index].actual += done;
+        row.actualTotal += done;
+      }
+    }
+  }
+
+  const orderedRows = Array.from(rows.values()).sort((a, b) => a.seq - b.seq || a.stageCode.localeCompare(b.stageCode));
+  return {
+    days,
+    rows: orderedRows,
+    plannedTotal: orderedRows.reduce((sum, row) => sum + row.plannedTotal, 0),
+    actualTotal: orderedRows.reduce((sum, row) => sum + row.actualTotal, 0),
+  };
+}
