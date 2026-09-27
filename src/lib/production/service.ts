@@ -60,9 +60,12 @@ import { BATCH_GROUP_CODES, readyDayFor } from "@/lib/production/stage-plan";
 import {
   evaluateDayProgress,
   lotLabelOf,
+  mergePrevStatus,
+  predecessorText,
   shiftWindow,
   vietnamMinutesNow,
   type DayProgress,
+  type PrevStatus,
   type TaskAction,
 } from "@/lib/production/team-report";
 import { scheduleQueue } from "@/lib/production/dispatch";
@@ -2201,8 +2204,16 @@ export type TeamReportRow = {
   reasonCode: string | null;
   reasonName: string | null;
   note: string | null;
-  /** Công đoạn trước chưa báo xong → cảnh báo (KHÔNG chặn thao tác). */
-  earlyWarning: string | null;
+  /** CÔNG ĐOẠN TRƯỚC: tên + trạng thái gộp + GIỜ HOÀN THÀNH (nếu đã xong). */
+  prev: {
+    /** Tên (các) công đoạn trước, vd "Hàn cánh" hoặc "Hàn cánh + Hàn khung". */
+    names: string;
+    status: PrevStatus;
+    /** ISO giờ hoàn thành muộn nhất trong các công đoạn trước đã xong. */
+    doneAt: string | null;
+    /** Câu hiện sẵn trên màn: "Xong 14:32" · "Đang làm" · "Chưa làm" · "—". */
+    text: string;
+  };
 };
 
 export type TeamReportStage = {
@@ -2390,7 +2401,7 @@ export async function loadTeamReport(query: {
   const allSetTasks = setIdsWithRows.length
     ? await prisma.productionTask.findMany({
         where: { setId: { in: setIdsWithRows } },
-        select: { id: true, setId: true, stageCode: true, scope: true, status: true, stageKind: true },
+        select: { id: true, setId: true, stageCode: true, scope: true, status: true, stageKind: true, actualEnd: true, plannedEnd: true },
       })
     : [];
   const setTasksById = new Map<number, typeof allSetTasks>();
@@ -2433,7 +2444,7 @@ export async function loadTeamReport(query: {
           reasonCode: detail?.reasonCode ?? null,
           reasonName: detail?.reasonCode ? reasonNameByCode.get(detail.reasonCode) ?? detail.reasonCode : null,
           note: detail?.note ?? null,
-          earlyWarning: null,
+          prev: { names: "", status: "KHONG_CO" as PrevStatus, doneAt: null, text: "—" },
         };
         const usePaintLot = grouping && BATCH_GROUP_CODES.has(grouping.code);
         const lot = lotLabelOf({
@@ -2449,7 +2460,9 @@ export async function loadTeamReport(query: {
       .filter((row): row is TeamReportRow => Boolean(row))
       .sort((a, b) => (a.customerName ?? "").localeCompare(b.customerName ?? "", "vi") || a.setId - b.setId);
 
-    // Gắn lý do lỗi + cảnh báo "công đoạn trước chưa xong".
+    // CỘT "CÔNG ĐOẠN TRƯỚC": công nhân nhìn là biết đã được phép làm chưa, và công đoạn trước
+    // xong lúc mấy giờ. Chọn công đoạn trước theo CÙNG PHẦN trước (Ép cánh ← Hàn **cánh**),
+    // giống quy tắc mở khoá của engine.
     for (const row of stageRows) {
       const detail = detailById.get(row.taskId);
       const requiredCodes = String(stage.requiresStage ?? "")
@@ -2460,14 +2473,19 @@ export async function loadTeamReport(query: {
       const setTasks = setTasksById.get(row.setId) ?? [];
       const sameScope = setTasks.filter((item) => requiredCodes.includes(item.stageCode) && item.scope === detail?.scope);
       const pool = sameScope.length ? sameScope : setTasks.filter((item) => requiredCodes.includes(item.stageCode));
-      const notDone = pool.filter((item) => item.status !== "XONG" && item.status !== "BO_QUA");
-      // Chỉ nhắc khi bộ ĐANG ĐƯỢC LÀM/BÁO LỖI — hàng chưa làm thì việc công đoạn trước chưa xong
-      // là chuyện bình thường, nhắc hết mọi dòng sẽ rối màn hình và công nhân sẽ bỏ qua cảnh báo.
-      const worthWarning = row.status === "DANG_LAM" || row.status === "LOI" || row.status === "XONG";
-      if (notDone.length && worthWarning) {
-        const names = Array.from(new Set(notDone.map((item) => stageByCode.get(item.stageCode)?.name ?? item.stageCode)));
-        row.earlyWarning = `Công đoạn trước chưa xong: ${names.join(", ")}`;
-      }
+      if (!pool.length) continue;
+
+      const status = mergePrevStatus(pool);
+      const doneEnds = pool
+        .filter((item) => item.status === "XONG" && item.actualEnd)
+        .map((item) => item.actualEnd as Date);
+      const doneAt = doneEnds.length ? new Date(Math.max(...doneEnds.map((date) => date.getTime()))).toISOString() : null;
+      row.prev = {
+        names: Array.from(new Set(pool.map((item) => stageByCode.get(item.stageCode)?.name ?? item.stageCode))).join(" + "),
+        status,
+        doneAt,
+        text: predecessorText(status, doneAt),
+      };
     }
 
     const sumBy = (predicate: (row: TeamReportRow) => boolean) =>

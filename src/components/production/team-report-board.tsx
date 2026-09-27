@@ -6,6 +6,7 @@ import {
   highlightOf,
   matchesFilter,
   STATUS_FILTER_LABELS,
+  vietnamTimeLabel,
   type StatusFilter,
   type TaskAction,
 } from "@/lib/production/team-report";
@@ -41,7 +42,12 @@ type Row = {
   reasonCode: string | null;
   reasonName: string | null;
   note: string | null;
-  earlyWarning: string | null;
+  prev: {
+    names: string;
+    status: "KHONG_CO" | "CHUA_LAM" | "DANG_LAM" | "XONG" | "LOI" | "TAM_DUNG";
+    doneAt: string | null;
+    text: string;
+  };
 };
 
 type StageBlock = {
@@ -116,12 +122,8 @@ const ACTION_BUTTONS: Array<{ action: Exclude<TaskAction, "HOAN_TAC">; label: st
 
 const STATUS_OF_ACTION: Record<string, string> = { BAT_DAU: "DANG_LAM", HOAN_THANH: "XONG", LOI: "LOI", TAM_DUNG: "TAM_DUNG" };
 
-function shortTime(iso: string | null): string {
-  if (!iso) return "";
-  const date = new Date(iso);
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
+/** Giờ VN — KHÔNG dùng giờ máy (server chạy UTC, công nhân xem ở VN). */
+const shortTime = vietnamTimeLabel;
 
 function minutesLabel(minutes: number): string {
   const pad = (value: number) => String(Math.max(0, Math.floor(value))).padStart(2, "0");
@@ -407,6 +409,7 @@ export function TeamReportBoard({ initial, today }: { initial: Report; today: st
                   <th className="px-2 py-1.5 text-left">Lô</th>
                   <th className="w-[110px] px-2 py-1.5 text-left">Bộ số</th>
                   <th className="w-[120px] px-2 py-1.5 text-right">SL kế hoạch</th>
+                  <th className="w-[170px] px-2 py-1.5 text-left">Công đoạn trước</th>
                   <th className="w-[150px] px-2 py-1.5 text-left">Trạng thái</th>
                   <th className="w-[460px] px-2 py-1.5 text-left">Thao tác</th>
                 </tr>
@@ -434,13 +437,23 @@ export function TeamReportBoard({ initial, today }: { initial: Report; today: st
                       <td className="px-2 py-1.5 text-[12.5px] text-slate-700">{row.lot}</td>
                       <td className="px-2 py-1.5">
                         <div className="text-[15px] font-bold text-slate-900">{row.setNo ?? row.setId}</div>
-                        {row.earlyWarning ? (
-                          <div className="text-[11px] font-medium text-amber-700">⚠ {row.earlyWarning}</div>
-                        ) : null}
                       </td>
                       <td className="px-2 py-1.5 text-right">
                         <div className="text-[17px] font-bold text-slate-900">{row.qty}</div>
                         <div className="text-[11px] text-slate-500">{UNIT_LABEL[row.unit]}</div>
+                      </td>
+                      <td className="px-2 py-1.5">
+                        {(() => {
+                          const prevTone = highlightOf(row.prev.status);
+                          return (
+                            <>
+                              <div className={`inline-block rounded border px-2 py-0.5 text-[12px] font-bold ${prevTone.chip}`}>
+                                {prevTone.icon} {row.prev.text}
+                              </div>
+                              {row.prev.names ? <div className="text-[11px] text-slate-500">{row.prev.names}</div> : null}
+                            </>
+                          );
+                        })()}
                       </td>
                       <td className="px-2 py-1.5">
                         <span className={`inline-block rounded border px-2 py-0.5 text-[12px] font-bold ${tone.chip}`}>
@@ -519,7 +532,7 @@ export function TeamReportBoard({ initial, today }: { initial: Report; today: st
                 })}
                 {!rows.length ? (
                   <tr>
-                    <td colSpan={7} className="px-3 py-4 text-center text-[13px] text-slate-500">
+                    <td colSpan={8} className="px-3 py-4 text-center text-[13px] text-slate-500">
                       Không có dòng nào khớp bộ lọc “{STATUS_FILTER_LABELS[filter]}”.
                     </td>
                   </tr>

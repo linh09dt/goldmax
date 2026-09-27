@@ -326,3 +326,77 @@ export function lotLabelOf(args: {
   if (args.dueDate) return { text: `Lô giao ${formatDateVn(args.dueDate)}`, source: "LO_GIAO" };
   return { text: "—", source: "KHONG" };
 }
+
+// ---------------------------------------------------------------------------
+// 5) CỘT "CÔNG ĐOẠN TRƯỚC" — công nhân nhìn là biết mình đã được phép làm chưa
+// ---------------------------------------------------------------------------
+
+/** Trạng thái gộp của (các) công đoạn trước. `KHONG_CO` = công đoạn này không chờ ai. */
+export type PrevStatus = "KHONG_CO" | "CHUA_LAM" | "DANG_LAM" | "XONG" | "LOI" | "TAM_DUNG";
+
+/**
+ * Gộp trạng thái NHIỀU công đoạn trước thành 1 dòng hiện trên báo cáo.
+ *
+ * Thứ tự ưu tiên khi trộn: **Tạm dừng / Lỗi** (đang có vấn đề, cần biết ngay) → **Xong hết** (được phép làm)
+ * → **Đang làm** (sắp xong) → **Chưa làm**.
+ */
+export function mergePrevStatus(rows: Array<{ status: string }>): PrevStatus {
+  const counted = rows.filter((row) => row.status !== "BO_QUA");
+  if (!counted.length) return "KHONG_CO";
+  if (counted.some((row) => row.status === "TAM_DUNG")) return "TAM_DUNG";
+  if (counted.some((row) => row.status === "LOI")) return "LOI";
+  if (counted.every((row) => row.status === "XONG")) return "XONG";
+  if (counted.some((row) => row.status === "DANG_LAM")) return "DANG_LAM";
+  return "CHUA_LAM";
+}
+
+/**
+ * Câu hiện ở cột "Công đoạn trước":
+ *   • Xong  → **giờ hoàn thành** (kèm ngày nếu khác hôm nay, vd "Xong 26/09 14:32")
+ *   • Đang làm → "Đang làm"
+ *   • các trường hợp khác → nhãn trạng thái
+ */
+export function predecessorText(status: PrevStatus, doneAtIso: string | null, options: { now?: Date } = {}): string {
+  switch (status) {
+    case "KHONG_CO":
+      return "—";
+    case "XONG": {
+      const label = vietnamDateTimeLabel(doneAtIso, options.now);
+      return label ? `Xong ${label}` : "Đã xong";
+    }
+    case "DANG_LAM":
+      return "Đang làm";
+    case "TAM_DUNG":
+      return "Tạm dừng";
+    case "LOI":
+      return "Lỗi";
+    default:
+      return "Chưa làm";
+  }
+}
+
+/** Giờ theo GIỜ VIỆT NAM (server chạy UTC — không được dùng giờ máy). */
+export function vietnamTimeLabel(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
+/** `dd/mm HH:MM` giờ VN; nếu cùng ngày hôm nay thì chỉ hiện `HH:MM` cho gọn. */
+export function vietnamDateTimeLabel(iso: string | null | undefined, now: Date = new Date()): string {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const time = vietnamTimeLabel(iso);
+  const dayOf = (value: Date) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh", year: "numeric", month: "2-digit", day: "2-digit" }).format(value);
+  if (dayOf(date) === dayOf(now)) return time;
+  const day = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit" }).format(date);
+  return `${day} ${time}`;
+}
