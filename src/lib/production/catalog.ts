@@ -215,6 +215,8 @@ export const TASK_STATUS_LABELS: Record<string, string> = {
   XONG: "Xong",
   BO_QUA: "Bỏ qua",
   TAM_DUNG: "Tạm dừng",
+  // V156 — hàng LỖI: báo bằng 1 chạm ở màn hình tổ. KHÔNG tính là xong ⇒ vẫn chặn công đoạn sau.
+  LOI: "Lỗi",
 };
 
 export const SET_STATUS_LABELS: Record<string, string> = {

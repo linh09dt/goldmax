@@ -53,6 +53,12 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
           !pathname.startsWith("/ke-hoach-san-xuat/dieu-do"),
       },
       {
+        href: "/san-xuat/theo-to",
+        label: "Báo cáo theo tổ",
+        icon: <IconFactory />,
+        isActive: (pathname) => pathname.startsWith("/san-xuat/theo-to"),
+      },
+      {
         href: "/ke-hoach-san-xuat/dieu-do",
         label: "Điều độ công đoạn",
         icon: <IconFactory />,

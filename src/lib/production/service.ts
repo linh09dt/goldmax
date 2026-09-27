@@ -14,6 +14,8 @@ import { CONFIRMED_STATUS_CODES } from "@/lib/order-form";
 import {
   addWorkingDays,
   buildCalendar,
+  dateKeyUtc,
+  MS_DAY,
   parseIsoDateStrict,
   startOfDayUtc,
   subtractWorkingDays,
@@ -49,11 +51,20 @@ import {
   loadUnitOfStage,
   PLANNABLE_SET_STATUSES,
   type CapacitySource,
+  type LoadUnit,
   type StagePlanResult,
 } from "@/lib/production/stage-plan";
 import { downstreamTasksToClear, setPlanRange, waitStateOfTask } from "@/lib/production/manual-plan";
 import { groupKeyOf, groupingOf, makePaintGroupResolver } from "@/lib/production/priority";
 import { BATCH_GROUP_CODES, readyDayFor } from "@/lib/production/stage-plan";
+import {
+  evaluateDayProgress,
+  lotLabelOf,
+  shiftWindow,
+  vietnamMinutesNow,
+  type DayProgress,
+  type TaskAction,
+} from "@/lib/production/team-report";
 import { scheduleQueue } from "@/lib/production/dispatch";
 import {
   normalizePriorityConfig,
@@ -2159,5 +2170,535 @@ export async function applyStageDispatch(query: {
       days: preview.usedDays,
       overflow: preview.overflow.length,
     };
+  }, ORDER_WRITE_TRANSACTION);
+}
+
+// ---------------------------------------------------------------------------
+// V156 — BÁO CÁO SẢN XUẤT THEO TỔ (màn hình xưởng cho công nhân)
+//
+// Một màn cho MỘT TỔ; trong tổ chia theo CÔNG ĐOẠN. Dòng chỉ có
+// STT · Khách hàng · Lô · Bộ số · SL kế hoạch + 4 nút 1-chạm.
+// ---------------------------------------------------------------------------
+
+export type TeamReportRow = {
+  taskId: number;
+  setId: number;
+  setNo: string | null;
+  orderCode: string | null;
+  customerName: string | null;
+  paintColor: string | null;
+  model: string | null;
+  /** Lô để cả tổ gọi chung một cái tên (xem `lotLabelOf`). */
+  lot: string;
+  lotSource: string;
+  /** SL KẾ HOẠCH của bộ ở công đoạn này (cánh hoặc bộ — theo đơn vị công đoạn). */
+  qty: number;
+  unit: LoadUnit;
+  status: string;
+  qtyDone: number;
+  actualStart: string | null;
+  actualEnd: string | null;
+  reasonCode: string | null;
+  reasonName: string | null;
+  note: string | null;
+  /** Công đoạn trước chưa báo xong → cảnh báo (KHÔNG chặn thao tác). */
+  earlyWarning: string | null;
+};
+
+export type TeamReportStage = {
+  code: string;
+  name: string;
+  seq: number;
+  workCenterCode: string | null;
+  unit: LoadUnit;
+  capacity: number | null;
+  capacitySource: string;
+  /** Chỉ tiêu ưu tiên đang áp cho công đoạn (hiện ra cho tổ trưởng biết thứ tự). */
+  criteria: Array<{ code: string; weight: number }>;
+  grouping: { code: string; label: string } | null;
+  totals: {
+    rows: number;
+    planQty: number;
+    doneQty: number;
+    doingQty: number;
+    errorQty: number;
+    pauseQty: number;
+    notStarted: number;
+    doneCount: number;
+    doingCount: number;
+    errorCount: number;
+    pauseCount: number;
+  };
+  progress: DayProgress;
+  rows: TeamReportRow[];
+};
+
+export type TeamReport = {
+  day: string;
+  today: string;
+  nowMinutes: number;
+  shift: { startMinutes: number; endMinutes: number };
+  teams: Array<{ code: string; name: string; stageCount: number; planQty: number; openQty: number; rows: number }>;
+  team: { code: string; name: string } | null;
+  stages: TeamReportStage[];
+  totals: { planQty: number; doneQty: number; errorQty: number; pauseQty: number; rows: number };
+  /** Cảnh báo chung của cả tổ (nếu có công đoạn không kịp). */
+  alerts: string[];
+  /** Danh mục lý do để bấm chọn nhanh (LỖI / TẠM DỪNG) — không phải gõ tay. */
+  reasons: { error: Array<{ code: string; name: string }>; pause: Array<{ code: string; name: string }> };
+};
+
+/** Lý do LỖI (hỏng, phế, máy) và lý do TẠM DỪNG (chờ, trễ, thiếu người) — tách để bấm cho nhanh. */
+function classifyReasons(reasons: Array<{ code: string; name: string }>) {
+  const isError = (code: string) => /^LOI_|^PHE_|^MAY_HONG/.test(code);
+  const isPause = (code: string) => /^CHO_|^TRE_|^THIEU_NGUOI|^KHACH_DOI|^KHONG_DU_CHO/.test(code);
+  return {
+    error: reasons.filter((row) => isError(row.code)).map(({ code, name }) => ({ code, name })),
+    pause: reasons.filter((row) => isPause(row.code)).map(({ code, name }) => ({ code, name })),
+  };
+}
+
+/** Đọc bảng báo cáo của MỘT TỔ trong MỘT NGÀY. Không ghi gì. */
+export async function loadTeamReport(query: {
+  teamCode?: string | null;
+  stageCode?: string | null;
+  day?: string | null;
+}): Promise<TeamReport> {
+  const [stages, workCenters, priority, paintColors, reasons] = await Promise.all([
+    loadActiveStages(),
+    loadActiveWorkCenters(),
+    readPriorityConfig(),
+    loadPaintColors(),
+    loadReasons(),
+  ]);
+  const reasonList = (reasons as Array<{ code: string; name: string }>).map((row) => ({ code: String(row.code), name: String(row.name) }));
+
+  const today = todayInVietnam();
+  const day = parseIsoDateStrict(query.day ?? null) ?? today;
+  const dayEnd = new Date(day.getTime() + MS_DAY);
+  const nowMinutes = vietnamMinutesNow();
+
+  const stageCodesOfTeam = new Map<string, ProductionStageRow[]>();
+  for (const stage of stages.filter((row) => row.active)) {
+    const code = String(stage.workCenterCode ?? "").trim() || "CHUA_GAN";
+    const list = stageCodesOfTeam.get(code);
+    if (list) list.push(stage);
+    else stageCodesOfTeam.set(code, [stage]);
+  }
+
+  // Số liệu tóm tắt cho từng tổ (để hiện tab chọn tổ kèm tải hôm nay).
+  const dayTasks = await prisma.productionTask.findMany({
+    where: {
+      OR: [
+        { plannedStart: day },
+        { status: { in: ["DANG_LAM", "TAM_DUNG", "LOI"] } },
+        { actualEnd: { gte: day, lt: dayEnd } },
+      ],
+    },
+    select: { id: true, setId: true, stageCode: true, status: true },
+  });
+  const setIdsAll = Array.from(new Set(dayTasks.map((task) => task.setId)));
+  const setsAll = setIdsAll.length
+    ? await prisma.productionSet.findMany({ where: { id: { in: setIdsAll } } })
+    : [];
+  const setByIdAll = new Map(setsAll.map((row) => [row.id, row]));
+  const stageByCodeAll = new Map(stages.map((row) => [row.code, row]));
+
+  const teams = workCenters
+    .filter((center) => center.active)
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.code.localeCompare(b.code))
+    .map((center) => {
+      const centerStages = stageCodesOfTeam.get(center.code) ?? [];
+      const codes = new Set(centerStages.map((stage) => stage.code));
+      const mine = dayTasks.filter((task) => codes.has(task.stageCode));
+      let planQty = 0;
+      let openQty = 0;
+      for (const task of mine) {
+        const set = setByIdAll.get(task.setId);
+        const stage = stageByCodeAll.get(task.stageCode);
+        if (!set || !stage) continue;
+        const qty = demandOfTask(set, stage);
+        planQty += qty;
+        if (task.status !== "XONG") openQty += qty;
+      }
+      return { code: center.code, name: center.name, stageCount: centerStages.length, planQty, openQty, rows: mine.length };
+    });
+
+  const wantedTeam = String(query.teamCode ?? "").trim().toUpperCase();
+  const team =
+    teams.find((row) => row.code === wantedTeam) ??
+    teams.find((row) => row.rows > 0) ??
+    teams[0] ??
+    null;
+
+  const paintGroupOf = makePaintGroupResolver(paintColors);
+  const paintLabelOf = (paintColor: string | null): string | null => {
+    const key = paintGroupOf(paintColor);
+    if (!key) return null;
+    const [family, temp, minutes] = key.split("|");
+    const familyLabel: Record<string, string> = { DO: "Đỏ", VANG: "Vàng", CAT_CHAY: "Cát chay" };
+    return `${familyLabel[family] ?? family} ${temp}°/ ${minutes}′`;
+  };
+  const reasonNameByCode = new Map(reasons.map((row) => [row.code, row.name]));
+
+  if (!team) {
+    return {
+      day: dateKeyUtc(day),
+      today: dateKeyUtc(today),
+      nowMinutes,
+      shift: shiftWindow({}),
+      teams,
+      team: null,
+      stages: [],
+      totals: { planQty: 0, doneQty: 0, errorQty: 0, pauseQty: 0, rows: 0 },
+      alerts: [],
+      reasons: classifyReasons(reasonList),
+    };
+  }
+
+  const teamStages = (stageCodesOfTeam.get(team.code) ?? [])
+    .slice()
+    .sort((a, b) => a.seq - b.seq || a.code.localeCompare(b.code));
+  const wantedStage = String(query.stageCode ?? "").trim().toUpperCase();
+  const usedStages = wantedStage ? teamStages.filter((stage) => stage.code === wantedStage) : teamStages;
+  const usedCodes = new Set(usedStages.map((stage) => stage.code));
+  const shift = shiftWindow(workCenters.find((row) => row.code === team.code) ?? {});
+  const stageByCode = new Map(stages.map((row) => [row.code, row]));
+
+  const myTasks = dayTasks.filter((task) => usedCodes.has(task.stageCode));
+  const setIds = Array.from(new Set(myTasks.map((task) => task.setId)));
+  const [sets, workOrders] = await Promise.all([
+    setIds.length ? prisma.productionSet.findMany({ where: { id: { in: setIds } } }) : Promise.resolve([]),
+    setIds.length
+      ? prisma.productionWorkOrder.findMany({ where: { setId: { in: setIds }, kind: "BO" }, select: { setId: true, code: true } })
+      : Promise.resolve([]),
+  ]);
+  const setById = new Map(sets.map((row) => [row.id, row]));
+  const woBySet = new Map(workOrders.map((row) => [row.setId, row.code]));
+
+  const taskIds = myTasks.map((task) => task.id);
+  const fullTasks = taskIds.length
+    ? await prisma.productionTask.findMany({
+        where: { id: { in: taskIds } },
+        select: { id: true, qtyDone: true, note: true, reasonCode: true, actualStart: true, actualEnd: true, stageCode: true, scope: true, status: true, setId: true, seq: true },
+      })
+    : [];
+  const detailById = new Map(fullTasks.map((row) => [row.id, row]));
+
+  // Công đoạn trước đã báo xong chưa (chỉ để CẢNH BÁO, không chặn).
+  const setIdsWithRows = Array.from(new Set(myTasks.map((task) => task.setId)));
+  const allSetTasks = setIdsWithRows.length
+    ? await prisma.productionTask.findMany({
+        where: { setId: { in: setIdsWithRows } },
+        select: { id: true, setId: true, stageCode: true, scope: true, status: true, stageKind: true },
+      })
+    : [];
+  const setTasksById = new Map<number, typeof allSetTasks>();
+  for (const row of allSetTasks) {
+    const list = setTasksById.get(row.setId);
+    if (list) list.push(row);
+    else setTasksById.set(row.setId, [row]);
+  }
+
+  const resultStages: TeamReportStage[] = [];
+  const alerts: string[] = [];
+  for (const stage of usedStages) {
+    const rule = priority.stageRules[stage.code] ?? priority.defaultRule;
+    const grouping = groupingOf(rule);
+    const capacity = capacityOfStage({ capacityPerDay: stage.capacityPerDay, workCenterCode: stage.workCenterCode }, workCenters);
+    const unit = loadUnitOfStage(stage);
+    const stageRows = myTasks
+      .filter((task) => task.stageCode === stage.code)
+      .map((task) => {
+        const detail = detailById.get(task.id);
+        const set = setById.get(task.setId);
+        if (!set) return null;
+        const qty = demandOfTask(set, stage);
+        const row: TeamReportRow = {
+          taskId: task.id,
+          setId: set.id,
+          setNo: set.setNo,
+          orderCode: set.orderCode,
+          customerName: set.customerName,
+          paintColor: set.paintColor,
+          model: set.model,
+          lot: "",
+          lotSource: "",
+          qty,
+          unit,
+          status: task.status,
+          qtyDone: Number(detail?.qtyDone ?? (task.status === "XONG" ? qty : 0)) || (task.status === "XONG" ? qty : 0),
+          actualStart: detail?.actualStart ? detail.actualStart.toISOString() : null,
+          actualEnd: detail?.actualEnd ? detail.actualEnd.toISOString() : null,
+          reasonCode: detail?.reasonCode ?? null,
+          reasonName: detail?.reasonCode ? reasonNameByCode.get(detail.reasonCode) ?? detail.reasonCode : null,
+          note: detail?.note ?? null,
+          earlyWarning: null,
+        };
+        const usePaintLot = grouping && BATCH_GROUP_CODES.has(grouping.code);
+        const lot = lotLabelOf({
+          paintGroupKey: usePaintLot ? paintGroupOf(set.paintColor) : null,
+          paintGroupLabel: usePaintLot ? paintLabelOf(set.paintColor) : null,
+          workOrderCode: woBySet.get(set.id) ?? null,
+          dueDate: set.dueDate,
+        });
+        row.lot = lot.text;
+        row.lotSource = lot.source;
+        return row;
+      })
+      .filter((row): row is TeamReportRow => Boolean(row))
+      .sort((a, b) => (a.customerName ?? "").localeCompare(b.customerName ?? "", "vi") || a.setId - b.setId);
+
+    // Gắn lý do lỗi + cảnh báo "công đoạn trước chưa xong".
+    for (const row of stageRows) {
+      const detail = detailById.get(row.taskId);
+      const requiredCodes = String(stage.requiresStage ?? "")
+        .split(",")
+        .map((code) => code.trim())
+        .filter(Boolean);
+      if (!requiredCodes.length) continue;
+      const setTasks = setTasksById.get(row.setId) ?? [];
+      const sameScope = setTasks.filter((item) => requiredCodes.includes(item.stageCode) && item.scope === detail?.scope);
+      const pool = sameScope.length ? sameScope : setTasks.filter((item) => requiredCodes.includes(item.stageCode));
+      const notDone = pool.filter((item) => item.status !== "XONG" && item.status !== "BO_QUA");
+      // Chỉ nhắc khi bộ ĐANG ĐƯỢC LÀM/BÁO LỖI — hàng chưa làm thì việc công đoạn trước chưa xong
+      // là chuyện bình thường, nhắc hết mọi dòng sẽ rối màn hình và công nhân sẽ bỏ qua cảnh báo.
+      const worthWarning = row.status === "DANG_LAM" || row.status === "LOI" || row.status === "XONG";
+      if (notDone.length && worthWarning) {
+        const names = Array.from(new Set(notDone.map((item) => stageByCode.get(item.stageCode)?.name ?? item.stageCode)));
+        row.earlyWarning = `Công đoạn trước chưa xong: ${names.join(", ")}`;
+      }
+    }
+
+    const sumBy = (predicate: (row: TeamReportRow) => boolean) =>
+      stageRows.filter(predicate).reduce((total, row) => total + Math.max(0, Number(row.qty) || 0), 0);
+    const totals = {
+      rows: stageRows.length,
+      planQty: stageRows.reduce((total, row) => total + Math.max(0, Number(row.qty) || 0), 0),
+      doneQty: sumBy((row) => row.status === "XONG"),
+      doingQty: sumBy((row) => row.status === "DANG_LAM"),
+      errorQty: sumBy((row) => row.status === "LOI"),
+      pauseQty: sumBy((row) => row.status === "TAM_DUNG"),
+      notStarted: stageRows.filter((row) => row.status === "CHUA_LAM").length,
+      doneCount: stageRows.filter((row) => row.status === "XONG").length,
+      doingCount: stageRows.filter((row) => row.status === "DANG_LAM").length,
+      errorCount: stageRows.filter((row) => row.status === "LOI").length,
+      pauseCount: stageRows.filter((row) => row.status === "TAM_DUNG").length,
+    };
+    const progress = evaluateDayProgress({
+      planQty: totals.planQty,
+      doneQty: totals.doneQty,
+      doingQty: totals.doingQty,
+      errorQty: totals.errorQty,
+      pauseQty: totals.pauseQty,
+      nowMinutes,
+      startMinutes: shift.startMinutes,
+      endMinutes: shift.endMinutes,
+    });
+    if (progress.tone === "bad" && totals.planQty > 0) {
+      alerts.push(`${stage.name}: ${progress.headline}`);
+    }
+    resultStages.push({
+      code: stage.code,
+      name: stage.name,
+      seq: stage.seq,
+      workCenterCode: stage.workCenterCode,
+      unit,
+      capacity: capacity.value,
+      capacitySource: capacity.source,
+      criteria: rule.criteria.filter((item) => item.weight > 0).map((item) => ({ code: item.code, weight: item.weight })),
+      grouping: grouping ? { code: grouping.code, label: grouping.label } : null,
+      totals,
+      progress,
+      rows: stageRows,
+    });
+  }
+
+  return {
+    day: dateKeyUtc(day),
+    today: dateKeyUtc(today),
+    nowMinutes,
+    shift,
+    teams,
+    team: { code: team.code, name: team.name },
+    stages: resultStages,
+    totals: {
+      planQty: resultStages.reduce((total, stage) => total + stage.totals.planQty, 0),
+      doneQty: resultStages.reduce((total, stage) => total + stage.totals.doneQty, 0),
+      errorQty: resultStages.reduce((total, stage) => total + stage.totals.errorQty, 0),
+      pauseQty: resultStages.reduce((total, stage) => total + stage.totals.pauseQty, 0),
+      rows: resultStages.reduce((total, stage) => total + stage.totals.rows, 0),
+    },
+    alerts,
+    reasons: classifyReasons(reasonList),
+  };
+}
+
+/**
+ * MỘT CHẠM của công nhân → cập nhật trạng thái công đoạn.
+ *
+ * Ghi gộp 1 transaction: trạng thái công đoạn + (nếu là bộ chưa vào sản xuất) ngày vào sản xuất
+ * + trạng thái/% của bộ + nhật ký. **Không chặn** theo thứ tự công đoạn (công nhân báo được ngay);
+ * API trả về `warnings` để màn hình nhắc nhở.
+ */
+export async function applyTaskAction(args: {
+  taskId: number;
+  action: TaskAction;
+  reasonCode?: string | null;
+  qtyDone?: number | null;
+  byName?: string | null;
+  /** Chỉ dùng cho HOAN_TAC: trạng thái ngay trước đó (màn hình gửi lên). */
+  prevStatus?: string | null;
+  /** Chỉ dùng cho HOAN_TAC: lý do ngay trước đó (để trả lại đúng như cũ, không để lại lý do thừa). */
+  prevReasonCode?: string | null;
+}): Promise<{ taskId: number; setId: number; status: string; warnings: string[] }> {
+  const action = args.action;
+  if (!["BAT_DAU", "HOAN_THANH", "LOI", "TAM_DUNG", "HOAN_TAC"].includes(action)) {
+    throw new Error("Hành động không hợp lệ.");
+  }
+  const task = await prisma.productionTask.findUnique({
+    where: { id: args.taskId },
+    select: {
+      id: true,
+      setId: true,
+      stageCode: true,
+      scope: true,
+      status: true,
+      qtyDone: true,
+      actualStart: true,
+      actualEnd: true,
+      reasonCode: true,
+      set: {
+        select: {
+          id: true,
+          status: true,
+          startedAt: true,
+          plannedStart: true,
+          quantity: true,
+          leavesPerSet: true,
+          productName: true,
+        },
+      },
+    },
+  });
+  if (!task) throw new Error("Không tìm thấy công đoạn.");
+  if (task.status === "BO_QUA") throw new Error("Công đoạn này được đánh dấu bỏ qua — không báo được.");
+
+  const stages = await loadActiveStages();
+  const stage = stages.find((row) => row.code === task.stageCode);
+  if (!stage) throw new Error("Công đoạn đã tắt trong danh mục.");
+  const demand = demandOfTask(task.set, stage);
+  const today = todayInVietnam();
+
+  let status = task.status;
+  let actualStart = task.actualStart;
+  let actualEnd = task.actualEnd;
+  let qtyDone = task.qtyDone === null ? null : Number(task.qtyDone);
+  let reasonCode = task.reasonCode;
+
+  if (action === "BAT_DAU") {
+    status = "DANG_LAM";
+    if (!actualStart) actualStart = new Date();
+    actualEnd = null;
+  } else if (action === "HOAN_THANH") {
+    status = "XONG";
+    if (!actualStart) actualStart = new Date();
+    actualEnd = new Date();
+    qtyDone = Number.isFinite(Number(args.qtyDone)) && Number(args.qtyDone) > 0 ? Number(args.qtyDone) : demand;
+    reasonCode = null;
+  } else if (action === "LOI") {
+    status = "LOI";
+    if (!actualStart) actualStart = new Date();
+    reasonCode = String(args.reasonCode ?? "").trim() || "PHE_PHAI_LAM_LAI";
+  } else if (action === "TAM_DUNG") {
+    status = "TAM_DUNG";
+    if (!actualStart) actualStart = new Date();
+    reasonCode = String(args.reasonCode ?? "").trim() || reasonCode;
+  } else {
+    // HOAN_TAC — trả về trạng thái ngay trước đó (màn hình gửi lên giá trị đã lưu).
+    const prev = String(args.prevStatus ?? "").trim().toUpperCase();
+    status = ["CHUA_LAM", "DANG_LAM", "TAM_DUNG", "XONG", "LOI"].includes(prev) ? prev : "DANG_LAM";
+    // Trả lại ĐÚNG lý do cũ: về Chưa làm / Đang làm thì không được để lại lý do lỗi hay lý do tạm dừng.
+    reasonCode = status === "CHUA_LAM" || status === "DANG_LAM" ? null : String(args.prevReasonCode ?? "").trim() || null;
+    if (status === "CHUA_LAM") {
+      actualStart = null;
+      actualEnd = null;
+      qtyDone = null;
+    } else if (status === "DANG_LAM") {
+      actualEnd = null;
+    }
+  }
+
+  const warnings: string[] = [];
+  const requiredCodes = String(stage.requiresStage ?? "")
+    .split(",")
+    .map((code) => code.trim())
+    .filter(Boolean);
+  if (requiredCodes.length && (action === "BAT_DAU" || action === "HOAN_THANH")) {
+    const setTasks = await prisma.productionTask.findMany({
+      where: { setId: task.setId },
+      select: { stageCode: true, scope: true, status: true },
+    });
+    const sameScope = setTasks.filter((row) => requiredCodes.includes(row.stageCode) && row.scope === task.scope);
+    const pool = sameScope.length ? sameScope : setTasks.filter((row) => requiredCodes.includes(row.stageCode));
+    const notDone = pool.filter((row) => row.status !== "XONG" && row.status !== "BO_QUA");
+    if (notDone.length) {
+      const stageByCode = new Map(stages.map((row) => [row.code, row]));
+      warnings.push(
+        `Công đoạn trước chưa báo xong: ${Array.from(new Set(notDone.map((row) => stageByCode.get(row.stageCode)?.name ?? row.stageCode))).join(", ")}`,
+      );
+    }
+  }
+
+  const byName = args.byName?.trim() || null;
+  const startedSet = action === "BAT_DAU" && !task.set.startedAt;
+
+  return prisma.$transaction(async (tx) => {
+    await tx.productionTask.update({
+      where: { id: task.id },
+      data: { status, actualStart, actualEnd, qtyDone, reasonCode, updatedBy: byName },
+    });
+
+    if (startedSet) {
+      await tx.productionSet.update({
+        where: { id: task.setId },
+        data: {
+          startedAt: today,
+          status: ["CHO_XEP_LICH", "DA_XEP_LICH", "TAM_DUNG"].includes(task.set.status) ? "DANG_SX" : task.set.status,
+        },
+      });
+    }
+
+    // Cập nhật lại % + trạng thái BỘ (không đụng bộ đã giao/huỷ).
+    if (!["DA_GIAO", "HUY"].includes(task.set.status)) {
+      const siblings = await tx.productionTask.findMany({
+        where: { setId: task.setId },
+        select: { stageKind: true, status: true },
+      });
+      const percent = percentDoneOf(siblings);
+      // Bộ đang TAM_DUNG mà KHÔNG còn công đoạn nào tạm dừng nữa (vừa được hoàn tác/báo xong) thì
+      // phải rời khỏi TAM_DUNG — nếu không bộ sẽ kẹt mãi ở "Tạm dừng" dù tổ đã làm tiếp.
+      const stillPaused = siblings.some((row) => row.status === "TAM_DUNG");
+      // Rời TAM_DUNG thì quay về đúng "đã vào sản xuất chưa": chưa vào ⇒ bộ còn ở dạng đã/chờ xếp lịch.
+      const notPausedStatus = task.set.startedAt ? "DANG_SX" : task.set.plannedStart ? "DA_XEP_LICH" : "CHO_XEP_LICH";
+      const baseStatus =
+        task.set.status === "TAM_DUNG" && !stillPaused ? notPausedStatus : startedSet ? "DANG_SX" : task.set.status;
+      const nextStatus = deriveSetStatus(siblings, baseStatus, true);
+      await tx.productionSet.update({ where: { id: task.setId }, data: { percentDone: percent, status: nextStatus } });
+    }
+
+    await tx.productionLog.create({
+      data: {
+        entity: "TASK",
+        entityId: task.id,
+        action: `BAO_CAO_${action}`,
+        field: "status",
+        oldValue: task.status,
+        newValue: status,
+        byName,
+      },
+    });
+
+    return { taskId: task.id, setId: task.setId, status, warnings };
   }, ORDER_WRITE_TRANSACTION);
 }
