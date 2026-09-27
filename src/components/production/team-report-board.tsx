@@ -136,7 +136,9 @@ export function TeamReportBoard({ initial, today }: { initial: Report; today: st
   const [report, setReport] = useState<Report>(initial);
   const [teamCode, setTeamCode] = useState<string>(initial.team?.code ?? "");
   const [day, setDay] = useState<string>(initial.day);
-  const [filter, setFilter] = useState<StatusFilter>("CHUA_XONG");
+  // Mặc định "Tất cả" (nhà máy chốt 27/09/2026): mở màn là thấy HẾT việc trong ngày,
+  // kể cả hàng đã xong — để công nhân đối chiếu sổ giấy với màn hình, không sợ thiếu dòng.
+  const [filter, setFilter] = useState<StatusFilter>("TAT_CA");
   const [busyTaskId, setBusyTaskId] = useState<number | null>(null);
   const [undo, setUndo] = useState<Record<number, { status: string; reasonCode: string | null }>>({});
   const [message, setMessage] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
