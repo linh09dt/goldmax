@@ -136,6 +136,35 @@ export default async function ProductionPlanPage({
           ))}
         </section>
 
+        {/* V159d — Bảng kế hoạch theo ngày đưa LÊN TRÊN bảng “Bộ chờ xếp lịch”. */}
+        <ReportCard
+          title="Bảng kế hoạch theo ngày"
+          hint="Hàng = tất cả công đoạn · cột = mọi ngày trong tháng. Mỗi ô 2 số: kế hoạch (ngày kế hoạch) và thực tế (ngày báo xong). Mỗi hàng tô nền nhạt theo tổ phụ trách."
+          right={
+            <div className="flex flex-wrap items-center gap-2">
+              <Link className="erp-button-secondary h-7 px-2 text-[11px]" href={`/ke-hoach-san-xuat?thang=${monthKeyOf(prevMonth)}`}>
+                ← Tháng trước
+              </Link>
+              <span className="font-semibold text-slate-700">Tháng {monthStart.getUTCMonth() + 1}/{monthStart.getUTCFullYear()}</span>
+              <Link className="erp-button-secondary h-7 px-2 text-[11px]" href={`/ke-hoach-san-xuat?thang=${monthKeyOf(nextMonth)}`}>
+                Tháng sau →
+              </Link>
+              <form method="GET" action="/ke-hoach-san-xuat" className="flex items-center gap-1">
+                <input className="erp-input h-7 px-2 text-[11px]" type="month" name="thang" defaultValue={monthKey} />
+                <button className="erp-button h-7 px-2 text-[11px]" type="submit">Xem</button>
+              </form>
+              <a
+                className="erp-button-secondary h-7 px-2 text-[11px]"
+                href={`/api/production/stage-plan/export?thang=${monthKey}`}
+              >
+                Xuất Excel
+              </a>
+            </div>
+          }
+        >
+          <StagePlanGridTable grid={grid} workingDays={workingDayFlags} todayKey={todayKey} centerNames={centerNames} />
+        </ReportCard>
+
         <ReportCard
           title="Bộ chờ xếp lịch"
           hint="Xếp theo hạn giao gần nhất trước (EDD). Cột “Cảnh báo” chỉ hiện TÊN cảnh báo (rê chuột để xem diễn giải). Mỗi trang 10 dòng. **Xếp lịch bằng tay**: mở một bộ → gán ngày kế hoạch cho từng công đoạn."
@@ -217,35 +246,6 @@ export default async function ProductionPlanPage({
               </table>
             </div>
           )}
-        </ReportCard>
-
-        {/* V159c — Bảng kế hoạch theo ngày đưa XUỐNG DƯỚI CÙNG (dưới các card). */}
-        <ReportCard
-          title="Bảng kế hoạch theo ngày"
-          hint="Hàng = tất cả công đoạn · cột = mọi ngày trong tháng. Mỗi ô 2 số: kế hoạch (ngày kế hoạch) và thực tế (ngày báo xong). Mỗi hàng tô nền nhạt theo tổ phụ trách."
-          right={
-            <div className="flex flex-wrap items-center gap-2">
-              <Link className="erp-button-secondary h-7 px-2 text-[11px]" href={`/ke-hoach-san-xuat?thang=${monthKeyOf(prevMonth)}`}>
-                ← Tháng trước
-              </Link>
-              <span className="font-semibold text-slate-700">Tháng {monthStart.getUTCMonth() + 1}/{monthStart.getUTCFullYear()}</span>
-              <Link className="erp-button-secondary h-7 px-2 text-[11px]" href={`/ke-hoach-san-xuat?thang=${monthKeyOf(nextMonth)}`}>
-                Tháng sau →
-              </Link>
-              <form method="GET" action="/ke-hoach-san-xuat" className="flex items-center gap-1">
-                <input className="erp-input h-7 px-2 text-[11px]" type="month" name="thang" defaultValue={monthKey} />
-                <button className="erp-button h-7 px-2 text-[11px]" type="submit">Xem</button>
-              </form>
-              <a
-                className="erp-button-secondary h-7 px-2 text-[11px]"
-                href={`/api/production/stage-plan/export?thang=${monthKey}`}
-              >
-                Xuất Excel
-              </a>
-            </div>
-          }
-        >
-          <StagePlanGridTable grid={grid} workingDays={workingDayFlags} todayKey={todayKey} centerNames={centerNames} />
         </ReportCard>
 
         <p className="erp-hint">
