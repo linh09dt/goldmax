@@ -63,6 +63,23 @@ type BoardData = {
   waiting: BoardItem[];
   blocked: BoardItem[];
   totals: { waiting: number; blocked: number; planned: number; unplannedItems: number };
+  priority: {
+    criteria: Array<{ code: string; weight: number }>;
+    grouping: { code: string; tolerance: number } | null;
+    batch: boolean;
+  };
+};
+
+type Proposal = {
+  mode: "HANG_DOI" | "GOM_LO";
+  modeNote: string;
+  criteria: Array<{ code: string; weight: number }>;
+  grouping: { code: string; tolerance: number } | null;
+  queue: Array<{ taskId: number; setNo: string | null; paintColor: string | null; demand: number; queueRank: number }>;
+  days: Array<{ date: string; worked: number; capacity: number | null; ratio: number | null; tone: string; items: Array<{ taskId: number; setId: number; setNo: string | null; paintColor: string | null; demand: number; groupKey: string | null }> }>;
+  assignments: Array<{ taskId: number; setId: number; day: string; queueRank: number }>;
+  overflow: number[];
+  usedDays: number;
 };
 
 const WEEKDAYS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
@@ -103,6 +120,7 @@ export function StageBoard({
   const [selected, setSelected] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [showBlocked, setShowBlocked] = useState(false);
+  const [proposal, setProposal] = useState<Proposal | null>(null);
   const [message, setMessage] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
 
   const load = useCallback(async () => {
@@ -157,6 +175,59 @@ export function StageBoard({
         text: `${label}${cleared > 0 ? ` · đã xoá ${cleared} công đoạn PHÍA SAU khỏi kế hoạch` : ""}.`,
       });
       setSelected(null);
+      await load();
+    } catch (error) {
+      setMessage({ tone: "err", text: error instanceof Error ? error.message : "Lỗi không rõ." });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** BƯỚC 2 của luồng: hàng đợi (đã sắp theo tiêu chí ưu tiên) → điều độ tự động (đề xuất, CHƯA ghi). */
+  const previewDispatch = async () => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/production/stage-dispatch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ action: "preview", stageCode, from, horizonDays: 120 }),
+      });
+      const payload = (await response.json()) as ({ ok?: boolean; error?: string } & Proposal);
+      if (!response.ok || !payload.ok) throw new Error(payload.error || "Không điều độ được.");
+      setProposal(payload);
+      setMessage({
+        tone: "ok",
+        text: `Đề xuất (${payload.mode === "GOM_LO" ? "gom lô" : "theo hàng đợi"}): ${payload.assignments.length} bộ vào ${payload.usedDays} ngày${
+          payload.overflow.length ? ` · ${payload.overflow.length} bộ vượt quá 120 ngày làm việc` : ""
+        }. Chưa ghi gì — bấm “Xác nhận lên điều độ” để áp dụng.`,
+      });
+    } catch (error) {
+      setMessage({ tone: "err", text: error instanceof Error ? error.message : "Lỗi không rõ." });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** BƯỚC 3: XÁC NHẬN → ghi vào điều độ (và xoá công đoạn phía sau của các bộ vừa xếp). */
+  const applyDispatch = async () => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/production/stage-dispatch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ action: "apply", stageCode, from, horizonDays: 120 }),
+      });
+      const payload = (await response.json()) as { ok?: boolean; error?: string; sets?: number; tasks?: number; cleared?: number; days?: number };
+      if (!response.ok || !payload.ok) throw new Error(payload.error || "Không xác nhận được.");
+      setProposal(null);
+      setMessage({
+        tone: "ok",
+        text: `ĐÃ XÁC NHẬN: ${payload.tasks ?? 0} công đoạn của ${payload.sets ?? 0} bộ vào ${payload.days ?? 0} ngày${
+          payload.cleared ? ` · xoá ${payload.cleared} công đoạn PHÍA SAU (sẽ xếp lại)` : ""
+        }.`,
+      });
       await load();
     } catch (error) {
       setMessage({ tone: "err", text: error instanceof Error ? error.message : "Lỗi không rõ." });
@@ -227,6 +298,15 @@ export function StageBoard({
           <span className="font-medium text-slate-700">Từ ngày</span>
           <input className="erp-input w-[150px]" type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
         </label>
+        <button
+          type="button"
+          className="erp-button"
+          disabled={busy || !data || data.totals.waiting === 0}
+          title="Sắp hàng đợi theo tiêu chí ưu tiên, rồi dùng gom nhóm + năng lực để đề xuất ngày (chưa ghi)"
+          onClick={() => previewDispatch()}
+        >
+          ⚙ Điều độ tự động (xem trước)
+        </button>
         {data && data.totals.unplannedItems > 0 ? (
           <button
             type="button"
@@ -254,6 +334,63 @@ export function StageBoard({
         <p className={`text-[12.5px] ${message.tone === "ok" ? "text-emerald-700" : "text-red-700"}`}>{message.text}</p>
       ) : null}
 
+      {proposal ? (
+        <section className="erp-card overflow-hidden border-2 border-dashed border-cyan-400">
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-cyan-50 px-3 py-2">
+            <div>
+              <h2 className="text-[13px] font-bold text-cyan-900">
+                ĐỀ XUẤT ĐIỀU ĐỘ TỰ ĐỘNG — {proposal.assignments.length} bộ · {proposal.usedDays} ngày
+                <span className="ml-2 rounded bg-cyan-200 px-1.5 py-0.5 text-[11px] font-semibold">
+                  {proposal.mode === "GOM_LO" ? "GOM LÔ" : "THEO HÀNG ĐỢI"}
+                </span>
+              </h2>
+              <p className="erp-hint mt-0.5">
+                {proposal.modeNote} · Thứ tự theo:{" "}
+                {proposal.criteria.length
+                  ? proposal.criteria.map((item) => `${item.code}(${item.weight})`).join(" · ")
+                  : "chưa có tiêu chí nào (sắp theo ngày vào kế hoạch)"}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className="erp-button" disabled={busy} onClick={() => applyDispatch()}>
+                ✓ Xác nhận lên điều độ
+              </button>
+              <button type="button" className="erp-button-secondary" disabled={busy} onClick={() => setProposal(null)}>
+                Bỏ đề xuất
+              </button>
+            </div>
+          </div>
+          <div className="grid gap-2 p-2 md:grid-cols-2 xl:grid-cols-4">
+            {proposal.days.slice(0, 40).map((day) => (
+              <div key={day.date} className="rounded-lg border border-cyan-200 bg-cyan-50/40 p-2">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-[12px] font-semibold text-cyan-900">
+                    {weekdayOf(day.date)} {shortDate(day.date)}
+                  </span>
+                  <span className="text-[11px] text-slate-600">
+                    {day.worked}
+                    {day.capacity ? `/${day.capacity}` : ""}
+                    {day.ratio !== null ? ` · ${Math.round(day.ratio * 100)}%` : ""}
+                  </span>
+                </div>
+                <ul className="mt-1 space-y-0.5 text-[11.5px] text-slate-700">
+                  {day.items.slice(0, 12).map((item) => (
+                    <li key={item.taskId} className="truncate">
+                      #{proposal.queue.find((q) => q.taskId === item.taskId)?.queueRank ?? "—"} Bộ {item.setNo}
+                      {item.paintColor ? ` · ${item.paintColor}` : ""} · {item.demand}
+                    </li>
+                  ))}
+                  {day.items.length > 12 ? <li className="text-slate-500">… +{day.items.length - 12} bộ</li> : null}
+                </ul>
+              </div>
+            ))}
+            {proposal.days.length > 40 ? (
+              <p className="erp-hint">… đề xuất kéo dài {proposal.days.length} ngày (đang hiện 40 ngày đầu).</p>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
       <div className="grid gap-3 lg:grid-cols-[330px_1fr]">
         <section className="erp-card flex max-h-[70vh] flex-col overflow-hidden">
           <div className="border-b border-slate-200 bg-slate-50 px-3 py-2">
@@ -261,12 +398,21 @@ export function StageBoard({
               Danh sách đợi ({data?.totals.waiting ?? 0})
             </h2>
             <p className="erp-hint mt-0.5">
-              Chỉ hiện bộ <strong>đủ điều kiện</strong>: công đoạn trước đã lên kế hoạch hoặc đã báo xong. Bấm một bộ để chọn, rồi bấm{" "}
-              <strong>＋</strong> ở ngày muốn xếp.
+              Thứ tự trên→dưới theo:{" "}
+              <strong>
+                {data?.priority.criteria.length
+                  ? data.priority.criteria.map((item) => `${item.code}(${item.weight})`).join(" · ")
+                  : "chưa có tiêu chí — sắp theo ngày vào kế hoạch"}
+              </strong>
+              {data?.priority.batch ? " · đang GOM LÔ khi điều độ tự động" : ""}
+            </p>
+            <p className="erp-hint mt-0.5">
+              Bấm một bộ để chọn rồi bấm <strong>＋</strong> ở ngày muốn xếp (thủ công), hoặc bấm{" "}
+              <strong>⚙ Điều độ tự động</strong> để máy đề xuất rồi bạn xác nhận.
             </p>
           </div>
           <div className="erp-scrollbar flex-1 overflow-auto">
-            {(data?.waiting ?? []).map((item) => (
+            {(data?.waiting ?? []).map((item, index) => (
               <button
                 key={item.taskId}
                 type="button"
@@ -277,6 +423,7 @@ export function StageBoard({
               >
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="font-semibold text-slate-900">
+                    <span className="mr-1 inline-block w-[22px] text-right text-slate-500">{index + 1}.</span>
                     Bộ {item.setNo ?? item.setId}
                     {item.scope !== "BO" ? ` · ${item.scope}` : ""}
                   </span>

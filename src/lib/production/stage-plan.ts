@@ -275,7 +275,7 @@ const MAX_GUARD = 5000;
  * — gom lô ở Chấn sẽ làm trống năng lực vì có tới 36 model.
  */
 const BATCH_MIN_LOT = 10;
-const BATCH_GROUP_CODES = new Set(["NHOM_MAU", "MAU_SON", "MODEL"]);
+export const BATCH_GROUP_CODES = new Set(["NHOM_MAU", "MAU_SON", "MODEL"]);
 
 /**
  * Xếp kế hoạch tiến (forward) cho TỪNG CÔNG ĐOẠN theo năng lực, thứ tự theo ƯU TIÊN của

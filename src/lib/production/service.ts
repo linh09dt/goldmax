@@ -52,6 +52,9 @@ import {
   type StagePlanResult,
 } from "@/lib/production/stage-plan";
 import { downstreamTasksToClear, setPlanRange, waitStateOfTask } from "@/lib/production/manual-plan";
+import { groupKeyOf, groupingOf, makePaintGroupResolver } from "@/lib/production/priority";
+import { BATCH_GROUP_CODES, readyDayFor } from "@/lib/production/stage-plan";
+import { scheduleQueue } from "@/lib/production/dispatch";
 import {
   normalizePriorityConfig,
   PRIORITY_CONFIG_SETTING_KEY,
@@ -1513,6 +1516,13 @@ export type StageBoardData = {
   waiting: StageBoardItem[];
   blocked: StageBoardItem[];
   totals: { waiting: number; blocked: number; planned: number; unplannedItems: number };
+  /** Tiêu chí đang sắp thứ tự hàng đợi của công đoạn này (đầu ra của bước "ưu tiên"). */
+  priority: {
+    criteria: Array<{ code: string; weight: number }>;
+    grouping: { code: string; tolerance: number } | null;
+    /** Công đoạn có đang chạy chế độ GOM LÔ không. */
+    batch: boolean;
+  };
 };
 
 const BOARD_MAX_DAYS = 31;
@@ -1553,6 +1563,8 @@ export async function loadStageBoard(query: {
     .split(",")
     .map((code) => code.trim())
     .filter(Boolean);
+  const ruleOfStage = priority.stageRules[stage.code] ?? priority.defaultRule;
+  const groupingOfStage = groupingOf(ruleOfStage);
 
   const [sets, predecessorTasks] = await Promise.all([
     setIds.length ? prisma.productionSet.findMany({ where: { id: { in: setIds } } }) : Promise.resolve([]),
@@ -1695,6 +1707,17 @@ export async function loadStageBoard(query: {
       planned: openTasks.filter((task) => task.plannedStart).length,
       unplannedItems,
     },
+    priority: {
+      criteria: ruleOfStage.criteria.filter((item) => item.weight > 0).map((item) => ({ code: item.code, weight: item.weight })),
+      grouping: groupingOfStage ? { code: groupingOfStage.code, tolerance: groupingOfStage.tolerance } : null,
+      batch: Boolean(
+        stage.batchKey &&
+          Number(stage.batchMinQty) >= 10 &&
+          Number(stage.changeoverMaxPerDay) >= 1 &&
+          groupingOfStage &&
+          BATCH_GROUP_CODES.has(groupingOfStage.code),
+      ),
+    },
   };
 }
 
@@ -1795,6 +1818,346 @@ export async function writeTaskPlan(args: {
       setStatus: nextStatus,
       plannedStart: range.start ? isoDateOnly(range.start) : null,
       plannedEnd: range.end ? isoDateOnly(range.end) : null,
+    };
+  }, ORDER_WRITE_TRANSACTION);
+}
+
+// ---------------------------------------------------------------------------
+// V153 — ĐIỀU ĐỘ TỰ ĐỘNG THEO CÔNG ĐOẠN (từ HÀNG ĐỢI đã sắp theo tiêu chí ưu tiên)
+//
+// Luồng: tiêu chí ưu tiên → HÀNG ĐỢI có thứ tự → gom nhóm + năng lực → điều độ tự động
+//        → XÁC NHẬN (apply) → rồi mới thêm/bớt thủ công.
+// ---------------------------------------------------------------------------
+
+export type StageDispatchItem = {
+  taskId: number;
+  setId: number;
+  scope: string;
+  setNo: string | null;
+  orderCode: string | null;
+  customerName: string | null;
+  paintColor: string | null;
+  dueDate: string | null;
+  demand: number;
+  score: number;
+  groupKey: string | null;
+  ready: string;
+  /** Thứ tự trong hàng đợi (1 = trên cùng). */
+  queueRank: number;
+};
+
+export type StageDispatchDay = {
+  date: string;
+  worked: number;
+  capacity: number | null;
+  ratio: number | null;
+  tone: "ok" | "warn" | "bad";
+  items: Array<{ taskId: number; setId: number; setNo: string | null; paintColor: string | null; demand: number; groupKey: string | null }>;
+};
+
+export type StageDispatchPreview = {
+  version: string;
+  stage: { code: string; name: string; seq: number; capacity: number | null; unit: "CANH" | "BO"; capacitySource: CapacitySource };
+  /** Chế độ đã dùng: xếp lần lượt theo hàng đợi, hay GOM LÔ theo nhóm. */
+  mode: "HANG_DOI" | "GOM_LO";
+  modeNote: string;
+  criteria: Array<{ code: string; weight: number }>;
+  grouping: { code: string; tolerance: number } | null;
+  queue: StageDispatchItem[];
+  days: StageDispatchDay[];
+  assignments: Array<{ taskId: number; setId: number; day: string; queueRank: number }>;
+  overflow: number[];
+  from: string;
+  usedDays: number;
+};
+
+/** Hàng đợi + đề xuất ngày cho MỘT công đoạn (chưa ghi gì). */
+export async function previewStageDispatch(query: {
+  stageCode: string;
+  from?: string | null;
+  horizonDays?: number | null;
+}): Promise<StageDispatchPreview> {
+  const config = await readProductionConfig();
+  const calendar = await loadCalendar(config);
+  const [stages, workCenters, priority, paintColors] = await Promise.all([
+    loadActiveStages(),
+    loadActiveWorkCenters(),
+    readPriorityConfig(),
+    loadPaintColors(),
+  ]);
+  const stage = stages.find((row) => row.code === String(query.stageCode ?? "").trim().toUpperCase());
+  if (!stage) throw new Error("Không tìm thấy công đoạn (hoặc công đoạn đã tắt).");
+
+  const config2 = config;
+  const today = todayInVietnam();
+  const from = parseIsoDateStrict(query.from ?? null) ?? today;
+  const horizonDays = Math.min(365, Math.max(1, Math.trunc(Number(query.horizonDays) || 120)));
+  const to = addWorkingDays(from, horizonDays, calendar);
+
+  const unit = loadUnitOfStage(stage);
+  const capacity = capacityOfStage({ capacityPerDay: stage.capacityPerDay, workCenterCode: stage.workCenterCode }, workCenters);
+  const rule = priority.stageRules[stage.code] ?? priority.defaultRule;
+  const grouping = groupingOf(rule);
+  const paintGroupOf = makePaintGroupResolver(paintColors);
+
+  const openTasks = await prisma.productionTask.findMany({
+    where: { stageCode: stage.code, status: { notIn: ["XONG", "BO_QUA"] }, plannedStart: null },
+    select: { id: true, setId: true, stageCode: true, seq: true, scope: true, status: true, plannedStart: true },
+  });
+  if (!openTasks.length) {
+    return {
+      version: await productionPlanVersion(),
+      stage: { code: stage.code, name: stage.name, seq: stage.seq, capacity: capacity.value, unit, capacitySource: capacity.source },
+      mode: "HANG_DOI",
+      modeNote: "Không còn bộ nào chờ ở công đoạn này.",
+      criteria: [],
+      grouping: null,
+      queue: [],
+      days: [],
+      assignments: [],
+      overflow: [],
+      from: isoDateOnly(from),
+      usedDays: 0,
+    };
+  }
+
+  const setIds = Array.from(new Set(openTasks.map((task) => task.setId)));
+  const requiredCodes = String(stage.requiresStage ?? "")
+    .split(",")
+    .map((code) => code.trim())
+    .filter(Boolean);
+
+  type PredecessorRow = {
+    id: number;
+    setId: number;
+    stageCode: string;
+    scope: string;
+    status: string;
+    plannedStart: Date | null;
+    plannedEnd: Date | null;
+    actualEnd: Date | null;
+  };
+  const [sets, predecessors] = await Promise.all([
+    prisma.productionSet.findMany({ where: { id: { in: setIds } } }),
+    requiredCodes.length
+      ? prisma.productionTask.findMany({
+          where: { setId: { in: setIds }, stageCode: { in: requiredCodes } },
+          select: { id: true, setId: true, stageCode: true, scope: true, status: true, plannedStart: true, plannedEnd: true, actualEnd: true },
+        })
+      : Promise.resolve([] as PredecessorRow[]),
+  ]);
+  const setById = new Map(sets.map((row) => [row.id, row]));
+  const tasksBySet = new Map<number, PredecessorRow[]>();
+  for (const task of predecessors) {
+    const list = tasksBySet.get(task.setId);
+    if (list) list.push(task);
+    else tasksBySet.set(task.setId, [task]);
+  }
+
+  const orders = await loadOrderFacts(Array.from(new Set(sets.map((row) => Number(row.orderId)))));
+  const stageByCode = new Map(stages.map((row) => [row.code, { code: row.code, requiresStage: row.requiresStage }]));
+  const scoreContext = {
+    today,
+    calendar,
+    config: priority,
+    orders,
+    rankOf: new Map<number, number>(),
+    totalSets: sets.length,
+    deliveryBufferDays: Number(config2.deliveryBufferDays) || 0,
+  };
+
+  const queue: StageDispatchItem[] = [];
+  const dispatchItems: Array<{ taskId: number; setId: number; score: number; demand: number; ready: Date; groupKey: string | null }> = [];
+
+  for (const task of openTasks) {
+    const set = setById.get(task.id === task.id ? task.setId : task.setId);
+    if (!set) continue;
+    const setTasks = tasksBySet.get(task.setId) ?? [];
+    const state = waitStateOfTask({ task, setTasks, stageByCode });
+    if (!state.waiting) continue;
+
+    const setRow = set as unknown as ProductionSetRow;
+    const score = scoreSet(setRow, stage.code, scoreContext).score;
+    const demand = demandOfTask(setRow, stage);
+    const ready = readyDayFor({
+      set: setRow,
+      task: { ...task, stageKind: "GIA_CONG", workCenterCode: stage.workCenterCode, qtyExpected: null, qtyDone: null, targetStart: null, targetEnd: null, actualStart: null, assignee: null, isRework: false, reworkFromStage: null, reasonCode: null, note: null, updatedBy: null, orderItemId: null } as unknown as ProductionTaskRow,
+      stage,
+      placed: new Map(
+        setTasks
+          .filter((row) => row.status === "XONG" || row.plannedStart)
+          .map((row) => [row.id, { start: row.plannedStart, end: row.actualEnd ?? row.plannedEnd ?? row.plannedStart }]),
+      ),
+      calendar,
+      from,
+      overlap: Number(config.overlapDaysPerStep) || 0,
+      tasksBySet: new Map([[task.setId, setTasks as unknown as ProductionTaskRow[]]]),
+    });
+
+    queue.push({
+      taskId: task.id,
+      setId: set.id,
+      scope: task.scope,
+      setNo: set.setNo,
+      orderCode: set.orderCode,
+      customerName: set.customerName,
+      paintColor: set.paintColor,
+      dueDate: set.dueDate ? isoDateOnly(set.dueDate) : null,
+      demand,
+      score,
+      groupKey: grouping ? groupKeyOf(grouping.code as never, setRow, { paintGroupOf }) : null,
+      ready: isoDateOnly(ready),
+      queueRank: 0,
+    });
+    dispatchItems.push({ taskId: task.id, setId: set.id, score, demand, ready, groupKey: grouping ? groupKeyOf(grouping.code as never, setRow, { paintGroupOf }) : null });
+  }
+
+  const result = scheduleQueue({
+    items: dispatchItems,
+    capacity: capacity.value,
+    from,
+    to,
+    calendar,
+    // GOM LÔ chỉ khi công đoạn khai đủ và có chỉ tiêu gom nhóm (giống quy tắc engine)
+    maxGroupsPerDay:
+      stage.batchKey && Number(stage.batchMinQty) >= 10 && grouping && BATCH_GROUP_CODES.has(grouping.code)
+        ? Number(stage.changeoverMaxPerDay) || 2
+        : null,
+    minLot: stage.batchMinQty,
+  });
+
+  const rankByTask = new Map(result.assignments.map((item) => [item.taskId, item.rank]));
+  const queueWithRank = queue
+    .map((item) => ({ ...item, queueRank: rankByTask.get(item.taskId) ?? 0 }))
+    .sort((a, b) => (a.queueRank || 1e9) - (b.queueRank || 1e9) || b.score - a.score || a.setId - b.setId);
+
+  const dayDetails: StageDispatchDay[] = result.days.map((day) => {
+    const ratio = capacity.value && capacity.value > 0 ? day.worked / capacity.value : null;
+    return {
+      date: isoDateOnly(day.day),
+      worked: day.worked,
+      capacity: capacity.value,
+      ratio,
+      tone: ratio === null ? "ok" : ratio >= 0.999 ? "bad" : ratio >= 0.9 ? "warn" : "ok",
+      items: day.assignments
+        .sort((a, b) => a.rank - b.rank)
+        .map((assignment) => {
+          const set = setById.get(assignment.setId);
+          const demand = dispatchItems.find((item) => item.taskId === assignment.taskId)?.demand ?? 0;
+          return {
+            taskId: assignment.taskId,
+            setId: assignment.setId,
+            setNo: set?.setNo ?? null,
+            paintColor: set?.paintColor ?? null,
+            demand,
+            groupKey: assignment.groupKey,
+          };
+        }),
+    };
+  });
+
+  return {
+    version: await productionPlanVersion(),
+    stage: { code: stage.code, name: stage.name, seq: stage.seq, capacity: capacity.value, unit, capacitySource: capacity.source },
+    mode: result.mode,
+    modeNote:
+      result.mode === "GOM_LO"
+        ? `GOM LÔ theo nhóm · tối đa ${Number(stage.changeoverMaxPerDay) || 2} nhóm/ngày · lô tối thiểu ${stage.batchMinQty}`
+        : "Xếp lần lượt theo hàng đợi (chưa bật gom lô cho công đoạn này)",
+    criteria: rule.criteria.filter((item) => item.weight > 0).map((item) => ({ code: item.code, weight: item.weight })),
+    grouping: grouping ? { code: grouping.code, tolerance: grouping.tolerance } : null,
+    queue: queueWithRank,
+    days: dayDetails,
+    assignments: result.assignments.map((item) => ({ taskId: item.taskId, setId: item.setId, day: isoDateOnly(item.day), queueRank: item.rank })),
+    overflow: result.overflow,
+    from: isoDateOnly(from),
+    usedDays: result.usedDays,
+  };
+}
+
+/**
+ * XÁC NHẬN điều độ tự động của MỘT công đoạn → ghi vào kế hoạch.
+ * Đồng thời **xoá kế hoạch của mọi công đoạn PHÍA SAU** của những bộ vừa xếp (đúng quy tắc nhà máy).
+ * Ghi gộp: 3 câu SQL cho tasks/sets + 1 câu log, tất cả trong MỘT transaction.
+ */
+export async function applyStageDispatch(query: {
+  stageCode: string;
+  from?: string | null;
+  horizonDays?: number | null;
+  byName?: string | null;
+}): Promise<{ sets: number; tasks: number; cleared: number; days: number; overflow: number }> {
+  const preview = await previewStageDispatch(query);
+  const rows = preview.assignments;
+  if (!rows.length) {
+    return { sets: 0, tasks: 0, cleared: 0, days: 0, overflow: preview.overflow.length };
+  }
+  const records = rows.map((row) => ({ id: row.taskId, day: row.day }));
+  const setIds = Array.from(new Set(rows.map((row) => row.setId)));
+  const assignedIds = rows.map((row) => row.taskId);
+  const byName = query.byName?.trim() || null;
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.$executeRaw`
+      UPDATE production_tasks AS t
+      SET planned_start = v.day::date, planned_end = v.day::date, updated_at = now()
+      FROM jsonb_to_recordset(${JSON.stringify(records)}::jsonb) AS v(id int, day text)
+      WHERE t.id = v.id`;
+    if (Number(updated) !== records.length) {
+      throw new Error(`Chỉ ghi được ${Number(updated)}/${records.length} công đoạn — đã huỷ, điều độ không đổi.`);
+    }
+
+    // Xoá công đoạn PHÍA SAU của các bộ vừa xếp (trừ công đoạn đã XONG).
+    const cleared = await tx.$executeRaw`
+      UPDATE production_tasks AS t
+      SET planned_start = NULL, planned_end = NULL, updated_at = now()
+      FROM production_tasks AS a
+      WHERE a.id = ANY(${assignedIds}::int[])
+        AND t.set_id = a.set_id
+        AND t.id <> a.id
+        AND t.seq > a.seq
+        AND t.status <> 'XONG'
+        AND t.planned_start IS NOT NULL`;
+
+    // Cập nhật lại ngày kế hoạch + trạng thái của từng bộ (một câu).
+    await tx.$executeRaw`
+      UPDATE production_sets AS s
+      SET planned_start = x.start_date,
+          planned_end   = x.end_date,
+          status = CASE
+            WHEN x.start_date IS NULL THEN (CASE WHEN s.status = 'DA_XEP_LICH' THEN 'CHO_XEP_LICH' ELSE s.status END)
+            ELSE (CASE WHEN s.status = 'CHO_XEP_LICH' THEN 'DA_XEP_LICH' ELSE s.status END)
+          END,
+          updated_at = now()
+      FROM (
+        SELECT s2.id AS set_id,
+               min(t.planned_start) AS start_date,
+               max(coalesce(t.planned_end, t.planned_start)) AS end_date
+        FROM production_sets AS s2
+        LEFT JOIN production_tasks AS t
+          ON t.set_id = s2.id AND t.planned_start IS NOT NULL AND t.status <> 'XONG' AND t.stage_kind <> 'CHO'
+        WHERE s2.id = ANY(${setIds}::int[])
+        GROUP BY s2.id
+      ) AS x
+      WHERE s.id = x.set_id`;
+
+    await tx.productionLog.createMany({
+      data: setIds.slice(0, 2000).map((setId) => ({
+        entity: "SET",
+        entityId: setId,
+        action: "DIEU_DO_TU_DONG",
+        field: preview.stage.code,
+        oldValue: null,
+        newValue: `${preview.mode} · ${preview.usedDays} ngày · ${byName ?? ""}`.trim(),
+        byName,
+      })),
+    });
+
+    return {
+      sets: setIds.length,
+      tasks: Number(updated),
+      cleared: Number(cleared),
+      days: preview.usedDays,
+      overflow: preview.overflow.length,
     };
   }, ORDER_WRITE_TRANSACTION);
 }
