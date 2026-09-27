@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ErpShell } from "@/components/erp-shell";
+import { PlanAutoRefresh } from "@/components/production/plan-auto-refresh";
 import { ReportCard, ReportKpi, reportKpiGrid } from "@/components/reports/report-ui";
 import { formatDate, formatNumber } from "@/components/order-list/format";
 import { SET_STATUS_LABELS } from "@/lib/production/catalog";
@@ -35,6 +36,7 @@ export default async function ProductionReportPage() {
         </div>
       }
     >
+      <PlanAutoRefresh />
       <div className="space-y-3">
         <section className={reportKpiGrid}>
           <ReportKpi

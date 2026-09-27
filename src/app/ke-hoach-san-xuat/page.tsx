@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ErpShell } from "@/components/erp-shell";
+import { PlanAutoRefresh } from "@/components/production/plan-auto-refresh";
 import { ReportCard, ReportKpi, reportKpiGrid } from "@/components/reports/report-ui";
 import { formatDate, formatNumber } from "@/components/order-list/format";
 import { todayInVietnam, MS_DAY } from "@/lib/production/calendar";
@@ -94,6 +95,7 @@ export default async function ProductionPlanPage() {
         </div>
       }
     >
+      <PlanAutoRefresh />
       <div className="space-y-3">
         <section className={reportKpiGrid}>
           <ReportKpi label="Bộ trong kế hoạch" value={formatNumber(summary.total)} hint="Đã đưa từ đơn vào sản xuất" tone="neutral" />

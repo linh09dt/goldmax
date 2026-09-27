@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ErpShell } from "@/components/erp-shell";
+import { PlanAutoRefresh } from "@/components/production/plan-auto-refresh";
 import { BarList, ReportCard, ReportFilterBar, ReportKpi, reportKpiGrid } from "@/components/reports/report-ui";
 import { buildProductionLoad } from "@/lib/reporting";
 import { buildOrderListWhere, type OrderListQuery } from "@/lib/order-list-filters";
@@ -27,6 +28,7 @@ export default async function ProductionLoadPage({ searchParams }: { searchParam
       title="Tải sản xuất theo tuần"
       subtitle="Đơn đã xác nhận xếp theo Ngày cần giao: các đơn quá hạn và 8 tuần tới."
     >
+      <PlanAutoRefresh />
       <div className="space-y-3">
         <ReportFilterBar query={query} options={options} exportHref={exportHref} action="/reports/production-load" fields={["fromto", "dealer", "sales", "region"]} />
 

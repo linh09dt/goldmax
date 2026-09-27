@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ErpShell } from "@/components/erp-shell";
+import { PlanAutoRefresh } from "@/components/production/plan-auto-refresh";
 import { StagePlanBoard } from "@/components/production/stage-plan-board";
 import { dateKeyUtc, todayInVietnam } from "@/lib/production/calendar";
 
@@ -30,6 +31,7 @@ export default async function StagePlanPage() {
         </div>
       }
     >
+      <PlanAutoRefresh />
       <StagePlanBoard today={today} />
     </ErpShell>
   );

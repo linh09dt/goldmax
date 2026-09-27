@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ErpShell } from "@/components/erp-shell";
+import { PlanAutoRefresh } from "@/components/production/plan-auto-refresh";
 import { ReportCard, ReportKpi, reportKpiGrid } from "@/components/reports/report-ui";
 import { SetProgressForm, type ProgressTask } from "@/components/production/set-progress-form";
 import { StartProductionForm } from "@/components/production/start-production-form";
@@ -169,6 +170,7 @@ export default async function ProductionSetPage({
         </div>
       }
     >
+      <PlanAutoRefresh />
       <div className="space-y-3">
         <section className={reportKpiGrid}>
           <ReportKpi label="Trạng thái" value={SET_STATUS_LABELS[setRow.status] ?? setRow.status} hint="Suy từ trạng thái công đoạn" tone={setRow.status === "TAM_DUNG" ? "bad" : setRow.status === "HOAN_THANH" || setRow.status === "DA_GIAO" ? "good" : "neutral"} />

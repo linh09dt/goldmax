@@ -49,7 +49,14 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
         isActive: (pathname) =>
           pathname.startsWith("/ke-hoach-san-xuat") &&
           !pathname.startsWith("/ke-hoach-san-xuat/cau-hinh") &&
-          !pathname.startsWith("/ke-hoach-san-xuat/ke-hoach-cong-doan"),
+          !pathname.startsWith("/ke-hoach-san-xuat/ke-hoach-cong-doan") &&
+          !pathname.startsWith("/ke-hoach-san-xuat/dieu-do"),
+      },
+      {
+        href: "/ke-hoach-san-xuat/dieu-do",
+        label: "Điều độ công đoạn",
+        icon: <IconFactory />,
+        isActive: (pathname) => pathname.startsWith("/ke-hoach-san-xuat/dieu-do"),
       },
       {
         href: "/ke-hoach-san-xuat/ke-hoach-cong-doan",

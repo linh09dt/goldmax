@@ -44,12 +44,18 @@ import {
 import { buildComponentOrderDrafts, buildTaskDrafts } from "@/lib/production/routing";
 import {
   buildStagePlan,
+  capacityOfStage,
+  demandOfTask,
+  loadUnitOfStage,
   PLANNABLE_SET_STATUSES,
+  type CapacitySource,
   type StagePlanResult,
 } from "@/lib/production/stage-plan";
+import { downstreamTasksToClear, setPlanRange, waitStateOfTask } from "@/lib/production/manual-plan";
 import {
   normalizePriorityConfig,
   PRIORITY_CONFIG_SETTING_KEY,
+  scoreSet,
   type OrderFacts,
   type PaintColorRow,
   type PriorityConfig,
@@ -1430,4 +1436,365 @@ export async function loadPaintColors(): Promise<PaintColorRow[]> {
     console.warn("Chưa đọc được bảng production_paint_colors (đã chạy migrate-production-v151-mau-son.sql chưa?):", error);
     return [];
   }
+}
+
+// ---------------------------------------------------------------------------
+// V152 — ĐIỀU ĐỘ THỦ CÔNG THEO CÔNG ĐOẠN + DANH SÁCH ĐỢI + TOKEN REALTIME
+// ---------------------------------------------------------------------------
+
+/**
+ * TOKEN PHIÊN BẢN dữ liệu kế hoạch — dùng cho REALTIME.
+ *
+ * Rất nhẹ (1 câu SQL) để client hỏi lại vài giây một lần. Khi token đổi ⇒ có người vừa
+ * thêm/bớt bộ, vừa báo xong, vừa nhập đơn mới… thì client tự tải lại — **không cần F5**.
+ */
+export async function productionPlanVersion(): Promise<string> {
+  const rows = await prisma.$queryRaw<Array<Record<string, unknown>>>`
+    SELECT
+      (SELECT max(updated_at)::text FROM production_tasks) AS t,
+      (SELECT max(updated_at)::text FROM production_sets)  AS s,
+      (SELECT max(updated_at)::text FROM sales_orders)     AS o,
+      (SELECT count(*) FROM production_tasks)              AS nt,
+      (SELECT count(*) FROM production_sets)               AS ns,
+      (SELECT count(*) FROM sales_orders)                  AS no`;
+  const row = rows[0] ?? {};
+  return [row.t, row.s, row.o, row.nt, row.ns, row.no].map((value) => String(value ?? "")).join("|");
+}
+
+export type StageBoardItem = {
+  taskId: number;
+  setId: number;
+  scope: string;
+  setNo: string | null;
+  orderCode: string | null;
+  customerName: string | null;
+  productName: string | null;
+  paintColor: string | null;
+  dueDate: string | null;
+  /** Tải của bộ ở công đoạn này (theo đơn vị của công đoạn). */
+  demand: number;
+  unit: "CANH" | "BO";
+  status: string;
+  /** Điểm ưu tiên (để sắp danh sách đợi). */
+  score: number;
+  /** Đang chờ những công đoạn nào (rỗng = đủ điều kiện lên kế hoạch). */
+  waitingFor: string[];
+};
+
+export type StageBoardDay = {
+  date: string;
+  isWorkingDay: boolean;
+  items: StageBoardItem[];
+  worked: number;
+  capacity: number | null;
+  unit: "CANH" | "BO";
+  ratio: number | null;
+  tone: "ok" | "warn" | "bad";
+};
+
+export type StageBoardData = {
+  version: string;
+  stage: {
+    code: string;
+    name: string;
+    seq: number;
+    workCenterCode: string | null;
+    capacity: number | null;
+    capacitySource: CapacitySource;
+    unit: "CANH" | "BO";
+    requiresStage: string | null;
+    changeoverMaxPerDay: number | null;
+    batchMinQty: number | null;
+    batchKey: string | null;
+  };
+  stages: Array<{ code: string; name: string; seq: number }>;
+  from: string;
+  days: StageBoardDay[];
+  waiting: StageBoardItem[];
+  blocked: StageBoardItem[];
+  totals: { waiting: number; blocked: number; planned: number; unplannedItems: number };
+};
+
+const BOARD_MAX_DAYS = 31;
+
+/**
+ * Dữ liệu một bảng điều độ của MỘT công đoạn: danh sách đợi + kế hoạch từng ngày.
+ * (Không ghi gì — chỉ đọc.)
+ */
+export async function loadStageBoard(query: {
+  stageCode: string;
+  from?: string | null;
+  days?: number | null;
+}): Promise<StageBoardData> {
+  const config = await readProductionConfig();
+  const calendar = await loadCalendar(config);
+  const [stages, workCenters, priority, unplannedItems] = await Promise.all([
+    loadActiveStages(),
+    loadActiveWorkCenters(),
+    readPriorityConfig(),
+    countUnplannedOrderItems(),
+  ]);
+  const stage = stages.find((row) => row.code === String(query.stageCode ?? "").trim().toUpperCase());
+  if (!stage) throw new Error("Không tìm thấy công đoạn (hoặc công đoạn đã tắt).");
+
+  const unit = loadUnitOfStage(stage);
+  const capacity = capacityOfStage({ capacityPerDay: stage.capacityPerDay, workCenterCode: stage.workCenterCode }, workCenters);
+  const dayCount = Math.min(BOARD_MAX_DAYS, Math.max(1, Math.trunc(Number(query.days) || 7)));
+  const from = parseIsoDateStrict(query.from ?? null) ?? todayInVietnam();
+  const today = todayInVietnam();
+
+  const openTasks = await prisma.productionTask.findMany({
+    where: { stageCode: stage.code, status: { notIn: ["XONG", "BO_QUA"] } },
+    select: { id: true, setId: true, stageCode: true, seq: true, scope: true, status: true, plannedStart: true, plannedEnd: true, stageKind: true },
+  });
+
+  const setIds = Array.from(new Set(openTasks.map((task) => task.setId)));
+  const requiredCodes = String(stage.requiresStage ?? "")
+    .split(",")
+    .map((code) => code.trim())
+    .filter(Boolean);
+
+  const [sets, predecessorTasks] = await Promise.all([
+    setIds.length ? prisma.productionSet.findMany({ where: { id: { in: setIds } } }) : Promise.resolve([]),
+    requiredCodes.length && setIds.length
+      ? prisma.productionTask.findMany({
+          where: { setId: { in: setIds }, stageCode: { in: requiredCodes } },
+          select: { setId: true, stageCode: true, scope: true, status: true, plannedStart: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const setById = new Map(sets.map((row) => [row.id, row]));
+  const tasksBySet = new Map<number, Array<{ stageCode: string; scope: string; status: string; plannedStart: Date | null }>>();
+  for (const task of predecessorTasks) {
+    const list = tasksBySet.get(task.setId);
+    if (list) list.push(task);
+    else tasksBySet.set(task.setId, [task]);
+  }
+
+  const orderIds = Array.from(new Set(sets.map((row) => Number(row.orderId)).filter((id) => Number.isInteger(id))));
+  const orders = await loadOrderFacts(orderIds);
+  const stageByCode = new Map(stages.map((row) => [row.code, { code: row.code, requiresStage: row.requiresStage }]));
+  const scoreContext = {
+    today,
+    calendar,
+    config: priority,
+    orders,
+    rankOf: new Map<number, number>(),
+    totalSets: sets.length,
+    deliveryBufferDays: Number(config.deliveryBufferDays) || 0,
+  };
+
+  const waiting: StageBoardItem[] = [];
+  const blocked: StageBoardItem[] = [];
+
+  for (const task of openTasks) {
+    const set = setById.get(task.setId);
+    if (!set) continue;
+    const state = waitStateOfTask({
+      task,
+      setTasks: tasksBySet.get(task.setId) ?? [],
+      stageByCode,
+    });
+    const item: StageBoardItem = {
+      taskId: task.id,
+      setId: set.id,
+      scope: task.scope,
+      setNo: set.setNo,
+      orderCode: set.orderCode,
+      customerName: set.customerName,
+      productName: set.productName,
+      paintColor: set.paintColor,
+      dueDate: set.dueDate ? isoDateOnly(set.dueDate) : null,
+      demand: demandOfTask(set as unknown as ProductionSetRow, stage),
+      unit,
+      status: task.status,
+      score: state.waiting || task.plannedStart ? scoreSet(set as unknown as ProductionSetRow, stage.code, scoreContext).score : 0,
+      waitingFor: state.waitingFor,
+    };
+    if (task.plannedStart) continue; // đã lên kế hoạch → nằm ở cột ngày, không nằm danh sách đợi
+    (state.waiting ? waiting : blocked).push(item);
+  }
+
+  waiting.sort(
+    (a, b) =>
+      b.score - a.score ||
+      (a.dueDate ? Date.parse(a.dueDate) : Number.POSITIVE_INFINITY) - (b.dueDate ? Date.parse(b.dueDate) : Number.POSITIVE_INFINITY) ||
+      a.setId - b.setId,
+  );
+
+  // Các ngày trên bảng (ngày dương lịch liên tiếp, có đánh dấu ngày nghỉ)
+  const days: StageBoardDay[] = [];
+  const plannedByDay = new Map<string, StageBoardItem[]>();
+  for (const task of openTasks) {
+    if (!task.plannedStart) continue;
+    const key = isoDateOnly(task.plannedStart);
+    const set = setById.get(task.setId);
+    if (!set) continue;
+    const list = plannedByDay.get(key) ?? [];
+    list.push({
+      taskId: task.id,
+      setId: set.id,
+      scope: task.scope,
+      setNo: set.setNo,
+      orderCode: set.orderCode,
+      customerName: set.customerName,
+      productName: set.productName,
+      paintColor: set.paintColor,
+      dueDate: set.dueDate ? isoDateOnly(set.dueDate) : null,
+      demand: demandOfTask(set as unknown as ProductionSetRow, stage),
+      unit,
+      status: task.status,
+      score: 0,
+      waitingFor: [],
+    });
+    plannedByDay.set(key, list);
+  }
+
+  for (let offset = 0; offset < dayCount; offset += 1) {
+    const date = new Date(from.getTime() + offset * 86400000);
+    const key = isoDateOnly(date);
+    const items = (plannedByDay.get(key) ?? []).sort((a, b) => Number(b.demand) - Number(a.demand) || a.setId - b.setId);
+    const worked = items.reduce((sum, item) => sum + item.demand, 0);
+    const ratio = capacity.value && capacity.value > 0 ? worked / capacity.value : null;
+    days.push({
+      date: key,
+      isWorkingDay: calendar.workingDays.includes(date.getUTCDay()) && !calendar.holidays.has(key),
+      items,
+      worked,
+      capacity: capacity.value,
+      unit,
+      ratio,
+      tone: ratio === null ? "ok" : ratio >= 0.999 ? "bad" : ratio >= 0.9 ? "warn" : "ok",
+    });
+  }
+
+  return {
+    version: await productionPlanVersion(),
+    stage: {
+      code: stage.code,
+      name: stage.name,
+      seq: stage.seq,
+      workCenterCode: stage.workCenterCode,
+      capacity: capacity.value,
+      capacitySource: capacity.source,
+      unit,
+      requiresStage: stage.requiresStage,
+      changeoverMaxPerDay: stage.changeoverMaxPerDay,
+      batchMinQty: stage.batchMinQty,
+      batchKey: stage.batchKey,
+    },
+    stages: stages.map((row) => ({ code: row.code, name: row.name, seq: row.seq })),
+    from: isoDateOnly(from),
+    days,
+    waiting,
+    blocked,
+    totals: {
+      waiting: waiting.length,
+      blocked: blocked.length,
+      planned: openTasks.filter((task) => task.plannedStart).length,
+      unplannedItems,
+    },
+  };
+}
+
+export type TaskPlanWriteResult = {
+  taskId: number;
+  setId: number;
+  action: "GAN" | "BO";
+  clearedDownstream: number;
+  setStatus: string;
+  plannedStart: string | null;
+  plannedEnd: string | null;
+};
+
+/**
+ * THÊM/BỚT một bộ ở một công đoạn (điều độ thủ công).
+ *
+ * Quy tắc nhà máy chốt: thêm hay bớt ở một công đoạn ⇒ **mọi công đoạn PHÍA SAU của cùng bộ
+ * bị xoá khỏi kế hoạch ngay lập tức** (trừ công đoạn đã XONG — đó là lịch sử).
+ * Ghi gộp: 1 transaction, cập nhật bộ + ghi log.
+ */
+export async function writeTaskPlan(args: {
+  taskId: number;
+  date?: string | null;
+  byName?: string | null;
+}): Promise<TaskPlanWriteResult> {
+  const action: "GAN" | "BO" = args.date ? "GAN" : "BO";
+  const day = args.date ? parseIsoDateStrict(args.date) : null;
+  if (action === "GAN" && !day) throw new Error("Ngày không hợp lệ (cần dạng YYYY-MM-DD).");
+
+  const task = await prisma.productionTask.findUnique({
+    where: { id: args.taskId },
+    select: { id: true, setId: true, stageCode: true, seq: true, status: true },
+  });
+  if (!task) throw new Error("Không tìm thấy công đoạn.");
+  if (task.status === "XONG" || task.status === "BO_QUA") {
+    throw new Error("Công đoạn này đã xong hoặc đã bỏ qua — không sửa kế hoạch được.");
+  }
+
+  const byName = args.byName?.trim() || null;
+
+  return prisma.$transaction(async (tx) => {
+    await tx.productionTask.update({
+      where: { id: task.id },
+      data: { plannedStart: day, plannedEnd: day, updatedBy: byName },
+    });
+
+    const siblings = await tx.productionTask.findMany({
+      where: { setId: task.setId },
+      select: { id: true, seq: true, status: true, plannedStart: true, plannedEnd: true, stageKind: true },
+    });
+    const downstream = downstreamTasksToClear(siblings, task.seq, { excludeTaskId: task.id });
+    let cleared = 0;
+    if (downstream.length) {
+      const result = await tx.productionTask.updateMany({
+        where: { id: { in: downstream } },
+        data: { plannedStart: null, plannedEnd: null, updatedBy: byName },
+      });
+      cleared = Number(result.count);
+    }
+
+    const fresh = await tx.productionTask.findMany({
+      where: { setId: task.setId },
+      select: { id: true, seq: true, status: true, plannedStart: true, plannedEnd: true, stageKind: true },
+    });
+    const range = setPlanRange(fresh);
+    const set = await tx.productionSet.findUnique({ where: { id: task.setId }, select: { status: true } });
+    const nextStatus =
+      range.start === null
+        ? set?.status === "DA_XEP_LICH"
+          ? "CHO_XEP_LICH"
+          : set?.status ?? "CHO_XEP_LICH"
+        : set?.status === "CHO_XEP_LICH"
+          ? "DA_XEP_LICH"
+          : set?.status ?? "CHO_XEP_LICH";
+
+    await tx.productionSet.update({
+      where: { id: task.setId },
+      data: { plannedStart: range.start, plannedEnd: range.end, status: nextStatus },
+    });
+
+    await tx.productionLog.create({
+      data: {
+        entity: "SET",
+        entityId: task.setId,
+        action: action === "GAN" ? "DIEU_DO_THEM_BO" : "DIEU_DO_BOT_BO",
+        field: task.stageCode,
+        oldValue: null,
+        newValue: `${action === "GAN" ? (day ? isoDateOnly(day) : "?") : "bỏ"}${cleared ? ` · xoá ${cleared} công đoạn phía sau` : ""}`,
+        byName,
+      },
+    });
+
+    return {
+      taskId: task.id,
+      setId: task.setId,
+      action,
+      clearedDownstream: cleared,
+      setStatus: nextStatus,
+      plannedStart: range.start ? isoDateOnly(range.start) : null,
+      plannedEnd: range.end ? isoDateOnly(range.end) : null,
+    };
+  }, ORDER_WRITE_TRANSACTION);
 }
