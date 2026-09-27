@@ -121,6 +121,25 @@ export type ProductionSetRow = {
   note: string | null;
   /** V149 — thời điểm bộ vào module kế hoạch: mốc FIFO theo `created_at`. */
   createdAt: Date;
+  // -------------------------------------------------------------------------
+  // V158 — Thông tin bổ sung cho bảng "Bộ chờ xếp lịch" (đọc thêm từ đơn hàng,
+  // KHÔNG lưu trong production_sets). Các trường này có thể vắng (undefined) khi
+  // dòng bộ không gắn được với dòng hàng của đơn (bộ nhập tay).
+  // -------------------------------------------------------------------------
+  /** Ô thoáng (panel_info) của dòng hàng. */
+  panelInfo?: string | null;
+  /** Khuôn (frame_mm) của dòng hàng. */
+  frameMm?: number | null;
+  /** Ngày lập/đặt hàng trên đơn (sales_orders.order_date). */
+  orderDate?: Date | null;
+  /** Ngày cập nhật đơn (sales_orders.excel_update_date). */
+  excelUpdateDate?: Date | null;
+  /** Loại khóa — tên sản phẩm của dòng phụ kiện nhóm "Khóa" trên bộ số. */
+  lockType?: string | null;
+  /** Loại PLX — tên sản phẩm của dòng phụ kiện nhóm "Phào Biệt Thự" trên bộ số. */
+  plxType?: string | null;
+  /** Ghi chú kỹ thuật của dòng hàng trên đơn (sales_order_items.note). */
+  orderItemNote?: string | null;
 };
 
 // ---------------------------------------------------------------------------

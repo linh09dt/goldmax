@@ -28,6 +28,7 @@ export { parseIsoDateStrict };
 import {
   canhEquivalentOf,
   deriveSetStatus,
+  normalizeViText,
   percentDoneOf,
   STAGE,
   taskUnlockState,
@@ -656,6 +657,164 @@ export type ProductionBoard = {
   programModels: Set<string>;
 };
 
+// ---------------------------------------------------------------------------
+// V158 — Thông tin bổ sung cho BẢNG "BỘ CHỜ XẾP LỊCH"
+//
+// Bảng này cần thêm các cột ĐỌC TỪ ĐƠN HÀNG mà `production_sets` không lưu:
+//   · Ô thoáng (panel_info) · Khuôn (frame_mm)
+//   · Ngày đặt hàng / Ngày cập nhật đơn
+//   · Loại khóa  = tên sản phẩm của dòng phụ kiện nhóm "Khóa" trên bộ số
+//   · Loại PLX   = tên sản phẩm của dòng phụ kiện nhóm "Phào Biệt Thự" trên bộ số
+// (đúng như yêu cầu: hai cột cuối lấy TÊN SẢN PHẨM của hàng phụ kiện có trên bộ số).
+// ---------------------------------------------------------------------------
+
+type QueueExtra = Pick<ProductionSetRow, "panelInfo" | "frameMm" | "orderDate" | "excelUpdateDate" | "lockType" | "plxType" | "orderItemNote">;
+
+type QueueDetailLine = { productName: string | null; productCode: string | null; model: string | null };
+
+/** Nhóm phụ kiện cần lấy tên sản phẩm (đã bỏ dấu, viết thường). */
+const QUEUE_LOCK_GROUP = "khoa";
+const QUEUE_PLX_GROUP = "phao biet thu";
+
+/**
+ * Nhóm hàng (TENHANG) của một dòng phụ kiện:
+ *  1. tra danh mục hàng hóa theo Mã/Model của dòng,
+ *  2. nếu không khớp thì so Tên sản phẩm với danh sách nhóm hàng.
+ */
+function accessoryGroupOf(
+  line: QueueDetailLine,
+  groupByCode: Map<string, string>,
+  groupNames: string[],
+): string {
+  const byCode = groupByCode.get(normalizeViText(line.productCode)) || groupByCode.get(normalizeViText(line.model));
+  if (byCode) return byCode;
+  const nameKey = normalizeViText(line.productName);
+  const match = groupNames.find((group) => normalizeViText(group) === nameKey);
+  return match ?? String(line.productName ?? "");
+}
+
+/** Tên sản phẩm hiển thị của dòng phụ kiện (bỏ qua giá trị chỉ là tên nhóm hàng). */
+function accessoryDisplayName(line: QueueDetailLine, group: string): string | null {
+  const groupKey = normalizeViText(group);
+  for (const value of [line.productName, line.productCode, line.model]) {
+    const text = String(value ?? "").trim();
+    if (text && normalizeViText(text) !== groupKey) return text;
+  }
+  const fallback = String(line.productName ?? line.productCode ?? line.model ?? "").trim();
+  return fallback || null;
+}
+
+async function loadQueueExtras(sets: ProductionSetRow[]): Promise<Map<number, QueueExtra>> {
+  const result = new Map<number, QueueExtra>();
+
+  const directItemIds = new Set<number>();
+  const fallbackOrderIds = new Set<number>();
+  for (const set of sets) {
+    if (set.orderItemId !== null && set.orderItemId !== undefined) directItemIds.add(set.orderItemId);
+    else if (set.orderId) fallbackOrderIds.add(set.orderId);
+  }
+  const itemConditions: Prisma.SalesOrderItemWhereInput[] = [];
+  if (directItemIds.size) itemConditions.push({ id: { in: Array.from(directItemIds) } });
+  if (fallbackOrderIds.size) itemConditions.push({ orderId: { in: Array.from(fallbackOrderIds) } });
+  if (!itemConditions.length) return result;
+
+  const items = await prisma.salesOrderItem.findMany({
+    where: { OR: itemConditions },
+    select: {
+      id: true,
+      orderId: true,
+      setNo: true,
+      panelInfo: true,
+      frameMm: true,
+      note: true,
+      order: { select: { orderDate: true, excelUpdateDate: true } },
+    },
+  });
+  if (!items.length) return result;
+
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  const itemByOrderSetNo = new Map<string, (typeof items)[number]>();
+  for (const item of items) {
+    const setNo = String(item.setNo ?? "").trim().toUpperCase();
+    if (setNo) itemByOrderSetNo.set(`${item.orderId}|${setNo}`, item);
+  }
+
+  // Gán mỗi BỘ với dòng hàng nguồn: ưu tiên `order_item_id`, chưa có thì dò theo (mã đơn + bộ số).
+  const itemIdBySet = new Map<number, number>();
+  for (const set of sets) {
+    if (set.orderItemId !== null && set.orderItemId !== undefined && itemById.has(set.orderItemId)) {
+      itemIdBySet.set(set.id, set.orderItemId);
+      continue;
+    }
+    const setNo = String(set.setNo ?? "").trim().toUpperCase();
+    if (!setNo) continue;
+    const item = itemByOrderSetNo.get(`${set.orderId}|${setNo}`);
+    if (item) itemIdBySet.set(set.id, item.id);
+  }
+  const itemIds = Array.from(new Set(itemIdBySet.values()));
+  if (!itemIds.length) return result;
+
+  const [details, catalog] = await Promise.all([
+    prisma.salesOrderItemDetail.findMany({
+      where: { orderItemId: { in: itemIds } },
+      select: { orderItemId: true, rowOrder: true, productName: true, productCode: true, model: true },
+      orderBy: [{ orderItemId: "asc" }, { rowOrder: "asc" }],
+    }),
+    prisma.itemMaster.findMany({
+      where: { category: "ACCESSORY" },
+      select: { code: true, name: true, salesModel: true },
+    }),
+  ]);
+
+  const groupByCode = new Map<string, string>();
+  const groupNames: string[] = [];
+  for (const row of catalog) {
+    const group = String(row.name ?? "").trim();
+    if (!group) continue;
+    if (!groupNames.some((name) => normalizeViText(name) === normalizeViText(group))) groupNames.push(group);
+    for (const key of [row.code, row.salesModel]) {
+      const normalized = normalizeViText(key);
+      if (normalized && !groupByCode.has(normalized)) groupByCode.set(normalized, group);
+    }
+  }
+
+  const linesByItem = new Map<number, QueueDetailLine[]>();
+  for (const line of details) {
+    const list = linesByItem.get(line.orderItemId) ?? [];
+    list.push({ productName: line.productName, productCode: line.productCode, model: line.model });
+    linesByItem.set(line.orderItemId, list);
+  }
+
+  const extraByItem = new Map<number, QueueExtra>();
+  for (const item of items) {
+    const locks: string[] = [];
+    const plx: string[] = [];
+    for (const line of linesByItem.get(item.id) ?? []) {
+      const group = accessoryGroupOf(line, groupByCode, groupNames);
+      const groupKey = normalizeViText(group);
+      const name = accessoryDisplayName(line, group);
+      if (!name) continue;
+      if (groupKey.includes(QUEUE_LOCK_GROUP) && !locks.includes(name)) locks.push(name);
+      if (groupKey.includes(QUEUE_PLX_GROUP) && !plx.includes(name)) plx.push(name);
+    }
+    extraByItem.set(item.id, {
+      panelInfo: item.panelInfo ?? null,
+      frameMm: item.frameMm ?? null,
+      orderDate: item.order?.orderDate ?? null,
+      excelUpdateDate: item.order?.excelUpdateDate ?? null,
+      lockType: locks.length ? locks.join(", ") : null,
+      plxType: plx.length ? plx.join(", ") : null,
+      orderItemNote: item.note ?? null,
+    });
+  }
+
+  for (const [setId, itemId] of itemIdBySet) {
+    const extra = extraByItem.get(itemId);
+    if (extra) result.set(setId, extra);
+  }
+  return result;
+}
+
 export async function loadProductionBoard(options: {
   from?: Date;
   to?: Date;
@@ -692,8 +851,17 @@ export async function loadProductionBoard(options: {
   });
 
   const calendar = await loadCalendar(config);
+  // V158 — bổ sung cột đọc từ đơn hàng (ô thoáng · khuôn · ngày · loại khóa · loại PLX).
+  const setRows = sets as unknown as ProductionSetRow[];
+  const queueExtras = await loadQueueExtras(setRows);
+  const enrichedSets = queueExtras.size
+    ? setRows.map((set) => {
+        const extra = queueExtras.get(set.id);
+        return extra ? { ...set, ...extra } : set;
+      })
+    : setRows;
   return {
-    sets: sets as unknown as ProductionSetRow[],
+    sets: enrichedSets,
     tasks: tasks as unknown as ProductionTaskRow[],
     workCenters,
     stages,

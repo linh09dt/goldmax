@@ -11,6 +11,7 @@ import {
   COMPONENT_LABELS,
   SET_STATUS_LABELS,
   percentDoneOf,
+  soPhaoPerBo,
   type ProductionTaskRow,
 } from "@/lib/production/catalog";
 import {
@@ -18,7 +19,7 @@ import {
   buildStageLoad,
   buildWarnings,
   buildWorkCenterLoad,
-  missingInfoForPlanning,
+  setLeadDaysFromTasks,
   sortSetsForPlanning,
 } from "@/lib/production/scheduling";
 import { countUnplannedOrderItems, loadProductionBoard } from "@/lib/production/service";
@@ -111,7 +112,7 @@ export default async function ProductionPlanPage() {
 
         <ReportCard
           title="Bộ chờ xếp lịch"
-          hint="Xếp theo hạn giao gần nhất trước (EDD). Cột “Phải bắt đầu” = hạn giao − đệm giao hàng − đường găng. **Xếp lịch bằng tay**: mở một bộ → gán ngày kế hoạch cho từng công đoạn."
+          hint="Xếp theo hạn giao gần nhất trước (EDD). “Số ngày dự kiến giao” = đường găng (tổng số ngày làm việc của các bước, cùng bước tính 1 lần). **Xếp lịch bằng tay**: mở một bộ → gán ngày kế hoạch cho từng công đoạn."
           right={`${formatNumber(waiting.length)} bộ`}
         >
           {waiting.length === 0 ? (
@@ -121,35 +122,62 @@ export default async function ProductionPlanPage() {
               <table className="erp-table">
                 <thead>
                   <tr>
+                    <th>Mã đơn hàng</th>
+                    <th>Đại lý</th>
+                    <th>Ngày tháng</th>
                     <th>Bộ số</th>
-                    <th>Mã đơn</th>
-                    <th>Khách hàng</th>
                     <th>Model</th>
-                    <th>Màu sơn</th>
-                    <th className="text-right">Cao × Rộng</th>
-                    <th className="text-right">Cánh</th>
-                    <th>Hạn giao</th>
-                    <th>Thiếu thông tin</th>
+                    <th>Ô thoáng</th>
+                    <th>Hướng mở</th>
+                    <th>Màu</th>
+                    <th className="text-right">
+                      Kích thước
+                      <span className="block font-normal">(cao × rộng × khuôn)</span>
+                    </th>
+                    <th className="text-right">Số thanh phào</th>
+                    <th>Loại khóa</th>
+                    <th>Loại PLX</th>
+                    <th className="text-right">Số cánh</th>
+                    <th>Ghi chú</th>
+                    <th className="text-right">
+                      Số ngày dự kiến giao
+                      <span className="block font-normal">(theo leadtime)</span>
+                    </th>
+                    <th>Ngày đặt</th>
+                    <th>Ngày giao</th>
                   </tr>
                 </thead>
                 <tbody>
                   {waiting.slice(0, 200).map((set) => {
-                    const missing = missingInfoForPlanning(set, config);
+                    const trimBars = soPhaoPerBo(set, { cuaDi: config.defaultTrimCuaDi, cuaSo: config.defaultTrimCuaSo });
+                    const leadDays = setLeadDaysFromTasks(tasksBySet.get(set.id) ?? [], stages, config);
+                    const size = [set.heightMm, set.widthMm, set.frameMm].some((value) => value !== null && value !== undefined)
+                      ? `${set.heightMm ?? "—"} × ${set.widthMm ?? "—"} × ${set.frameMm ?? "—"}`
+                      : "—";
+                    const note = set.orderItemNote || set.note || "";
                     return (
                       <tr key={set.id}>
+                        <td>{set.orderCode || "—"}</td>
+                        <td className="max-w-[180px] truncate" title={set.customerName ?? ""}>{set.customerName || "—"}</td>
+                        <td className="whitespace-nowrap">{formatDate(set.excelUpdateDate)}</td>
                         <td className="erp-td-strong">
                           <Link className="font-semibold text-cyan-700 hover:underline" href={`/ke-hoach-san-xuat/bo/${set.id}`}>
                             {set.setNo || `#${set.id}`}
                           </Link>
                         </td>
-                        <td>{set.orderCode || "—"}</td>
-                        <td className="max-w-[200px] truncate" title={set.customerName ?? ""}>{set.customerName || "—"}</td>
-                        <td className="max-w-[160px] truncate" title={set.model ?? ""}>{set.model || "—"}</td>
+                        <td className="max-w-[150px] truncate" title={set.model ?? ""}>{set.model || "—"}</td>
+                        <td className="max-w-[140px] truncate" title={set.panelInfo ?? ""}>{set.panelInfo || "—"}</td>
+                        <td className="whitespace-nowrap">{set.openingDirection || "—"}</td>
                         <td>{set.paintColor || "—"}</td>
-                        <td className="erp-td-num">{set.heightMm && set.widthMm ? `${set.heightMm} × ${set.widthMm}` : "—"}</td>
-                        <td className="erp-td-num">{formatNumber(canhEquivalentOf(set))}</td>
-                        <td>{formatDate(set.dueDate)}</td>
-                        <td>{missing.length ? <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-900">{missing.join(", ")}</span> : <span className="text-slate-400">đủ</span>}</td>
+                        <td className="erp-td-num whitespace-nowrap">{size}</td>
+                        <td className="erp-td-num" title="Số cánh + số thanh phào mặc định theo loại cửa (cửa đi / cửa sổ)">{formatNumber(trimBars)}</td>
+                        <td className="max-w-[160px] truncate" title={set.lockType ?? ""}>{set.lockType || "—"}</td>
+                        <td className="max-w-[160px] truncate" title={set.plxType ?? ""}>{set.plxType || "—"}</td>
+                        <td className="erp-td-num" title={`${formatNumber(set.leavesPerSet ?? 1)} cánh/bộ × ${formatNumber(set.quantity ?? 1)} bộ`}>{formatNumber(canhEquivalentOf(set))}</td>
+                        <td className="max-w-[220px] truncate" title={note}>{note || "—"}</td>
+                        <td className="erp-td-num" title="Đường găng: tổng số ngày làm việc của các bước">{formatNumber(leadDays)}</td>
+                        <td className="whitespace-nowrap">{formatDate(set.orderDate)}</td>
+                        <td className="whitespace-nowrap">{formatDate(set.dueDate)}</td>
                       </tr>
                     );
                   })}
